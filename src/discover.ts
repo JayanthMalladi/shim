@@ -46,7 +46,7 @@ function githubRepo(manifest: any): string | undefined {
   return m ? `${m[1]}/${m[2]}` : undefined;
 }
 
-const isV6 = (range: string) => /(^|[\^~>=\s|])6(\.|$|\s)/.test(range) && !/(^|[\^~>=\s|])7\./.test(range);
+const isV6 = (range: string) => /(^|[\^~>=\s|])6(\.|$|\s)/.test(range) && !/(^|[\^~>=\s|])7(\.|$|\s)/.test(range);
 
 async function inspect(name: string, sinceMs: number): Promise<Candidate | undefined> {
   const doc = await getJson(`${REGISTRY}/${name.replace("/", "%2F")}`);
