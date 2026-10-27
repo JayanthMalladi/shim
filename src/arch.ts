@@ -86,4 +86,11 @@ export const SEEDS: Architecture[] = [
     reviewRounds: 1,
     audit: true,
   },
+  {
+    ...V2,
+    id: "v4-fixer-runs-checks",
+    notes: "V2 plus: the fixer may run the repo's own build, type check and test commands, and reviewer issues go back once.",
+    fixerChecks: true,
+    reviewRounds: 1,
+  },
 ];
