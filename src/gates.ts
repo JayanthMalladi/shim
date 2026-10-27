@@ -36,8 +36,10 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
  * often import each other's built output), then type check and test every package
  * that depends on ai, plus the root.
  */
-export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[]): GateResults {
-  const results: GateResults = { install: install(dir, pm, frozen) };
+export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean } = {}): GateResults {
+  const results: GateResults = {
+    install: opts.install === false ? { ok: true, code: 0, output: "skipped: dependencies unchanged", ms: 0 } : install(dir, pm, frozen),
+  };
   if (!results.install!.ok) return results;
   if (typeof readPkg(dir)?.scripts?.build === "string") results.build = run(pm, ["run", "build"], dir);
 

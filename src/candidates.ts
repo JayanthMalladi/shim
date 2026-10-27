@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { runFixer, runReviewer, type Review } from "./agent.js";
 import type { Architecture } from "./arch.js";
+import { copyRepo, unshareNodeModules } from "./copy.js";
 import { run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
 import type { Finding } from "./types.js";
@@ -26,13 +27,15 @@ export interface FixContext {
   /** Findings for the fixer's first attempt. */
   findings: Finding[];
   failingOutput: (after: GateResults) => string;
-  gates: (dir: string) => GateResults;
+  /** Run the gates on a candidate; install only when its dependencies changed. */
+  gates: (dir: string, install: boolean) => GateResults;
   /** Breaking findings left after a fix; empty means the code is done. */
   breaks: (dir: string) => Finding[];
   /** Shell commands equivalent to the gates, relative to the repo root. */
   checks?: string[];
 }
 
+const MANIFESTS = /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|pnpm-workspace\.yaml)$/;
 const LOCKFILES = /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/;
 const git = (dir: string, ...args: string[]) =>
   run("git", ["-c", "user.name=shim", "-c", "user.email=shim@localhost", ...args], dir);
@@ -48,7 +51,7 @@ export async function fixInParallel(dir: string, arch: Architecture, ctx: FixCon
 
 async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext): Promise<Candidate> {
   fs.rmSync(cdir, { recursive: true, force: true });
-  run("cp", ["-a", dir, cdir], ".");
+  copyRepo(dir, cdir);
   // Snapshot so the candidate's own diff can be measured, then undone before review.
   git(cdir, "add", "-A");
   git(cdir, "commit", "-q", "--no-verify", "-m", "shim: before fixer");
@@ -64,7 +67,10 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
     const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch);
     agentRuns.push(res.text ?? res.output);
     cost += res.cost ?? 0;
-    after = ctx.gates(cdir);
+    // Reinstall only if the fixer touched a manifest; then drop the shared node_modules first.
+    const manifests = git(cdir, "diff", "--name-only", "HEAD").output.split("\n").some((f) => MANIFESTS.test(f));
+    if (manifests) unshareNodeModules(cdir);
+    after = ctx.gates(cdir, manifests);
     remaining = ctx.breaks(cdir);
   };
 

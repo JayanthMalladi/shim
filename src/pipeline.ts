@@ -149,7 +149,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
         .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
         .join("\n\n"),
       // Same packages, inside the candidate's copy: absolute paths would gate the original repo.
-      gates: (d) => runGates(d, pm, false, pkgDirsIn(d)),
+      gates: (d, install) => runGates(d, pm, false, pkgDirsIn(d), { install }),
       breaks,
       checks: Object.keys(baseline).filter((g) => g !== "install").map((g) => {
         const [kind, rel = "."] = g.split(" ");

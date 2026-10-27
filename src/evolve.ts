@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
+import { copyRepo } from "./copy.js";
 import { runAsync } from "./exec.js";
 
 interface RepoResult {
@@ -88,7 +89,7 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
     const work = path.join(rdir, "repo");
     fs.rmSync(rdir, { recursive: true, force: true });
     fs.mkdirSync(rdir, { recursive: true });
-    await runAsync("cp", ["-a", path.join(bench, repo, "repo"), work], ".", 30 * 60_000);
+    copyRepo(path.join(bench, repo, "repo"), work);
     log(`${arch.id} / ${repo}: start`);
     const res = await runAsync(
       "npx",
