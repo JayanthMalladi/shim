@@ -160,6 +160,8 @@ function formatChanged(dir: string) {
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
   if (deps["@biomejs/biome"]) run("npx", ["--no-install", "biome", "format", "--write", ...files], dir);
   else if (deps.prettier) run("npx", ["--no-install", "prettier", "--write", ...files], dir);
+  // Codemod output uses its own quote style; the repo's lint autofix puts it back.
+  if (deps.eslint) run("npx", ["--no-install", "eslint", "--fix", ...files], dir);
 }
 
 /** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
