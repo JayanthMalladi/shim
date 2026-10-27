@@ -33,15 +33,19 @@ export interface MigrationReport {
   regressions: GateName[];
   /** Output tail of each regressed gate, for the issue body and for debugging. */
   failures: Record<GateName, string>;
+  /** Raw output of each fixer-agent attempt. */
+  agentRuns: string[];
   diffStat: string;
 }
+
+const MAX_AGENT_ATTEMPTS = 3;
 
 const gateSummary = (g: GateResults) =>
   Object.fromEntries(Object.entries(g).map(([k, v]) => [k, !!v?.ok]));
 
 export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
   const log = (msg: string) => console.error(`[shim] ${msg}`);
-  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, diffStat: "" };
+  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], diffStat: "" };
 
   const aiPkgs = findAiPackages(dir);
   if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
@@ -75,9 +79,20 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   let after = runGates(dir, pm, false, pkgDirs);
   let remaining = dedupe([...forAgent, ...postBreaks()]);
 
-  if (opts.agent && (remaining.length > 0 || regressions(baseline, after).length > 0)) {
-    log(`fixer agent on ${remaining.length} findings`);
-    runFixer(dir, remaining, Object.entries(after).filter(([g, r]) => g.startsWith("typecheck") && !r.ok).map(([g, r]) => `${g}:\n${r.output}`).join("\n"));
+  const agentRuns: string[] = [];
+  const failingOutput = () =>
+    Object.entries(after)
+      .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
+      .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
+      .join("\n\n");
+
+  // The agent is not deterministic: retry with the latest failures, up to MAX_AGENT_ATTEMPTS.
+  for (let attempt = 1; opts.agent && attempt <= MAX_AGENT_ATTEMPTS; attempt++) {
+    const regressed = regressions(baseline, after);
+    if (attempt > 1 ? regressed.length === 0 : remaining.length === 0 && regressed.length === 0) break;
+    log(`fixer agent, attempt ${attempt}: ${remaining.length} findings, ${regressed.length} failing checks`);
+    const res = runFixer(dir, attempt === 1 ? remaining : [], failingOutput());
+    agentRuns.push(res.output);
     after = runGates(dir, pm, false, pkgDirs);
     // Silent findings handed to the agent are verified by the gates and by review, not by re-scanning.
     remaining = postBreaks();
@@ -96,7 +111,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
   const report: MigrationReport = {
     repo, verdict, reason, versionChanges, library, codemod, autoFixed: applied,
-    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat,
+    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, agentRuns,
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
   };
   fs.mkdirSync(opts.outDir, { recursive: true });
