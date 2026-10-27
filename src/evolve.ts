@@ -264,6 +264,12 @@ async function main() {
   while (Date.now() < deadline) {
     const archive = readArchive();
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
+    // Only start an evaluation that can finish before the deadline (the caller may be killed at it).
+    const estimate = Math.max(75, ...archive.filter((e) => e.set === set).map((e) => e.minutes * 1.2)) * 60_000;
+    if (Date.now() + estimate > deadline) {
+      log(`stopping: next evaluation (~${Math.round(estimate / 60_000)} min) would pass the deadline`);
+      break;
+    }
     const seed = SEEDS.find((a) => !done.has(a.id));
     const { arch, parent } = seed ? { arch: seed, parent: undefined } : await mutate(archive, ++gen);
     log(`evaluating ${arch.id} on ${set}: ${arch.notes.slice(0, 160)}`);
