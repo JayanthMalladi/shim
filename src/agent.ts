@@ -1,5 +1,5 @@
 import { DEFAULT_ARCH, REVIEWER_RULES, type Architecture } from "./arch.js";
-import { runAsync, type ExecResult } from "./exec.js";
+import { runClaude, type ExecResult } from "./exec.js";
 import type { Finding } from "./types.js";
 
 export interface FixBrief {
@@ -49,9 +49,7 @@ export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFA
       : []),
   ].join("\n");
 
-  return runAsync(
-    "claude",
-    [
+  return runClaude([
       "-p", prompt,
       "--model", arch.fixerModel,
       "--max-turns", String(arch.fixerMaxTurns),
@@ -92,9 +90,7 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model = D
   let cost = 0;
   let last = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const res = await runAsync(
-      "claude",
-      [
+    const res = await runClaude([
         "-p", attempt === 1 ? prompt : `${prompt}\nBe efficient: look at the diff first and only open files you need. You must end with the JSON line.`,
         "--model", model,
         "--max-turns", "50",

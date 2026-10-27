@@ -54,3 +54,13 @@ describe("gateOrder", () => {
     expect(gateOrder(root, [demo, lib, root])).toEqual([root, lib, demo]);
   });
 });
+
+describe("msUntilReset", () => {
+  it("parses the plan limit message", async () => {
+    const { msUntilReset } = await import("../src/exec.js");
+    const now = new Date("2026-10-27T21:43:00Z");
+    expect(msUntilReset("You've hit your session limit · resets 10pm (UTC)", now)).toBe(19 * 60_000);
+    expect(msUntilReset("resets 3:30am (UTC)", now)).toBe((5 * 60 + 49) * 60_000);
+    expect(msUntilReset("no reset here", now)).toBeUndefined();
+  });
+});

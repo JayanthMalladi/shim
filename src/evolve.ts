@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
-import { runAsync } from "./exec.js";
+import { runAsync, runClaude } from "./exec.js";
 
 interface RepoResult {
   repo: string;
@@ -77,7 +77,7 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
   return results;
 }
 
-const RATE_LIMIT = /usage limit|rate.limit|overloaded_error|credit balance/i;
+const RATE_LIMIT = /hit your (session|usage|weekly) limit|usage limit reached|rate_limit_error|overloaded_error/i;
 
 async function evaluate(arch: Architecture, parent: string | undefined): Promise<Evaluation> {
   const started = Date.now();
@@ -95,7 +95,7 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
       "npx",
       ["tsx", "src/cli.ts", "finish", work, "--prep", path.join(bench, repo, "prepared.json"), "--arch", path.join(runRoot, "arch.json"), "--out", rdir, "--judge"],
       SHIM,
-      100 * 60_000,
+      6 * 3600_000,
     );
     fs.writeFileSync(path.join(rdir, "finish.log"), res.output);
     for (const d of fs.readdirSync(rdir)) if (d === "repo" || d.startsWith("repo.cand")) fs.rmSync(path.join(rdir, d), { recursive: true, force: true });
@@ -193,9 +193,7 @@ less money. Change what the evidence points to; small targeted edits to the rule
 to one repo's file names: the rules must work on any repo.
 
 Reply with a short hypothesis paragraph, then the child genome as a single \`\`\`json block with all fields.`;
-  const res = await runAsync(
-    "claude",
-    ["-p", prompt, "--model", "claude-opus-5-5", "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
+  const res = await runClaude(["-p", prompt, "--model", "claude-opus-5-5", "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
     out,
     20 * 60_000,
   );

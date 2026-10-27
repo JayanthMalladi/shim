@@ -52,3 +52,32 @@ function parseAgentJson(output: string): { total_cost_usd?: number; result?: str
   }
   return undefined;
 }
+
+const LIMIT = /hit your (session|usage|weekly) limit|usage limit reached|rate_limit_error|overloaded_error/i;
+
+/**
+ * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit ·
+ * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again.
+ */
+export async function runClaude(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {
+  for (let tries = 0; ; tries++) {
+    const res = await runAsync("claude", args, cwd, timeoutMs);
+    const text = res.text ?? res.output;
+    if (!LIMIT.test(text) || tries >= 6) return res;
+    const wait = Math.min(msUntilReset(text) ?? 15 * 60_000, 6 * 3600_000);
+    console.error(`[shim] usage limit hit; waiting ${Math.round(wait / 60_000)} min (${text.trim().slice(0, 120)})`);
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
+/** "resets 10pm (UTC)" or "resets 3:30am (UTC)" -> ms until then, plus two minutes of slack. */
+export function msUntilReset(text: string, now = new Date()): number | undefined {
+  const m = text.match(/resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+  if (!m) return undefined;
+  let hour = Number(m[1]) % 12;
+  if (m[3]!.toLowerCase() === "pm") hour += 12;
+  const reset = new Date(now);
+  reset.setUTCHours(hour, Number(m[2] ?? 0), 0, 0);
+  if (reset.getTime() <= now.getTime()) reset.setUTCDate(reset.getUTCDate() + 1);
+  return reset.getTime() - now.getTime() + 2 * 60_000;
+}
