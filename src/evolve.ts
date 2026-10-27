@@ -87,6 +87,15 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
   const results = await pool(repos, concurrency, async (repo): Promise<RepoResult> => {
     const rdir = path.join(runRoot, repo);
     const work = path.join(rdir, "repo");
+    // Resume: a repo this architecture already finished (before the run was interrupted) is not redone.
+    const done = path.join(rdir, "result.json");
+    if (fs.existsSync(done)) {
+      const r: RepoResult = JSON.parse(fs.readFileSync(done, "utf8"));
+      if (!r.error) {
+        log(`${arch.id} / ${repo}: reusing finished result`);
+        return r;
+      }
+    }
     fs.rmSync(rdir, { recursive: true, force: true });
     fs.mkdirSync(rdir, { recursive: true });
     copyRepo(path.join(bench, repo, "repo"), work);
@@ -104,6 +113,7 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
     const r: RepoResult = JSON.parse(fs.readFileSync(resultFile, "utf8"));
     const report = fs.readFileSync(path.join(rdir, "report.json"), "utf8");
     if (RATE_LIMIT.test(report) && r.verdict !== "open-pr") r.error = "rate limited";
+    if (r.error) fs.writeFileSync(resultFile, JSON.stringify(r, null, 2));
     log(`${arch.id} / ${repo}: ${r.verdict}${r.judge ? ` judge=${r.judge.approve}` : ""} $${(r.cost ?? 0).toFixed(2)}`);
     return r;
   });
@@ -267,16 +277,22 @@ async function main() {
     const archive = readArchive();
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
     // Only start an evaluation that can finish before the deadline (the caller may be killed at it).
-    const estimate = Math.max(75, ...archive.filter((e) => e.set === set).map((e) => e.minutes * 1.2)) * 60_000;
+    // Interrupted evaluations resume, so only a rough estimate is needed here.
+    const estimate = 10 * 60_000;
     if (Date.now() + estimate > deadline) {
       log(`stopping: next evaluation (~${Math.round(estimate / 60_000)} min) would pass the deadline`);
       break;
     }
     const seed = SEEDS.find((a) => !done.has(a.id));
-    const { arch, parent } = seed ? { arch: seed, parent: undefined } : await mutate(archive, ++gen);
+    // A child proposed before an interruption is evaluated before proposing a new one.
+    const PENDING = path.join(out, "pending.json");
+    const pending = !seed && fs.existsSync(PENDING) ? JSON.parse(fs.readFileSync(PENDING, "utf8")) : undefined;
+    const { arch, parent } = seed ? { arch: seed, parent: undefined } : pending ?? (await mutate(archive, ++gen));
+    if (!seed) fs.writeFileSync(PENDING, JSON.stringify({ arch, parent }));
     log(`evaluating ${arch.id} on ${set}: ${arch.notes.slice(0, 160)}`);
     const ev = await evaluate(arch, parent);
     fs.appendFileSync(ARCHIVE, `${JSON.stringify(ev)}\n`);
+    fs.rmSync(PENDING, { force: true });
     writeLog(readArchive());
     log(`${arch.id}: shipped ${ev.shipped}/${ev.results.length}, gate-pass ${ev.gatePass}, $${ev.cost.toFixed(2)}, ${ev.minutes} min${ev.invalid ? `, INVALID ${ev.invalid}` : ""}`);
     if (ev.invalid) {
