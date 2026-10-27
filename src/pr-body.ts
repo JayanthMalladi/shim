@@ -24,7 +24,7 @@ Where your code relied on the v6 meaning, this PR reads the same value from \`fi
 
 ### Versions
 ${r.versionChanges.map((c) => `- ${c}`).join("\n") || "- none"}
-
+${r.library ? "\nThis drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.\n" : ""}
 ### What changed and why
 ${(["break", "silent", "deprecated"] as const)
   .filter((s) => bySeverity(s).length)

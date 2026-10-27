@@ -3,7 +3,7 @@ import path from "node:path";
 import { runFixer } from "./agent.js";
 import { bumpAiSdk } from "./bump.js";
 import { run } from "./exec.js";
-import { detectPackageManager, hasValidation, regressions, runGates, type GateName, type GateResults } from "./gates.js";
+import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
 import type { Finding } from "./types.js";
@@ -22,6 +22,8 @@ export interface MigrationReport {
   verdict: Verdict;
   reason: string;
   versionChanges: string[];
+  /** A published package: after this PR its users need AI SDK 7 too, so it ships as a major. */
+  library: boolean;
   codemod: boolean;
   autoFixed: number;
   before: Finding[];
@@ -39,7 +41,7 @@ const gateSummary = (g: GateResults) =>
 
 export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
   const log = (msg: string) => console.error(`[shim] ${msg}`);
-  const base = { repo, versionChanges: [], codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, diffStat: "" };
+  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, diffStat: "" };
 
   const aiPkgs = findAiPackages(dir);
   if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
@@ -47,6 +49,10 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   }
   const pm = detectPackageManager(dir);
   const pkgDirs = aiPkgs.map((p) => path.dirname(p.file));
+  const library = pkgDirs.some((d) => {
+    const pkg = readPkg(d);
+    return !!pkg?.name && !pkg.private;
+  });
 
   log(`baseline gates (${pm})`);
   const baseline = runGates(dir, pm, true, pkgDirs);
@@ -89,7 +95,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   else if (!hasValidation(baseline)) [verdict, reason] = ["open-issue", "no green typecheck or tests to validate against"];
 
   const report: MigrationReport = {
-    repo, verdict, reason, versionChanges, codemod, autoFixed: applied,
+    repo, verdict, reason, versionChanges, library, codemod, autoFixed: applied,
     before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat,
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
   };

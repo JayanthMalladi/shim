@@ -14,26 +14,31 @@ function latestMajor(pkg: string, cwd: string): string | undefined {
   return v ? `^${v.split(".")[0]}.0.0` : undefined;
 }
 
-/** Bump `ai` to ^7 and every `@ai-sdk/*` package to its latest major, in every package.json that uses ai. */
+/**
+ * Bump `ai` to ^7 and every `@ai-sdk/*` package to its latest major, in every package.json
+ * that uses ai. Edits the text in place so the file's own formatting survives: a
+ * re-serialized package.json is diff noise maintainers reject.
+ */
 export function bumpAiSdk(root: string): string[] {
   const changes: string[] = [];
   for (const { file } of findAiPackages(root)) {
-    const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+    let text = fs.readFileSync(file, "utf8");
+    const pkg = JSON.parse(text);
     for (const field of DEP_FIELDS) {
-      const deps = pkg[field];
-      if (!deps) continue;
-      for (const name of Object.keys(deps)) {
+      for (const [name, range] of Object.entries<string>(pkg[field] ?? {})) {
         if (name !== "ai" && !name.startsWith("@ai-sdk/")) continue;
-        if (String(deps[name]).startsWith("workspace:")) continue;
+        if (range.startsWith("workspace:")) continue;
         const next = name === "ai" ? "^7.0.0" : latestMajor(name, root);
-        if (next && next !== deps[name]) {
-          changes.push(`${name}: ${deps[name]} -> ${next}`);
-          deps[name] = next;
-        }
+        if (!next || next === range) continue;
+        const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
+        if (!pattern.test(text)) continue;
+        text = text.replace(pattern, `$1"${next}"`);
+        changes.push(`${name}: ${range} -> ${next}`);
       }
     }
-    const indent = fs.readFileSync(file, "utf8").match(/^\{\n(\s+)/)?.[1] ?? "  ";
-    fs.writeFileSync(file, JSON.stringify(pkg, null, indent) + "\n");
+    fs.writeFileSync(file, text);
   }
   return changes;
 }
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
