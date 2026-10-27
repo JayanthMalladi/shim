@@ -3,8 +3,9 @@ import path from "node:path";
 import { run, type ExecResult } from "./exec.js";
 
 export type PackageManager = "pnpm" | "yarn" | "bun" | "npm";
-export type GateName = "install" | "typecheck" | "test";
-export type GateResults = Partial<Record<GateName, ExecResult>>;
+/** "install", "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
+export type GateName = string;
+export type GateResults = Record<GateName, ExecResult>;
 
 export function detectPackageManager(dir: string): PackageManager {
   if (fs.existsSync(path.join(dir, "pnpm-lock.yaml"))) return "pnpm";
@@ -30,23 +31,37 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
   }
 }
 
-export function runGates(dir: string, pm: PackageManager, frozen: boolean): GateResults {
+/**
+ * Install once at the root, build if the root has a build script (monorepo packages
+ * often import each other's built output), then type check and test every package
+ * that depends on ai, plus the root.
+ */
+export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[]): GateResults {
   const results: GateResults = { install: install(dir, pm, frozen) };
   if (!results.install!.ok) return results;
+  if (typeof readPkg(dir)?.scripts?.build === "string") results.build = run(pm, ["run", "build"], dir);
 
-  if (fs.existsSync(path.join(dir, "tsconfig.json"))) {
-    results.typecheck = run("npx", ["--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"], dir);
-  }
-  const testScript = readPkg(dir)?.scripts?.test;
-  if (typeof testScript === "string" && !testScript.includes("no test specified")) {
-    results.test = run(pm, ["run", "test"], dir);
+  for (const pkgDir of [...new Set([dir, ...pkgDirs])].slice(0, 9)) {
+    const rel = path.relative(dir, pkgDir) || ".";
+    if (fs.existsSync(path.join(pkgDir, "tsconfig.json"))) {
+      results[`typecheck ${rel}`] = run("npx", ["--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"], pkgDir);
+    }
+    const testScript = readPkg(pkgDir)?.scripts?.test;
+    if (typeof testScript === "string" && !testScript.includes("no test specified")) {
+      results[`test ${rel}`] = run(pm, ["run", "test"], pkgDir);
+    }
   }
   return results;
 }
 
+/** True if at least one type check or test passed at baseline, so the change can be validated at all. */
+export function hasValidation(baseline: GateResults): boolean {
+  return Object.entries(baseline).some(([name, r]) => /^(typecheck|test) /.test(name) && r.ok);
+}
+
 /** A gate counts only if it passed before we touched anything: we can't be blamed for, or fix, a red baseline. */
 export function regressions(baseline: GateResults, after: GateResults): GateName[] {
-  return (Object.keys(baseline) as GateName[]).filter((g) => baseline[g]?.ok && !after[g]?.ok);
+  return Object.keys(baseline).filter((g) => baseline[g]?.ok && !after[g]?.ok);
 }
 
 export function readPkg(dir: string): any {
