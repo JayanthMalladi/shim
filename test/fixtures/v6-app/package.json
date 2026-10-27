@@ -1,0 +1,1 @@
+{ "name": "v6-app", "type": "module", "engines": { "node": ">=18" }, "dependencies": { "ai": "^6.0.0" } }

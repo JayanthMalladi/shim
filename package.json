@@ -1,0 +1,28 @@
+{
+  "name": "shim",
+  "version": "0.1.0",
+  "description": "When an API you depend on changes, Shim opens a tested pull request that updates your code before it breaks.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "shim": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "shim": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "ts-morph": "^26.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
