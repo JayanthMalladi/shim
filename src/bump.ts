@@ -29,7 +29,9 @@ export function bumpAiSdk(root: string): string[] {
         if (name !== "ai" && !name.startsWith("@ai-sdk/")) continue;
         if (range.startsWith("workspace:")) continue;
         const next = name === "ai" ? "^7.0.0" : latestMajor(name, root);
-        if (!next || next === range) continue;
+        // Never touch a range that already allows the target major: rewriting ^7.0.11 to ^7.0.0
+        // lowers the floor, and narrowing >=6 to ^7 drops support for nothing.
+        if (!next || allowsMajor(range, Number(next.slice(1).split(".")[0]))) continue;
         const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
         if (!pattern.test(text)) continue;
         text = text.replace(pattern, `$1"${next}"`);
@@ -42,3 +44,17 @@ export function bumpAiSdk(root: string): string[] {
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** True if the range's own text already admits the given major (^7.x, >=6, 6 || 7, *). */
+export function allowsMajor(range: string, major: number): boolean {
+  return range.split("||").some((part) => {
+    const p = part.trim();
+    if (p === "*" || p === "latest" || p === "") return true;
+    const m = p.match(/^(>=|>)?\s*[\^~=v]*\s*(\d+)/);
+    if (!m) return false;
+    const n = Number(m[2]);
+    if (!m[1]) return n === major;
+    const upper = Number(p.match(/<\s*(\d+)/)?.[1] ?? Infinity);
+    return n <= major && major < upper;
+  });
+}
