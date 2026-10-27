@@ -99,6 +99,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   }
   const before = pre.findings;
   formatChanged(dir);
+  addChangeset(dir, pkgDirs);
 
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
@@ -138,4 +139,13 @@ function formatChanged(dir: string) {
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
   if (deps["@biomejs/biome"]) run("npx", ["--no-install", "biome", "format", "--write", ...files], dir);
   else if (deps.prettier) run("npx", ["--no-install", "prettier", "--write", ...files], dir);
+}
+
+/** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
+function addChangeset(dir: string, pkgDirs: string[]) {
+  if (!fs.existsSync(path.join(dir, ".changeset", "config.json"))) return;
+  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private).map((p) => p.name as string))];
+  if (!names.length) return;
+  const header = names.map((n) => `"${n}": major`).join("\n");
+  fs.writeFileSync(path.join(dir, ".changeset", "upgrade-ai-sdk-7.md"), `---\n${header}\n---\n\nUpgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.\n`);
 }
