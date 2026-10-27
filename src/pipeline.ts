@@ -41,6 +41,10 @@ export interface MigrationReport {
   /** The independent reviewer's verdict on the final diff, when the agent ran. */
   review?: Omit<Review, "output">;
   diffStat: string;
+  /** Files this PR changes; a finding counts as fixed only if its file is among them. */
+  changedFiles: string[];
+  /** Checks the upgrade broke that the fixer then repaired. */
+  repairedChecks: GateName[];
 }
 
 const CANDIDATES = 3;
@@ -51,7 +55,7 @@ const gateSummary = (g: GateResults) =>
 
 export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
   const log = (msg: string) => console.error(`[shim] ${msg}`);
-  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "" };
+  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "", changedFiles: [], repairedChecks: [] };
 
   const aiPkgs = findAiPackages(dir);
   if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
@@ -83,6 +87,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   const postBreaks = () => scan(dir).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual");
 
   let after = runGates(dir, pm, false, pkgDirs);
+  const brokenByUpgrade = regressions(baseline, after);
   let remaining = dedupe([...forAgent, ...postBreaks()]);
   const agentRuns: string[] = [];
   let candidates: MigrationReport["candidates"] = [];
@@ -123,6 +128,8 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
   const diffStat = run("git", ["diff", "--stat"], dir).output.trim();
+  const changedFiles = run("git", ["diff", "--name-only"], dir).output.trim().split("\n").filter(Boolean);
+  const repairedChecks = brokenByUpgrade.filter((g) => !regressed.includes(g));
 
   let verdict: Verdict = "open-pr";
   let reason = "all baseline gates still pass and no breaking findings remain";
@@ -133,7 +140,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
   const report: MigrationReport = {
     repo, verdict, reason, versionChanges, library, codemod, autoFixed: applied,
-    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, agentRuns, candidates,
+    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, changedFiles, repairedChecks, agentRuns, candidates,
     review: review && { approve: review.approve, issues: review.issues },
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
   };

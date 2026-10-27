@@ -11,8 +11,15 @@ const list = (fs: Finding[]) => fs.map((f) => `- \`${f.file}:${f.line}\` ${f.mes
 
 /** Short, specific, and honest about what was and wasn't checked. Maintainers skim. */
 export function prBody(r: MigrationReport): string {
-  const fixed = r.before.filter((f) => f.fix !== "manual");
-  const forHuman = [...r.before.filter((f) => f.fix === "manual"), ...r.remaining];
+  const seen = new Set<string>();
+  const unique = r.before.filter((f) => {
+    const key = `${f.ruleId}:${f.file}:${f.line}`;
+    return !seen.has(key) && !!seen.add(key);
+  });
+  // Claim a fix only where the diff actually touches the file.
+  const changed = new Set(r.changedFiles);
+  const fixed = unique.filter((f) => f.fix !== "manual" && changed.has(f.file));
+  const forHuman = [...unique.filter((f) => f.fix === "manual"), ...r.remaining];
   const bySeverity = (s: Finding["severity"]) => fixed.filter((f) => f.severity === s);
   const gates = Object.keys(r.baseline)
     .map((g) => `| ${g} | ${r.baseline[g] ? "pass" : "fail"} | ${r.after[g] ? "pass" : "fail"} |`)
@@ -27,13 +34,14 @@ For example, \`result.usage\` on a multi-step call now counts every step instead
 Where your code relied on the v6 meaning, this PR reads the same value from \`finalStep\`.
 
 ### Versions
-${r.versionChanges.map((c) => `- ${c}`).join("\n") || "- none"}
+${[...new Set(r.versionChanges)].map((c) => `- ${c}`).join("\n") || "- none"}
 ${r.library ? "\nThis drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.\n" : ""}
 ### What changed and why
 ${(["break", "silent", "deprecated"] as const)
   .filter((s) => bySeverity(s).length)
   .map((s) => `**${SEVERITY_LABEL[s]}**\n${list(bySeverity(s))}`)
-  .join("\n\n") || "Only the codemod's renames were needed."}
+  .join("\n\n") || "The codemod's renames covered the code changes."}
+${r.repairedChecks.length ? `\nAfter the codemod, these checks failed; this PR fixes them: ${r.repairedChecks.map((g) => `\`${g}\``).join(", ")}.\n` : ""}
 ${forHuman.length ? `\n### Needs your eyes\nShim did not change these. Please check them before merging.\n${list(forHuman)}\n` : ""}
 ### How it was checked
 | Check | Before | After |
