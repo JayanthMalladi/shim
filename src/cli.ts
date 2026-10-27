@@ -1,10 +1,16 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import path from "node:path";
+import { discover } from "./discover.js";
 import { migrate } from "./pipeline.js";
 import { scan, scanAndFix } from "./scan.js";
+import { triage } from "./triage.js";
 
 const USAGE = `shim <command>
 
+  discover [days]          Find npm packages on ai@6 published in the last N days (default 60)
+  triage <candidates.json> [--work <dir>]
+                           Shallow-clone and scan each candidate (read-only)
   scan <dir>               List AI SDK 6 -> 7 findings (no changes)
   fix <dir>                Apply Shim's deterministic, behavior-preserving fixes
   migrate <dir> [--agent] [--out <dir>] [--repo <owner/name>]
@@ -40,6 +46,16 @@ switch (cmd) {
       outDir: path.resolve(flag("--out") ?? path.join(target, "..", `${path.basename(target)}.shim`)),
     });
     console.log(JSON.stringify({ verdict: report.verdict, reason: report.reason, autoFixed: report.autoFixed, remaining: report.remaining.length }, null, 2));
+    break;
+  }
+  case "triage": {
+    const rows = triage(JSON.parse(fs.readFileSync(target, "utf8")), path.resolve(flag("--work") ?? "work"));
+    console.log(JSON.stringify(rows, null, 2));
+    break;
+  }
+  case "discover": {
+    const candidates = await discover(Number(target) || 60);
+    console.log(JSON.stringify(candidates, null, 2));
     break;
   }
   default:
