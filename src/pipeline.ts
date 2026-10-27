@@ -101,7 +101,8 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
         .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
         .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
         .join("\n\n"),
-      gates: (d) => runGates(d, pm, false, pkgDirs),
+      // Same packages, inside the candidate's copy: absolute paths would gate the original repo.
+      gates: (d) => runGates(d, pm, false, pkgDirs.map((p) => path.join(d, path.relative(dir, p)))),
       breaks: (d) => scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
     });
     const ranked = rank(cands, baseline);
