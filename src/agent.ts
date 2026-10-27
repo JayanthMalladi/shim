@@ -88,21 +88,32 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model = D
     "Ignore package.json version ranges and lockfiles. Do not edit files.",
     'End with one line of JSON and nothing after it: {"approve": true|false, "issues": ["file:line what is wrong"]}',
   ].join("\n");
-  const res = await runAsync(
-    "claude",
-    [
-      "-p", prompt,
-      "--model", model,
-      "--max-turns", "30",
-      "--max-budget-usd", "3",
-      "--allowedTools", "Read", "Glob", "Grep", "Bash(git diff:*)", "Bash(git status:*)",
-      "--output-format", "json",
-    ],
-    dir,
-    20 * 60_000,
-  );
-  return { ...parseReview(res.text ?? res.output), output: res.text ?? res.output, cost: res.cost ?? 0 };
+  // A run that errors out or ends without a verdict (API error, turn limit) gets one more try.
+  let cost = 0;
+  let last = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const res = await runAsync(
+      "claude",
+      [
+        "-p", attempt === 1 ? prompt : `${prompt}\nBe efficient: look at the diff first and only open files you need. You must end with the JSON line.`,
+        "--model", model,
+        "--max-turns", "50",
+        "--max-budget-usd", "3",
+        "--allowedTools", "Read", "Glob", "Grep", "Bash(git diff:*)", "Bash(git status:*)",
+        "--output-format", "json",
+      ],
+      dir,
+      20 * 60_000,
+    );
+    cost += res.cost ?? 0;
+    last = res.text ?? res.output;
+    const verdict = parseReview(last);
+    if (verdict.issues[0] !== NO_VERDICT) return { ...verdict, output: last, cost };
+  }
+  return { approve: false, issues: [NO_VERDICT], output: last.slice(-2000), cost };
 }
+
+const NO_VERDICT = "reviewer gave no verdict";
 
 /**
  * The fixed judge that scores architectures. It never changes during evolution, so a variant can't
@@ -124,6 +135,6 @@ export function parseReview(output: string): Omit<Review, "output" | "cost"> {
     const v = JSON.parse(line ?? "");
     return { approve: v.approve === true, issues: Array.isArray(v.issues) ? v.issues.map(String) : [] };
   } catch {
-    return { approve: false, issues: ["reviewer gave no verdict"] };
+    return { approve: false, issues: [NO_VERDICT] };
   }
 }
