@@ -98,6 +98,7 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
     remaining = postBreaks();
   }
   const before = pre.findings;
+  formatChanged(dir);
 
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
@@ -126,4 +127,15 @@ function dedupe(findings: Finding[]): Finding[] {
     const key = `${f.ruleId}:${f.file}:${f.line}`;
     return !seen.has(key) && !!seen.add(key);
   });
+}
+
+/** Run the repo's own formatter on the files we touched, so the diff matches its style. */
+function formatChanged(dir: string) {
+  const files = run("git", ["diff", "--name-only"], dir).output.split("\n")
+    .filter((f) => /\.(m|c)?[jt]sx?$/.test(f) && fs.existsSync(path.join(dir, f)));
+  if (!files.length) return;
+  const pkg = readPkg(dir);
+  const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
+  if (deps["@biomejs/biome"]) run("npx", ["--no-install", "biome", "format", "--write", ...files], dir);
+  else if (deps.prettier) run("npx", ["--no-install", "prettier", "--write", ...files], dir);
 }

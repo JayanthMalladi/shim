@@ -1,7 +1,11 @@
 import type { MigrationReport } from "./pipeline.js";
 import type { Finding } from "./types.js";
 
-const SEVERITY_LABEL = { break: "Would break", silent: "Silent behavior change", deprecated: "Deprecated" } as const;
+const SEVERITY_LABEL = {
+  break: "Fixed: would fail at runtime on v7",
+  silent: "Fixed: same code, different behavior on v7",
+  deprecated: "Fixed: deprecated in v7",
+} as const;
 
 const list = (fs: Finding[]) => fs.map((f) => `- \`${f.file}:${f.line}\` ${f.message}`).join("\n");
 
