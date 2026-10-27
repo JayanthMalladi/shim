@@ -1,1 +1,2 @@
 repo,stars,last_commit,pr_url,opened_at,state,merged_at,comments,notes
+requestyai/ai-sdk-requesty,,,https://github.com/requestyai/ai-sdk-requesty/pull/66,2026-10-27,open,,0,"first Shim PR; opened by Jayanth from fork branch shim/ai-sdk-7; library so major bump noted"
