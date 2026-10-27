@@ -41,7 +41,7 @@ export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDi
   if (!results.install!.ok) return results;
   if (typeof readPkg(dir)?.scripts?.build === "string") results.build = run(pm, ["run", "build"], dir);
 
-  for (const pkgDir of [...new Set([dir, ...pkgDirs])].slice(0, 9)) {
+  for (const pkgDir of gateOrder(dir, pkgDirs).slice(0, MAX_GATED_PACKAGES)) {
     const rel = path.relative(dir, pkgDir) || ".";
     if (fs.existsSync(path.join(pkgDir, "tsconfig.json"))) {
       results[`typecheck ${rel}`] = run("npx", ["--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"], pkgDir);
@@ -52,6 +52,22 @@ export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDi
     }
   }
   return results;
+}
+
+const MAX_GATED_PACKAGES = 12;
+
+/**
+ * Which packages to check, most important first: the root, then published packages, then private
+ * apps and demos. Cloudflare's repo has 20 demos ahead of its 4 published providers alphabetically,
+ * so a plain cap checked only demos.
+ */
+export function gateOrder(dir: string, pkgDirs: string[]): string[] {
+  const published = (d: string) => {
+    const pkg = readPkg(d);
+    return !!pkg?.name && !pkg.private;
+  };
+  const rest = [...new Set(pkgDirs)].filter((d) => d !== dir);
+  return [dir, ...rest.filter(published), ...rest.filter((d) => !published(d))];
 }
 
 /** True if at least one type check or test passed at baseline, so the change can be validated at all. */

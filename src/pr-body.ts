@@ -40,7 +40,7 @@ ${forHuman.length ? `\n### Needs your eyes\nShim did not change these. Please ch
 |---|---|---|
 ${gates}
 
-Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.
+Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}
 
 ### Rollback
 Revert this PR. No data or config migrations are involved.

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runFixer } from "./agent.js";
+import { runReviewer, type Review } from "./agent.js";
 import { bumpAiSdk } from "./bump.js";
+import { adopt, fixInParallel, rank } from "./candidates.js";
 import { run } from "./exec.js";
 import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults } from "./gates.js";
 import { prBody } from "./pr-body.js";
@@ -33,19 +34,24 @@ export interface MigrationReport {
   regressions: GateName[];
   /** Output tail of each regressed gate, for the issue body and for debugging. */
   failures: Record<GateName, string>;
-  /** Raw output of each fixer-agent attempt. */
+  /** Raw output of each fixer-agent attempt on the chosen candidate. */
   agentRuns: string[];
+  /** Every parallel fixer candidate, for tuning the fixer across the fleet. */
+  candidates: { ok: boolean; size: number; regressions: GateName[]; remaining: number }[];
+  /** The independent reviewer's verdict on the final diff, when the agent ran. */
+  review?: Omit<Review, "output">;
   diffStat: string;
 }
 
-const MAX_AGENT_ATTEMPTS = 3;
+const CANDIDATES = 3;
+const ATTEMPTS_PER_CANDIDATE = 2;
 
 const gateSummary = (g: GateResults) =>
   Object.fromEntries(Object.entries(g).map(([k, v]) => [k, !!v?.ok]));
 
 export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
   const log = (msg: string) => console.error(`[shim] ${msg}`);
-  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], diffStat: "" };
+  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "" };
 
   const aiPkgs = findAiPackages(dir);
   if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
@@ -78,24 +84,37 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
   let after = runGates(dir, pm, false, pkgDirs);
   let remaining = dedupe([...forAgent, ...postBreaks()]);
-
   const agentRuns: string[] = [];
-  const failingOutput = () =>
-    Object.entries(after)
-      .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
-      .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
-      .join("\n\n");
+  let candidates: MigrationReport["candidates"] = [];
+  let review: MigrationReport["review"];
 
-  // The agent is not deterministic: retry with the latest failures, up to MAX_AGENT_ATTEMPTS.
-  for (let attempt = 1; opts.agent && attempt <= MAX_AGENT_ATTEMPTS; attempt++) {
-    const regressed = regressions(baseline, after);
-    if (attempt > 1 ? regressed.length === 0 : remaining.length === 0 && regressed.length === 0) break;
-    log(`fixer agent, attempt ${attempt}: ${remaining.length} findings, ${regressed.length} failing checks`);
-    const res = runFixer(dir, attempt === 1 ? remaining : [], failingOutput());
-    agentRuns.push(res.output);
-    after = runGates(dir, pm, false, pkgDirs);
-    // Silent findings handed to the agent are verified by the gates and by review, not by re-scanning.
-    remaining = postBreaks();
+  if (opts.agent && (remaining.length || regressions(baseline, after).length)) {
+    log(`${CANDIDATES} fixer candidates: ${remaining.length} findings, ${regressions(baseline, after).length} failing checks`);
+    const cands = await fixInParallel(dir, CANDIDATES, ATTEMPTS_PER_CANDIDATE, {
+      baseline, after, findings: remaining,
+      failingOutput: (a) => Object.entries(a)
+        .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
+        .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
+        .join("\n\n"),
+      gates: (d) => runGates(d, pm, false, pkgDirs),
+      breaks: (d) => scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
+    });
+    const ranked = rank(cands, baseline);
+    candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length }));
+    // Review passing candidates smallest first; the first one the reviewer approves wins.
+    let chosen = ranked[0]!;
+    for (const c of ranked.filter((c) => c.ok)) {
+      log(`reviewing candidate (${c.size} lines)`);
+      review = await runReviewer(c.dir);
+      if (review.approve) { chosen = c; break; }
+    }
+    adopt(dir, chosen, cands);
+    after = chosen.after;
+    remaining = chosen.remaining;
+    agentRuns.push(...chosen.agentRuns);
+  } else if (opts.agent && !regressions(baseline, after).length) {
+    log("reviewing diff");
+    review = await runReviewer(dir);
   }
   const before = pre.findings;
   formatChanged(dir);
@@ -110,10 +129,12 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
   if (regressed.length) [verdict, reason] = ["open-issue", `gates regressed: ${regressed.join(", ")}`];
   else if (unresolvedBreaks.length) [verdict, reason] = ["open-issue", `${unresolvedBreaks.length} findings need a human`];
   else if (!hasValidation(baseline)) [verdict, reason] = ["open-issue", "no green typecheck or tests to validate against"];
+  else if (review && !review.approve) [verdict, reason] = ["open-issue", `reviewer flagged: ${review.issues.join("; ")}`];
 
   const report: MigrationReport = {
     repo, verdict, reason, versionChanges, library, codemod, autoFixed: applied,
-    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, agentRuns,
+    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, agentRuns, candidates,
+    review: review && { approve: review.approve, issues: review.issues },
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
   };
   fs.mkdirSync(opts.outDir, { recursive: true });
