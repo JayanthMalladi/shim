@@ -40,7 +40,8 @@ interface AiCall {
   fn: string;
   call: CallExpression;
   options: ObjectLiteralExpression | undefined;
-  multiStep: boolean;
+  /** "maybe": the options are built elsewhere (a variable or a spread), so stopWhen can't be seen. */
+  multiStep: boolean | "maybe";
 }
 
 export interface RuleContext {
@@ -76,12 +77,12 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
           firstTelemetryNode ??= telemetry;
         }
       }
-      if (RESULT_FNS.has(fn) && aiCall.multiStep) {
-        checkResultReads(ctx, aiCall);
-        checkEndCallback(ctx, aiCall);
+      if (RESULT_FNS.has(fn)) {
+        if (aiCall.multiStep) checkResultReads(ctx, aiCall);
+        if (aiCall.multiStep === true) checkEndCallback(ctx, aiCall);
+        checkTotalUsage(ctx, aiCall);
       }
     }
-    checkTotalUsage(ctx, sf);
   }
 
   if (usesTelemetryOption && !registersTelemetry && firstTelemetryNode) {
@@ -119,8 +120,23 @@ function toAiCall(fn: string, call: CallExpression): AiCall {
   const arg = call.getArguments()[0];
   const options = arg && Node.isObjectLiteralExpression(arg) ? arg : undefined;
   // v6 defaults to a single step; only stopWhen (or legacy maxSteps) makes a call multi-step.
-  const multiStep = !!options && (!!options.getProperty("stopWhen") || !!options.getProperty("maxSteps"));
-  return { fn, call, options, multiStep };
+  const literals = options ? [options, ...options.getProperties().flatMap((p) => (Node.isSpreadAssignment(p) ? spreadLiterals(p.getExpression()) ?? [] : []))] : [];
+  const explicit = literals.some((o) => !!o.getProperty("stopWhen") || !!o.getProperty("maxSteps"));
+  // Options we can't see into: a variable, or a spread of anything but inline object literals.
+  const hidden = !!arg && (!options || options.getProperties().some((p) => Node.isSpreadAssignment(p) && !spreadLiterals(p.getExpression())));
+  return { fn, call, options, multiStep: explicit || (hidden ? "maybe" : false) };
+}
+
+/** `...{ a }` and `...(cond ? { a } : {})` are transparent; returns their object literals, or undefined. */
+function spreadLiterals(expr: Node): ObjectLiteralExpression[] | undefined {
+  while (Node.isParenthesizedExpression(expr)) expr = expr.getExpression();
+  if (Node.isObjectLiteralExpression(expr)) return [expr];
+  if (Node.isConditionalExpression(expr)) {
+    const a = spreadLiterals(expr.getWhenTrue());
+    const b = spreadLiterals(expr.getWhenFalse());
+    return a && b ? [...a, ...b] : undefined;
+  }
+  return undefined;
 }
 
 function checkRequire(ctx: RuleContext, sf: SourceFile) {
@@ -154,18 +170,25 @@ function checkSystemMessages(ctx: RuleContext, options: ObjectLiteralExpression)
   }
 }
 
-/** Reads on the result of a multi-step generateText/streamText call. */
-function checkResultReads(ctx: RuleContext, { fn, call }: AiCall) {
+/**
+ * Reads on the result of a multi-step generateText/streamText call. When the call is only maybe
+ * multi-step, the findings go to the agent with no rewrite: on a single-step call the read is fine as is.
+ */
+function checkResultReads(ctx: RuleContext, { fn, call, multiStep }: AiCall) {
   const decl = resultDeclaration(call);
   if (!decl) return;
   const nameNode = decl.getNameNode();
+  const maybe = multiStep === "maybe";
+  const ruleId = maybe ? "maybe-multi-step-result" : "multi-step-result";
+  const auto = fn === "generateText" && !maybe;
+  const prefix = maybe ? "This call's options are built elsewhere; if they set stopWhen, " : "";
 
   if (Node.isObjectBindingPattern(nameNode)) {
     for (const el of nameNode.getElements()) {
       const prop = el.getPropertyNameNode()?.getText() ?? el.getName();
       if (prop === "usage" || ACCUMULATED_PROPS.has(prop)) {
-        add(ctx, el, "multi-step-result", "silent", "agent",
-          `\`${prop}\` now covers every step, not just the last one. Read it from \`finalStep\` to keep the v6 value.`);
+        add(ctx, el, ruleId, "silent", "agent",
+          `${prefix}\`${prop}\` now covers every step, not just the last one. Read it from \`finalStep\` to keep the v6 value.`);
       }
     }
     return;
@@ -183,16 +206,16 @@ function checkResultReads(ctx: RuleContext, { fn, call }: AiCall) {
 
     if (prop === "response" && Node.isPropertyAccessExpression(parent) && parent.getName() === "messages") {
       // result.response is now the final step's response, so .messages lost the earlier steps.
-      add(ctx, parent, "response-messages", "silent", fn === "generateText" ? "auto" : "agent",
-        "`response.messages` now holds only the final step's messages. Use `responseMessages` for the full history.");
-      if (fn === "generateText") ctx.edits.push({ node: parent, text: `${v}.responseMessages` });
+      add(ctx, parent, maybe ? ruleId : "response-messages", "silent", auto ? "auto" : "agent",
+        `${prefix}\`response.messages\` now holds only the final step's messages. Use \`responseMessages\` for the full history.`);
+      if (auto) ctx.edits.push({ node: parent, text: `${v}.responseMessages` });
       continue;
     }
     if (prop === "usage" || ACCUMULATED_PROPS.has(prop)) {
-      add(ctx, access, "multi-step-result", "silent", fn === "generateText" ? "auto" : "agent",
-        `\`${v}.${prop}\` now covers every step, not just the last one. ` +
+      add(ctx, access, ruleId, "silent", auto ? "auto" : "agent",
+        `${prefix}\`${v}.${prop}\` now covers every step, not just the last one. ` +
         `\`${v}.finalStep.${prop}\` keeps the v6 value.`);
-      if (fn === "generateText") ctx.edits.push({ node: access, text: `${v}.finalStep.${prop}` });
+      if (auto) ctx.edits.push({ node: access, text: `${v}.finalStep.${prop}` });
     }
   }
 }
@@ -243,12 +266,21 @@ function checkEndCallback(ctx: RuleContext, { options }: AiCall) {
   }
 }
 
-/** `totalUsage` is deprecated; `usage` now means the same thing. */
-function checkTotalUsage(ctx: RuleContext, sf: SourceFile) {
-  for (const access of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
-    if (access.getName() !== "totalUsage") continue;
+/**
+ * `totalUsage` is deprecated; `usage` now means the same thing. Only on AI SDK results: the repo's own
+ * objects can have a `totalUsage` field that means something else.
+ */
+function checkTotalUsage(ctx: RuleContext, { call }: AiCall) {
+  const decl = resultDeclaration(call);
+  const nameNode = decl?.getNameNode();
+  if (!decl || !nameNode || !Node.isIdentifier(nameNode)) return;
+  const symbol = nameNode.getSymbol();
+  const scope = decl.getFirstAncestor((n) => Node.isBlock(n) || Node.isSourceFile(n)) ?? decl.getSourceFile();
+  for (const access of scope.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+    const target = access.getExpression();
+    if (access.getName() !== "totalUsage" || !Node.isIdentifier(target) || target.getSymbol() !== symbol) continue;
     add(ctx, access, "total-usage", "deprecated", "auto", "`totalUsage` is deprecated; `usage` now covers all steps.");
-    ctx.edits.push({ node: access, text: `${access.getExpression().getText()}.usage` });
+    ctx.edits.push({ node: access, text: `${target.getText()}.usage` });
   }
 }
 

@@ -26,6 +26,11 @@ describe("ai-sdk v7 scan", () => {
     ]);
   });
 
+  it("sends reads on calls with hidden options to the agent, without a rewrite", () => {
+    expect(at("maybe-multi-step-result")).toEqual(["src/agent.ts:51"]);
+    expect(result.findings.find((f) => f.ruleId === "maybe-multi-step-result")?.fix).toBe("agent");
+  });
+
   it("flags end-callback reads, response.messages and totalUsage", () => {
     expect(at("multi-step-end-event")).toEqual(["src/agent.ts:14"]);
     expect(at("response-messages")).toEqual(["src/agent.ts:19"]);
@@ -56,5 +61,8 @@ describe("auto fixes", () => {
     expect(src).toContain("const total = result.usage");
     // Single-step call untouched.
     expect(src).toContain("return result.usage;\n}");
+    // Hidden options and the repo's own totalUsage field untouched.
+    expect(src).toContain("return result.toolCalls;\n}\n\ndeclare const billing");
+    expect(src).toContain("return billing.totalUsage;");
   });
 });

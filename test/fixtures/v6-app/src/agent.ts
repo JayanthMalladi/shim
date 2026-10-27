@@ -44,3 +44,21 @@ export function streaming() {
   });
   return result.toolCalls;
 }
+
+export async function spreadOptions(opts: { stopWhen?: any }) {
+  // Options come from a spread, so the call may be multi-step: flag for the agent, never rewrite.
+  const result = await generateText({ model, ...opts });
+  return result.toolCalls;
+}
+
+declare const billing: { totalUsage: number };
+export function ownTotalUsage() {
+  // The repo's own field, not an AI SDK result: must not be flagged or rewritten.
+  return billing.totalUsage;
+}
+
+export function conditionalSpreads(system?: string) {
+  // Spreads of inline literals are transparent: no stopWhen, so single step. Must not be flagged.
+  const result = streamText({ model, ...(system ? { system } : {}), ...{ maxRetries: 2 } });
+  return result.toolCalls;
+}

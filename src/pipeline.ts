@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runReviewer, type Review } from "./agent.js";
+import { runReviewer } from "./agent.js";
+import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { run } from "./exec.js";
-import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults } from "./gates.js";
+import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
 import type { Finding } from "./types.js";
@@ -14,6 +15,7 @@ export interface MigrateOptions {
   agent: boolean;
   /** Where to write report.json and pr-body.md. */
   outDir: string;
+  arch?: Architecture;
 }
 
 export type Verdict = "open-pr" | "open-issue" | "skip";
@@ -34,32 +36,51 @@ export interface MigrationReport {
   regressions: GateName[];
   /** Output tail of each regressed gate, for the issue body and for debugging. */
   failures: Record<GateName, string>;
-  /** Raw output of each fixer-agent attempt on the chosen candidate. */
+  /** Final text of each fixer-agent attempt on the chosen candidate. */
   agentRuns: string[];
   /** Every parallel fixer candidate, for tuning the fixer across the fleet. */
-  candidates: { ok: boolean; size: number; regressions: GateName[]; remaining: number }[];
-  /** The independent reviewer's verdict on the final diff, when the agent ran. */
-  review?: Omit<Review, "output">;
+  candidates: { ok: boolean; size: number; regressions: GateName[]; remaining: number; approved?: boolean }[];
+  /** The internal reviewer's verdict on the final diff, when the architecture has one. */
+  review?: { approve: boolean; issues: string[] };
   diffStat: string;
   /** Files this PR changes; a finding counts as fixed only if its file is among them. */
   changedFiles: string[];
   /** Checks the upgrade broke that the fixer then repaired. */
   repairedChecks: GateName[];
+  /** Architecture id, agent spend in USD, and wall time of the fix stage. */
+  arch?: string;
+  cost?: number;
+  fixMs?: number;
 }
 
-const CANDIDATES = 3;
-const ATTEMPTS_PER_CANDIDATE = 2;
+/** Everything up to the fix stage. Saved to disk so architectures can be compared on the same start. */
+export interface Prepared {
+  repo: string;
+  pm: PackageManager;
+  /** Packages that use ai, relative to the repo root so a copy of the repo can reuse them. */
+  pkgDirs: string[];
+  library: boolean;
+  baseline: GateResults;
+  versionChanges: string[];
+  codemod: boolean;
+  applied: number;
+  /** One scan of the codemodded v6 code; its silent findings can't be re-detected after fixing. */
+  pre: Finding[];
+  /** Gates after the codemod and Shim's deterministic fixes. */
+  after: GateResults;
+}
 
 const gateSummary = (g: GateResults) =>
   Object.fromEntries(Object.entries(g).map(([k, v]) => [k, !!v?.ok]));
 
-export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
-  const log = (msg: string) => console.error(`[shim] ${msg}`);
-  const base = { repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "", changedFiles: [], repairedChecks: [] };
+const log = (msg: string) => console.error(`[shim] ${msg}`);
 
+const emptyReport = (repo: string) => ({ repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "", changedFiles: [], repairedChecks: [] });
+
+export async function prepare(dir: string, repo: string): Promise<{ prepared: Prepared } | { skip: string; baseline?: GateResults }> {
   const aiPkgs = findAiPackages(dir);
   if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
-    return { ...base, verdict: "skip", reason: `not on ai@6 (${aiPkgs.map((p) => p.range).join(", ") || "no ai dependency"})` };
+    return { skip: `not on ai@6 (${aiPkgs.map((p) => p.range).join(", ") || "no ai dependency"})` };
   }
   const pm = detectPackageManager(dir);
   const pkgDirs = aiPkgs.map((p) => path.dirname(p.file));
@@ -70,61 +91,78 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
   log(`baseline gates (${pm})`);
   const baseline = runGates(dir, pm, true, pkgDirs);
-  if (!baseline.install?.ok) {
-    return { ...base, verdict: "skip", reason: "baseline install fails", baseline: gateSummary(baseline) };
-  }
+  if (!baseline.install?.ok) return { skip: "baseline install fails", baseline };
+
   log("bumping dependencies");
   const versionChanges = bumpAiSdk(dir);
-
   log("running official codemod");
   const codemod = run("npx", ["-y", "@ai-sdk/codemod@4", "v7", "."], dir).ok;
-
-  // One scan of the codemodded v6 code. Its silent findings can't be re-detected later:
-  // once fixed, `result.usage` is valid v7 code that means something else.
   log("applying Shim auto-fixes");
   const { result: pre, applied } = await scanAndFix(dir);
-  const forAgent = pre.findings.filter((f) => f.fix === "agent");
-  const postBreaks = () => scan(dir).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual");
+  const after = runGates(dir, pm, false, pkgDirs);
+  return {
+    prepared: {
+      repo, pm, pkgDirs: pkgDirs.map((d) => path.relative(dir, d) || "."), library, baseline,
+      versionChanges, codemod, applied, pre: pre.findings, after,
+    },
+  };
+}
 
-  let after = runGates(dir, pm, false, pkgDirs);
+export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
+  const p = await prepare(dir, repo);
+  if ("skip" in p) {
+    const report: MigrationReport = { ...emptyReport(repo), verdict: "skip", reason: p.skip, baseline: gateSummary(p.baseline ?? {}) };
+    writeReport(report, opts.outDir);
+    return report;
+  }
+  return finish(dir, p.prepared, opts);
+}
+
+/** The fix stage: fixer candidates, review, verdict, report. Varies by architecture. */
+export async function finish(dir: string, prep: Prepared, opts: MigrateOptions): Promise<MigrationReport> {
+  const arch = opts.arch ?? DEFAULT_ARCH;
+  const started = Date.now();
+  const { repo, pm, baseline, versionChanges, library, codemod, applied } = prep;
+  const pkgDirsIn = (root: string) => prep.pkgDirs.map((p) => path.join(root, p));
+  const breaks = (d: string) => scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual");
+
+  let after = prep.after;
   const brokenByUpgrade = regressions(baseline, after);
-  let remaining = dedupe([...forAgent, ...postBreaks()]);
+  let remaining = dedupe([...prep.pre.filter((f) => f.fix === "agent"), ...breaks(dir)]);
   const agentRuns: string[] = [];
   let candidates: MigrationReport["candidates"] = [];
   let review: MigrationReport["review"];
+  let cost = 0;
 
-  if (opts.agent && (remaining.length || regressions(baseline, after).length)) {
-    log(`${CANDIDATES} fixer candidates: ${remaining.length} findings, ${regressions(baseline, after).length} failing checks`);
-    const cands = await fixInParallel(dir, CANDIDATES, ATTEMPTS_PER_CANDIDATE, {
+  const needsFix = remaining.length > 0 || brokenByUpgrade.length > 0 || arch.audit;
+  if (opts.agent && needsFix) {
+    log(`${arch.id}: ${arch.candidates} candidates, ${remaining.length} findings, ${brokenByUpgrade.length} failing checks`);
+    const cands = await fixInParallel(dir, arch, {
       baseline, after, findings: remaining,
       failingOutput: (a) => Object.entries(a)
         .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
         .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
         .join("\n\n"),
       // Same packages, inside the candidate's copy: absolute paths would gate the original repo.
-      gates: (d) => runGates(d, pm, false, pkgDirs.map((p) => path.join(d, path.relative(dir, p)))),
-      breaks: (d) => scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
+      gates: (d) => runGates(d, pm, false, pkgDirsIn(d)),
+      breaks,
     });
-    const ranked = rank(cands, baseline);
-    candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length }));
-    // Review passing candidates smallest first; the first one the reviewer approves wins.
-    let chosen = ranked[0]!;
-    for (const c of ranked.filter((c) => c.ok)) {
-      log(`reviewing candidate (${c.size} lines)`);
-      review = await runReviewer(c.dir);
-      if (review.approve) { chosen = c; break; }
-    }
+    cost += cands.reduce((s, c) => s + c.cost, 0);
+    candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));
+    const chosen = rank(cands, baseline, arch.selection)[0]!;
     adopt(dir, chosen, cands);
     after = chosen.after;
     remaining = chosen.remaining;
     agentRuns.push(...chosen.agentRuns);
-  } else if (opts.agent && !regressions(baseline, after).length) {
+    if (chosen.review) review = { approve: chosen.review.approve, issues: chosen.review.issues };
+  } else if (opts.agent && arch.review && !brokenByUpgrade.length) {
     log("reviewing diff");
-    review = await runReviewer(dir);
+    const r = await runReviewer(dir, arch.reviewerRules, arch.reviewerModel);
+    cost += r.cost;
+    review = { approve: r.approve, issues: r.issues };
   }
-  const before = pre.findings;
   formatChanged(dir);
-  addChangeset(dir, pkgDirs);
+  addChangeset(dir, pkgDirsIn(dir));
 
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
@@ -141,14 +179,19 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
   const report: MigrationReport = {
     repo, verdict, reason, versionChanges, library, codemod, autoFixed: applied,
-    before, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed, diffStat, changedFiles, repairedChecks, agentRuns, candidates,
-    review: review && { approve: review.approve, issues: review.issues },
+    before: prep.pre, remaining, baseline: gateSummary(baseline), after: gateSummary(after), regressions: regressed,
+    diffStat, changedFiles, repairedChecks, agentRuns, candidates, review,
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
+    arch: arch.id, cost, fixMs: Date.now() - started,
   };
-  fs.mkdirSync(opts.outDir, { recursive: true });
-  fs.writeFileSync(path.join(opts.outDir, "report.json"), JSON.stringify(report, null, 2));
-  fs.writeFileSync(path.join(opts.outDir, "pr-body.md"), prBody(report));
+  writeReport(report, opts.outDir);
   return report;
+}
+
+function writeReport(report: MigrationReport, outDir: string) {
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
+  if (report.verdict !== "skip") fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report));
 }
 
 function dedupe(findings: Finding[]): Finding[] {

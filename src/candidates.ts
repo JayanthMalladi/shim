@@ -1,5 +1,6 @@
 import fs from "node:fs";
-import { runFixer } from "./agent.js";
+import { runFixer, runReviewer, type Review } from "./agent.js";
+import type { Architecture } from "./arch.js";
 import { run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
 import type { Finding } from "./types.js";
@@ -11,7 +12,11 @@ export interface Candidate {
   agentRuns: string[];
   /** Lines the fixer added or removed, lockfiles excluded. Smaller is easier to review. */
   size: number;
+  /** Gates hold and no breaking findings remain. */
   ok: boolean;
+  /** The internal reviewer's last verdict, when the architecture has one. */
+  review?: Review;
+  cost: number;
 }
 
 export interface FixContext {
@@ -32,45 +37,69 @@ const git = (dir: string, ...args: string[]) =>
 
 /**
  * The fixer is not deterministic, so run several independent fixers on copies of the repo and let the
- * gates choose. Agents run side by side; gates run one at a time (they are sync), which keeps memory sane.
+ * gates (and the reviewer, if any) choose. Agents run side by side; gates run one at a time (they are
+ * sync), which keeps memory sane.
  */
-export async function fixInParallel(dir: string, n: number, attempts: number, ctx: FixContext): Promise<Candidate[]> {
-  return Promise.all(
-    Array.from({ length: n }, async (_, i): Promise<Candidate> => {
-      const cdir = `${dir}.cand${i}`;
-      fs.rmSync(cdir, { recursive: true, force: true });
-      run("cp", ["-a", dir, cdir], ".");
-      // Snapshot so the candidate's own diff can be measured, then undone before review.
-      git(cdir, "add", "-A");
-      git(cdir, "commit", "-q", "--no-verify", "-m", "shim: before fixer");
-
-      let after = ctx.after;
-      let remaining = ctx.findings;
-      const agentRuns: string[] = [];
-      for (let attempt = 1; attempt <= attempts; attempt++) {
-        const res = await runFixer(cdir, attempt === 1 ? ctx.findings : [], ctx.failingOutput(after));
-        agentRuns.push(res.output);
-        after = ctx.gates(cdir);
-        remaining = ctx.breaks(cdir);
-        if (!regressions(ctx.baseline, after).length && !remaining.length) break;
-      }
-
-      git(cdir, "add", "-A");
-      const size = git(cdir, "diff", "--cached", "--numstat", "HEAD").output.split("\n")
-        .map((l) => l.split("\t"))
-        .filter(([, , file]) => file && !LOCKFILES.test(file))
-        .reduce((sum, [a, d]) => sum + (Number(a) || 0) + (Number(d) || 0), 0);
-      git(cdir, "reset", "-q", "--soft", "HEAD~1");
-      git(cdir, "reset", "-q");
-      const ok = !regressions(ctx.baseline, after).length && !remaining.length;
-      return { dir: cdir, after, remaining, agentRuns, size, ok };
-    }),
-  );
+export async function fixInParallel(dir: string, arch: Architecture, ctx: FixContext): Promise<Candidate[]> {
+  return Promise.all(Array.from({ length: arch.candidates }, (_, i) => fixCandidate(dir, `${dir}.cand${i}`, arch, ctx)));
 }
 
-/** Passing candidates first, smallest diff first; then the least-broken failures. */
-export function rank(cands: Candidate[], baseline: GateResults): Candidate[] {
-  const score = (c: Candidate) => [c.ok ? 0 : 1, regressions(baseline, c.after).length, c.remaining.length, c.size];
+async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext): Promise<Candidate> {
+  fs.rmSync(cdir, { recursive: true, force: true });
+  run("cp", ["-a", dir, cdir], ".");
+  // Snapshot so the candidate's own diff can be measured, then undone before review.
+  git(cdir, "add", "-A");
+  git(cdir, "commit", "-q", "--no-verify", "-m", "shim: before fixer");
+
+  let after = ctx.after;
+  let remaining = ctx.findings;
+  let review: Review | undefined;
+  let cost = 0;
+  const agentRuns: string[] = [];
+  const passing = () => !regressions(ctx.baseline, after).length && !remaining.length;
+  const fix = async (reviewIssues?: string[]) => {
+    const first = !agentRuns.length;
+    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues }, arch);
+    agentRuns.push(res.text ?? res.output);
+    cost += res.cost ?? 0;
+    after = ctx.gates(cdir);
+    remaining = ctx.breaks(cdir);
+  };
+
+  for (let attempt = 1; attempt <= arch.attempts; attempt++) {
+    await fix();
+    if (passing()) break;
+  }
+  if (arch.review) {
+    for (let round = 0; passing(); round++) {
+      review = await runReviewer(cdir, arch.reviewerRules, arch.reviewerModel);
+      cost += review.cost;
+      if (review.approve || round >= arch.reviewRounds) break;
+      await fix(review.issues);
+    }
+  }
+
+  git(cdir, "add", "-A");
+  const size = git(cdir, "diff", "--cached", "--numstat", "HEAD").output.split("\n")
+    .map((l) => l.split("\t"))
+    .filter(([, , file]) => file && !LOCKFILES.test(file))
+    .reduce((sum, [a, d]) => sum + (Number(a) || 0) + (Number(d) || 0), 0);
+  git(cdir, "reset", "-q", "--soft", "HEAD~1");
+  git(cdir, "reset", "-q");
+  return { dir: cdir, after, remaining, agentRuns, size, ok: passing(), review, cost };
+}
+
+/**
+ * Approved passing candidates first, then unreviewed passing ones, then the least-broken failures.
+ * Within a tier, `smallest` prefers the smallest diff; `first` keeps launch order.
+ */
+export function rank(cands: Candidate[], baseline: GateResults, selection: Architecture["selection"] = "smallest"): Candidate[] {
+  const score = (c: Candidate) => [
+    c.ok ? (c.review && !c.review.approve ? 1 : 0) : 2,
+    regressions(baseline, c.after).length,
+    c.remaining.length,
+    selection === "smallest" ? c.size : 0,
+  ];
   return [...cands].sort((a, b) => {
     const [x, y] = [score(a), score(b)];
     const i = x.findIndex((v, k) => v !== y[k]);

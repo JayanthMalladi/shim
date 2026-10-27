@@ -5,6 +5,9 @@ export interface ExecResult {
   code: number | null;
   output: string;
   ms: number;
+  /** For `claude -p --output-format json`: the run's cost and its final text. */
+  cost?: number;
+  text?: string;
 }
 
 /** Run a command without a shell. Output is truncated to the tail, which is where errors live. */
@@ -27,14 +30,25 @@ export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 1
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd, env: { ...process.env, CI: "1", FORCE_COLOR: "0" }, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
-    const keep = (d: Buffer) => { output = (output + d.toString()).slice(-64_000); };
+    const keep = (d: Buffer) => { output = (output + d.toString()).slice(-2_000_000); };
     child.stdout.on("data", keep);
     child.stderr.on("data", keep);
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.on("error", (e) => { output += `\n${e.message}`; });
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ ok: code === 0, code, output: output.slice(-8000), ms: Date.now() - start });
+      const json = parseAgentJson(output);
+      resolve({ ok: code === 0, code, output: output.slice(-8000), ms: Date.now() - start, cost: json?.total_cost_usd, text: json?.result });
     });
   });
+}
+
+function parseAgentJson(output: string): { total_cost_usd?: number; result?: string } | undefined {
+  for (const line of output.trim().split("\n").reverse()) {
+    if (!line.startsWith("{") || !line.includes('"total_cost_usd"')) continue;
+    try {
+      return JSON.parse(line);
+    } catch {}
+  }
+  return undefined;
 }
