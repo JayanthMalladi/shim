@@ -3,6 +3,7 @@ import path from "node:path";
 import { runReviewer } from "./agent.js";
 import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
+import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { run } from "./exec.js";
 import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
@@ -99,11 +100,12 @@ export async function prepare(dir: string, repo: string): Promise<{ prepared: Pr
   const codemod = run("npx", ["-y", "@ai-sdk/codemod@4", "v7", "."], dir).ok;
   log("applying Shim auto-fixes");
   const { result: pre, applied } = await scanAndFix(dir);
+  const guard = codemodExportFindings(dir);
   const after = runGates(dir, pm, false, pkgDirs);
   return {
     prepared: {
       repo, pm, pkgDirs: pkgDirs.map((d) => path.relative(dir, d) || "."), library, baseline,
-      versionChanges, codemod, applied, pre: pre.findings, after,
+      versionChanges, codemod, applied, pre: [...pre.findings, ...guard], after,
     },
   };
 }
@@ -124,11 +126,14 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   const started = Date.now();
   const { repo, pm, baseline, versionChanges, library, codemod, applied } = prep;
   const pkgDirsIn = (root: string) => prep.pkgDirs.map((p) => path.join(root, p));
-  const breaks = (d: string) => scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual");
+  const breaks = (d: string) => [
+    ...scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
+    ...codemodExportFindings(d),
+  ];
 
   let after = prep.after;
   const brokenByUpgrade = regressions(baseline, after);
-  let remaining = dedupe([...prep.pre.filter((f) => f.fix === "agent"), ...breaks(dir)]);
+  let remaining = dedupe([...prep.pre.filter((f) => f.fix === "agent" && f.ruleId !== "codemod-renamed-export"), ...breaks(dir)]);
   const agentRuns: string[] = [];
   let candidates: MigrationReport["candidates"] = [];
   let review: MigrationReport["review"];
