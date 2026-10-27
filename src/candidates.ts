@@ -29,6 +29,8 @@ export interface FixContext {
   gates: (dir: string) => GateResults;
   /** Breaking findings left after a fix; empty means the code is done. */
   breaks: (dir: string) => Finding[];
+  /** Shell commands equivalent to the gates, relative to the repo root. */
+  checks?: string[];
 }
 
 const LOCKFILES = /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/;
@@ -59,7 +61,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   const passing = () => !regressions(ctx.baseline, after).length && !remaining.length;
   const fix = async (reviewIssues?: string[]) => {
     const first = !agentRuns.length;
-    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues }, arch);
+    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch);
     agentRuns.push(res.text ?? res.output);
     cost += res.cost ?? 0;
     after = ctx.gates(cdir);

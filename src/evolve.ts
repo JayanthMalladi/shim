@@ -130,6 +130,7 @@ function clamp(a: Partial<Architecture>, id: string, notes: string): Architectur
     fixerModel: MODELS.includes(a.fixerModel ?? "") ? a.fixerModel! : V2.fixerModel,
     fixerMaxTurns: int(a.fixerMaxTurns, 10, 60, V2.fixerMaxTurns),
     fixerRules: text(a.fixerRules, V2.fixerRules),
+    fixerChecks: !!a.fixerChecks,
     audit: !!a.audit,
     review: a.review !== false,
     reviewerModel: MODELS.includes(a.reviewerModel ?? "") ? a.reviewerModel! : V2.reviewerModel,
@@ -171,6 +172,8 @@ Genome fields:
 - fixerModel / reviewerModel: one of ${MODELS.join(", ")} (sonnet is cheaper, opus stronger).
 - fixerMaxTurns (10-60).
 - fixerRules: the rules text the fixer gets above its findings and failing checks. You may rewrite it.
+- fixerChecks: if true, the fixer may run the repo's own build/typecheck/test commands (the same ones the gates
+  run) to verify its work; otherwise it can only run tsc. Slower, but it sees test and build failures directly.
 - audit: if true, the fixer also audits every generateText/streamText/Agent call for silent v7 changes, even
   with no findings (catches scanner misses, costs more, risks unrelated edits).
 - review: internal reviewer gate; reviewerRules: its rules text (you may rewrite it); reviewRounds (0-2): how

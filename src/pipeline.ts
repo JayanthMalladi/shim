@@ -146,6 +146,12 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
       // Same packages, inside the candidate's copy: absolute paths would gate the original repo.
       gates: (d) => runGates(d, pm, false, pkgDirsIn(d)),
       breaks,
+      checks: Object.keys(baseline).filter((g) => g !== "install").map((g) => {
+        const [kind, rel = "."] = g.split(" ");
+        if (kind === "build") return `${pm} run build`;
+        if (kind === "typecheck") return `cd ${rel} && npx --no-install tsc --noEmit -p tsconfig.json`;
+        return `cd ${rel} && ${pm} run test`;
+      }),
     });
     cost += cands.reduce((s, c) => s + c.cost, 0);
     candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));

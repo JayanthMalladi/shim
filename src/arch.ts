@@ -14,6 +14,8 @@ export interface Architecture {
   fixerMaxTurns: number;
   /** The fixer's rules, placed above the findings and failing checks. */
   fixerRules: string;
+  /** Let the fixer run the repo's own build, type check and test commands, not just tsc. */
+  fixerChecks?: boolean;
   /**
    * Run the fixer even when there are no findings and no failing checks, asking it to audit every
    * generateText/streamText call for v7's silent changes. Catches what the scanner misses.

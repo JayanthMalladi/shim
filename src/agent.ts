@@ -8,6 +8,8 @@ export interface FixBrief {
   failures: string;
   /** Issues an internal reviewer raised on this candidate's previous diff. */
   reviewIssues?: string[];
+  /** Shell commands for the gates, shown to the fixer when it may run them. */
+  checks?: string[];
 }
 
 /**
@@ -36,6 +38,9 @@ export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFA
         ]
       : []),
     "Findings:",
+    ...(arch.fixerChecks && brief.checks?.length
+      ? ["You may run these checks yourself to verify your fix (they are what decides whether this ships):", ...brief.checks.map((c) => `- ${c}`), ""]
+      : []),
     ...(findings.length ? [] : [nothingListed && arch.audit ? "- none; only do the audit above" : "- none; only fix what is listed below"]),
     ...findings.map((f) => `- ${f.file}:${f.line} [${f.ruleId}] ${f.message}\n  code: ${f.snippet}`),
     ...(failures ? ["", "Checks that passed before the upgrade and fail now:", failures.slice(-8000)] : []),
@@ -53,10 +58,11 @@ export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFA
       "--max-budget-usd", "3",
       "--permission-mode", "acceptEdits",
       "--allowedTools", "Read", "Edit", "Write", "Glob", "Grep", "Bash(npx --no-install tsc:*)", "Bash(git diff:*)",
+      ...(arch.fixerChecks ? ["Bash(cd:*)", "Bash(npm run:*)", "Bash(pnpm run:*)", "Bash(yarn run:*)", "Bash(bun run:*)", "Bash(npx --no-install:*)"] : []),
       "--output-format", "json",
     ],
     dir,
-    30 * 60_000,
+    (arch.fixerChecks ? 45 : 30) * 60_000,
   );
 }
 
