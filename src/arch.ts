@@ -41,6 +41,8 @@ export const FIXER_RULES = `Rules:
 - The codemod's edits are in \`git diff\`. If one of them is wrong (for example it changed a value that
   this repo's own types still require), revert that edit, even in a test. Otherwise never edit or weaken
   tests to make them pass.
+- Never silence an error the upgrade introduced with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
+  \`@ts-expect-error\` or similar. Fix the types, or leave the site and report it.
 - If a site cannot be fixed safely, leave it and say why in your final message.
 - Finish by running \`npx --no-install tsc --noEmit -p tsconfig.json\` if a tsconfig.json exists.`;
 
@@ -54,6 +56,8 @@ export const REVIEWER_RULES = `Reject it if any of these is true:
   step in v6 and v7, so its top-level \`usage\`, \`toolCalls\`, \`response\` etc. keep their meaning; do not
   reject those. Deprecated aliases that still work in v7 are not a reason to reject.
 - An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
+- A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\` or
+  a similar cast or suppression instead of fixed.
 - A test is deleted, skipped, or loosened, unless it only reverts a wrong codemod edit.
 - A function's signature changes (sync to async, parameters, return type).`;
 

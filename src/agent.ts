@@ -119,6 +119,8 @@ export const JUDGE_RULES = `${REVIEWER_RULES}
 - Any call that runs several steps (stopWhen or maxSteps set, or an Agent) still reads usage, toolCalls, toolResults,
   content, text, response.messages, or onFinish/onEnd event fields with their v6 meaning, without finalStep
   or responseMessages. Check every such call in the repo, not only the lines in the diff.
+- Any added cast or suppression (\`as unknown as\`, \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\`) sits on code that
+  the upgrade made fail to type check, hiding a real mismatch. Check the whole diff, tests included.
 - The diff leaves code that cannot compile, references names that do not exist, or renames anything this
   package exports.`;
 
