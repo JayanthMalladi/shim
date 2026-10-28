@@ -2,6 +2,10 @@
  * Guardrails for the evolve loop. Kept out of evolve.ts (which runs its main() at import) so the
  * decisions are unit-testable.
  */
+import fs from "node:fs";
+import path from "node:path";
+import { run } from "./exec.js";
+
 
 /** A row of the scored archive: enough to estimate what the next evaluation will cost. */
 export interface ArchiveEntry {
@@ -75,6 +79,26 @@ export function sanitizeModels(a: { fixerModel?: string; reviewerModel?: string 
     return d;
   };
   return { fixerModel: one(a.fixerModel, defaults.fixerModel, "fixerModel"), reviewerModel: one(a.reviewerModel, defaults.reviewerModel, "reviewerModel"), clamped };
+}
+
+/**
+ * Durable results: copy LOG.md and archive.jsonl from the run's out dir into the mirror, and if
+ * the mirror is a git checkout, commit and push them so results survive the machine dying. A
+ * push failure is returned as text, not thrown: the evolution must not crash on a dead remote.
+ */
+export function syncMirror(mirror: string, outDir: string, label: string): string {
+  fs.mkdirSync(mirror, { recursive: true });
+  for (const f of ["LOG.md", "archive.jsonl"])
+    fs.copyFileSync(path.join(outDir, f), path.join(mirror, f));
+  if (!run("git", ["rev-parse", "--is-inside-work-tree"], mirror).ok) return "copied (mirror is not a git checkout)";
+  const git = (...args: string[]) => run("git", args, mirror);
+  const cached = git("add", "LOG.md", "archive.jsonl");
+  if (!cached.ok) return `copied; git add failed: ${cached.output.slice(-200)}`;
+  if (git("diff", "--cached", "--quiet").code === 0) return "copied (no changes to commit)";
+  const commit = run("git", ["-c", "user.name=shim-evolve", "-c", "user.email=shim-evolve@users.noreply.github.com", "commit", "-m", `evolve: results ${label}`], mirror);
+  if (!commit.ok) return `copied; commit failed: ${commit.output.slice(-200)}`;
+  const push = git("push", "origin", "HEAD");
+  return push.ok ? "committed and pushed" : `committed locally; push failed: ${push.output.slice(-200)}`;
 }
 
 

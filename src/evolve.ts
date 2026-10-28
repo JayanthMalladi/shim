@@ -14,7 +14,7 @@ import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
 import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS } from "./evolve-guard.js";
+import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -289,9 +289,8 @@ function writeLog(archive: Evaluation[]) {
   }
   fs.writeFileSync(path.join(out, "LOG.md"), lines.join("\n"));
   if (mirror) {
-    fs.mkdirSync(mirror, { recursive: true });
-    fs.copyFileSync(path.join(out, "LOG.md"), path.join(mirror, "LOG.md"));
-    fs.copyFileSync(ARCHIVE, path.join(mirror, "archive.jsonl"));
+    const status = syncMirror(mirror, out, new Date().toISOString());
+    log(`mirror: ${status}`);
   }
 }
 
