@@ -1,0 +1,82 @@
+{
+  "repo": "neurophic/neurophic-sdk-js",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "ai: ^6.0.149 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/ai-sdk/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "typecheck packages/ai-sdk": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "typecheck packages/ai-sdk": true
+  },
+  "regressions": [],
+  "diffStat": "packages/ai-sdk/package.json |  2 +-\n packages/ai-sdk/src/tools.ts | 11 ++++--\n pnpm-lock.yaml               | 84 ++++++++++++++++++++++++--------------------\n 3 files changed, 55 insertions(+), 42 deletions(-)",
+  "changedFiles": [
+    "packages/ai-sdk/package.json",
+    "packages/ai-sdk/src/tools.ts",
+    "pnpm-lock.yaml"
+  ],
+  "repairedChecks": [
+    "build",
+    "typecheck .",
+    "typecheck packages/ai-sdk"
+  ],
+  "agentRuns": [
+    "I fixed the `context.ts` error, but `tsc` still fails on a second error in `tools.ts` that I left alone, so the typecheck and most likely the build are still broken.\n\n**Fixed: `packages/ai-sdk/src/context.ts:10`.** The codemod renamed `system` to `instructions: system` in the destructuring of `options`. `options` is the repo's own `WithContextOptions` type (`src/types.ts`), which still has a `system` field, so the codemod shouldn't have touched it. I reverted that edit, which clears the TS2339 error, and behaviour is the same as in v6.\n\n**Not fixed: `packages/ai-sdk/src/tools.ts:5`.** The final `npx --no-install tsc --noEmit -p tsconfig.json` still fails here:\n\n```\nerror TS2742: The inferred type of 'createTools' cannot be named without a reference to\n'.pnpm/@ai-sdk+provider-utils@5.0.70_.../@ai-sdk/provider-utils' (and '@ai-sdk/provider'). This is likely not portable.\n```\n\nThe root tsconfig sets `declaration: true`, so tsc has to be able to write out `createTools`'s return type. In v7, `tool({ ..., execute })` returns `ExecutableTool<Tool<…>>`. That type lives in `@ai-sdk/provider-utils`, and `ai` doesn't re-export it, so tsc can't name it from this package.\n\nBoth ways to fix it break one of your rules, so I stopped:\n- **Add a return-type annotation using types `ai` exports**, such as `Tool<…>`. That changes `createTools`'s public return type: `ExecutableTool` guarantees an `execute`, plain `Tool` doesn't. That breaks the rule against changing a function's return type.\n- **Add `@ai-sdk/provider-utils` and `@ai-sdk/provider` as devDependencies.** That's new dependencies, which no finding asked for.\n\nSomeone needs to choose one of these. Adding the devDependencies keeps the public types the same.\n\nI couldn't confirm what is actually breaking the build: running `pnpm run build` needed approval and wasn't run. The build log you pasted is cut off before the error message. tsdown builds the `.d.ts` files, so it most likely fails on this same `tools.ts` error.",
+    "I fixed the TS2742 error in `packages/ai-sdk/src/tools.ts`. Both typechecks now pass. The build is the part I couldn't confirm: the `pnpm --filter @neurophic/ai-sdk run build` command needed approval and didn't run.\n\n- **Typecheck:** `npx --no-install tsc --noEmit -p tsconfig.json` passes with no errors, at the repo root and in `packages/ai-sdk`.\n- **Build:** the original build failure was the same declaration error, since tsdown hits it when generating `.d.ts` files. It should pass now, but that's untested.\n\n**The cause:** with ai v7, the type TypeScript worked out for `createTools` points into `@ai-sdk/provider-utils` and `@ai-sdk/provider`. This package can't refer to either of those directly, so it can't generate type declarations for the function.\n\n**The fix:** I gave `createTools` an explicit return type, built from `Tool`, which `ai` exports, and `RetrieveResponse`, which `neurophic` exports. It spells out the same input and output types the tools had before. The function body and its parameters are unchanged, so runtime behaviour is the same. No casts or error suppressions were used.\n\nThere was already an uncommitted change in `packages/ai-sdk/src/context.ts` when I started, and I left it alone. The committed codemod version renames the option to `instructions: system`. The working copy goes back to `system`, which is what this repo's `WithContextOptions` still expects, so that edit looks right."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 20,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 4.1648078,
+  "fixMs": 274905
+}

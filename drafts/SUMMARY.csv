@@ -8,3 +8,4 @@ voightxyz/voight-vercel-ai,ready,deps-only,4/4,0.3391,approve,all baseline gates
 nkwib/toolroute,ready,code,4/4,0.4133,approve,all baseline gates still pass and no breaking findings remain
 yadimon/prio-llm-router,ready,code,4/4,2.2136,approve,all baseline gates still pass and no breaking findings remain
 HoudiniSwap/houdiniswap-agent,not-ready,code,2/4,3.3416,not-run,"gates regressed: build, typecheck packages/ai-tools"
+neurophic/neurophic-sdk-js,ready,code,4/4,4.7063,approve,all baseline gates still pass and no breaking findings remain
