@@ -1,0 +1,118 @@
+{
+  "repo": "KrzysztofMarmol/mjml-agent-editor",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/anthropic: ^3.0.0 -> ^4.0.0",
+    "@ai-sdk/openai: ^3.0.90 -> ^4.0.0",
+    "@ai-sdk/provider: ^3.0.14 -> ^4.0.0",
+    "ai: ^6.0.230 -> ^7.0.0",
+    "ai: ^6.0.230 -> ^7.0.0",
+    "@ai-sdk/react: ^3.0.232 -> ^4.0.0",
+    "ai: ^6.0.230 -> ^7.0.0",
+    "ai: ^6.0.230 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 1,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/agent-node/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20.6.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/agent-node/src/handler.ts",
+      "line": 273,
+      "snippet": "messages: await convertToModelMessages(conversation)",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/editor/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": false,
+    "typecheck .": true,
+    "test .": true,
+    "typecheck packages/agent-node": true,
+    "test packages/agent-node": true,
+    "typecheck packages/editor": true,
+    "test packages/editor": true
+  },
+  "after": {
+    "install": true,
+    "build": false,
+    "typecheck .": true,
+    "test .": true,
+    "typecheck packages/agent-node": true,
+    "test packages/agent-node": true,
+    "typecheck packages/editor": true,
+    "test packages/editor": true
+  },
+  "regressions": [],
+  "diffStat": "packages/agent-node/package.json   |  10 +--\n packages/agent-node/src/handler.ts |  14 ++--\n packages/agent-node/src/tools.ts   |  20 ++---\n packages/editor/package.json       |   6 +-\n pnpm-lock.yaml                     | 161 +++++++++++++++++++------------------\n 5 files changed, 106 insertions(+), 105 deletions(-)",
+  "changedFiles": [
+    "packages/agent-node/package.json",
+    "packages/agent-node/src/handler.ts",
+    "packages/agent-node/src/tools.ts",
+    "packages/editor/package.json",
+    "pnpm-lock.yaml"
+  ],
+  "repairedChecks": [
+    "typecheck .",
+    "test .",
+    "typecheck packages/agent-node",
+    "test packages/agent-node",
+    "typecheck packages/editor"
+  ],
+  "agentRuns": [
+    "Both packages now typecheck: `tsc --noEmit` passes for `packages/agent-node` and `packages/editor`. I couldn't run the agent-node tests because the vitest command needed approval that wasn't given. The 23 failing tests all died on the same `instructions is not defined` error, which is fixed now, but that's not confirmed by a run.\n\n**`packages/agent-node/src/handler.ts`**\n- **Undefined `instructions`:** the codemod renamed the option but not the variable, so line 271 is now `instructions: system`, using the existing `system` prompt value. I kept the codemod's `allowSystemInMessages: true`, because v6 accepted system messages inside `messages` and v7 rejects them by default.\n- **`cachedInputTokens` in `sumUsage`:** v7 removed this field from `LanguageModelUsage`, so I deleted that line. Your ledger's own `cachedInputTokens` field (line 256) is unchanged and still gets the same number from `inputTokenDetails.cacheReadTokens`. One small runtime difference: the `raw` usage object passed to `onUsage` no longer has the old top-level `cachedInputTokens` key, since the return type can't hold it.\n- **Reasoning tokens:** the codemod produced `u.outputTokenDetails.outputTokenDetails.reasoningTokens`. I set it back to `u.outputTokenDetails?.reasoningTokens`, which is what v6 read.\n\n**`packages/agent-node/src/tools.ts`**\n- **Tool type arguments:** v7's `tool()` takes a third type parameter (the tool's context), so the ten `tool<Input, string>(...)` calls no longer compile. I removed the explicit type arguments and let TypeScript infer them from the schema and `execute`. The inferred types are the same, and the `Record<BaseToolName, AgentTool>` annotation still requires each tool to return `string`. The other option was to pass the context type explicitly, but `ai` doesn't export it, so that would have meant adding `@ai-sdk/provider-utils` as a dependency.\n\n**`packages/editor/src/components/chat/ChatPanel.tsx`**\n- **`useChat` callback:** I reverted the codemod's `onEnd` back to `onFinish`. In v7, `useChat` only has `onFinish`; the `onEnd` rename applies to `streamText` and the UI message stream, not the chat hook. The server-side `onEnd` in `toUIMessageStreamResponse` is valid in v7, so I left it.\n\nThere's no `tsconfig.json` at the repo root, so I ran the final typecheck in each package instead."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 4.7848974,
+  "fixMs": 518322
+}

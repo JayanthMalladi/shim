@@ -1,0 +1,37 @@
+{
+  "repo": "KrzysztofMarmol/mjml-agent-editor",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.7857794000000001
+  },
+  "cost": 4.7848974,
+  "fixMs": 518322,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 27,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 5 files changed, 106 insertions(+), 105 deletions(-)"
+}
