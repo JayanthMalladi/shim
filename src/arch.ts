@@ -47,7 +47,8 @@ export const FIXER_RULES = `Rules:
 export const REVIEWER_RULES = `Reject it if any of these is true:
 - Runtime behavior changes beyond what AI SDK 7 forces. In v7, multi-step \`usage\`, \`toolCalls\`, \`content\`
   and similar span all steps; v6 code that meant the last step must read \`finalStep\`. \`response.messages\`
-  must become \`responseMessages\`. System messages must move to \`instructions\`.
+  must become \`responseMessages\`. A system message in \`messages\`/\`prompt\` needs \`allowSystemInMessages: true\`
+  on the call (or the ToolLoopAgent constructor), or a move to \`instructions\`; that option keeps v6 behavior.
   This only applies to calls that can run more than one step: \`stopWhen\`/\`maxSteps\` set, or an Agent /
   ToolLoopAgent (multi-step by default). A generateText/streamText call without \`stopWhen\` runs exactly one
   step in v6 and v7, so its top-level \`usage\`, \`toolCalls\`, \`response\` etc. keep their meaning; do not

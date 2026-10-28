@@ -29,7 +29,7 @@ npx tsx src/cli.ts migrate path/to/repo --agent --repo owner/name
 | `multi-step-end-event`: the same reads on `onFinish`/`onEnd` events | silent | auto / agent |
 | `response-messages`: `result.response.messages` now holds only the final step | silent | auto (generateText) / agent |
 | `telemetry-needs-otel`: traces stop unless `@ai-sdk/otel` is registered | silent | manual |
-| `system-in-messages`: `role: 'system'` in messages is rejected at runtime | break | agent |
+| `system-in-messages`: `role: 'system'` in `messages`/`prompt` is rejected at runtime; Shim sets `allowSystemInMessages: true` on the call or `ToolLoopAgent` unless the messages are provably system-free | break | auto (agent when the options are built elsewhere) |
 | `esm-only`: `require('ai')` throws | break | agent |
 | `node-22`: `engines.node` below 22 | break | manual |
 | `total-usage`: `totalUsage` becomes `usage` | deprecated | auto |

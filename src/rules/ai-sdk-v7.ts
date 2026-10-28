@@ -10,6 +10,7 @@ import {
   Node,
   SyntaxKind,
   type CallExpression,
+  type NewExpression,
   type ObjectLiteralExpression,
   type Project,
   type PropertyAccessExpression,
@@ -19,6 +20,11 @@ import type { Finding, FixKind, Severity } from "../types.js";
 
 const RESULT_FNS = new Set(["generateText", "streamText"]);
 const PROMPT_FNS = new Set(["generateText", "streamText", "generateObject", "streamObject", "streamUI"]);
+/** Calls whose options accept `allowSystemInMessages`. */
+const SYSTEM_MESSAGE_FNS = new Set(["generateText", "streamText", "generateObject", "streamObject"]);
+/** The option lives in the constructor settings only: `.generate()`/`.stream()` params don't accept it. */
+const AGENT_CLASSES = new Set(["ToolLoopAgent", "Experimental_Agent"]);
+const ALLOW_SYSTEM = "allowSystemInMessages";
 
 /** Result properties that used to hold the final step only and now accumulate across steps. */
 const ACCUMULATED_PROPS = new Set([
@@ -42,13 +48,20 @@ interface AiCall {
   options: ObjectLiteralExpression | undefined;
   /** "maybe": the options are built elsewhere (a variable or a spread), so stopWhen can't be seen. */
   multiStep: boolean | "maybe";
+  /** The options are a variable or contain a spread we can't see into. */
+  hidden: boolean;
 }
 
 export interface RuleContext {
   root: string;
   findings: Finding[];
   /** Deferred, behavior-preserving rewrites. Applied by applyAutoFixes. */
-  edits: Array<{ node: Node; text: string }>;
+  edits: Array<{
+    node: Node;
+    text: string;
+    /** Add `text` as a new object member after `node` (a member of an object literal) instead of replacing it. */
+    after?: boolean;
+  }>;
 }
 
 export function scanAiSdkV7(project: Project, root: string): RuleContext {
@@ -68,8 +81,8 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
       if (!fn || !PROMPT_FNS.has(fn)) continue;
       const aiCall = toAiCall(fn, call);
 
+      checkSystemMessages(ctx, aiCall);
       if (aiCall.options) {
-        checkSystemMessages(ctx, aiCall.options);
         const telemetry =
           aiCall.options.getProperty("experimental_telemetry") ?? aiCall.options.getProperty("telemetry");
         if (telemetry) {
@@ -82,6 +95,11 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
         if (aiCall.multiStep === true) checkEndCallback(ctx, aiCall);
         checkTotalUsage(ctx, aiCall);
       }
+    }
+
+    for (const expr of sf.getDescendantsOfKind(SyntaxKind.NewExpression)) {
+      const cls = calleeName(expr, names);
+      if (cls && AGENT_CLASSES.has(cls)) checkAgentSystemMessages(ctx, expr);
     }
   }
 
@@ -107,7 +125,7 @@ function aiImportNames(sf: SourceFile): Map<string, string> {
   return names;
 }
 
-function calleeName(call: CallExpression, names: Map<string, string>): string | undefined {
+function calleeName(call: CallExpression | NewExpression, names: Map<string, string>): string | undefined {
   const callee = call.getExpression();
   if (Node.isIdentifier(callee)) return names.get(callee.getText());
   if (Node.isPropertyAccessExpression(callee) && names.has(`${callee.getExpression().getText()}.*`)) {
@@ -120,11 +138,19 @@ function toAiCall(fn: string, call: CallExpression): AiCall {
   const arg = call.getArguments()[0];
   const options = arg && Node.isObjectLiteralExpression(arg) ? arg : undefined;
   // v6 defaults to a single step; only stopWhen (or legacy maxSteps) makes a call multi-step.
-  const literals = options ? [options, ...options.getProperties().flatMap((p) => (Node.isSpreadAssignment(p) ? spreadLiterals(p.getExpression()) ?? [] : []))] : [];
-  const explicit = literals.some((o) => !!o.getProperty("stopWhen") || !!o.getProperty("maxSteps"));
+  const explicit = !!options && optionLiterals(options).some((o) => !!o.getProperty("stopWhen") || !!o.getProperty("maxSteps"));
   // Options we can't see into: a variable, or a spread of anything but inline object literals.
-  const hidden = !!arg && (!options || options.getProperties().some((p) => Node.isSpreadAssignment(p) && !spreadLiterals(p.getExpression())));
-  return { fn, call, options, multiStep: explicit || (hidden ? "maybe" : false) };
+  const hidden = !!arg && (!options || hasOpaqueSpread(options));
+  return { fn, call, options, multiStep: explicit || (hidden ? "maybe" : false), hidden };
+}
+
+/** The options object plus the literals spread into it. */
+function optionLiterals(options: ObjectLiteralExpression): ObjectLiteralExpression[] {
+  return [options, ...options.getProperties().flatMap((p) => (Node.isSpreadAssignment(p) ? spreadLiterals(p.getExpression()) ?? [] : []))];
+}
+
+function hasOpaqueSpread(options: ObjectLiteralExpression): boolean {
+  return options.getProperties().some((p) => Node.isSpreadAssignment(p) && !spreadLiterals(p.getExpression()));
 }
 
 /** `...{ a }` and `...(cond ? { a } : {})` are transparent; returns their object literals, or undefined. */
@@ -152,22 +178,127 @@ function checkRequire(ctx: RuleContext, sf: SourceFile) {
   }
 }
 
-function checkSystemMessages(ctx: RuleContext, options: ObjectLiteralExpression) {
-  for (const key of ["messages", "prompt"]) {
-    const prop = options.getProperty(key);
-    if (!prop || !Node.isPropertyAssignment(prop)) continue;
-    const init = prop.getInitializer();
-    if (!init || !Node.isArrayLiteralExpression(init)) continue;
-    for (const el of init.getElements()) {
-      if (!Node.isObjectLiteralExpression(el)) continue;
-      const role = el.getProperty("role");
-      if (role && Node.isPropertyAssignment(role) && /^['"`]system['"`]$/.test(role.getInitializer()?.getText() ?? "")) {
-        add(ctx, el, "system-in-messages", "break", "agent",
-          "AI SDK 7 rejects system messages inside `messages`/`prompt` at runtime. " +
-          "Move the content to the top-level `instructions` option.");
-      }
+/**
+ * v7 rejects `role: 'system'` in `messages`/`prompt` unless `allowSystemInMessages` is set, and v6 accepted it.
+ * Unless the messages are provably system-free, set the option: it keeps the v6 behavior.
+ */
+function checkSystemMessages(ctx: RuleContext, { fn, call, options, hidden }: AiCall) {
+  if (!SYSTEM_MESSAGE_FNS.has(fn) || !call.getArguments()[0]) return;
+  if (!options) return maybeSystem(ctx, call);
+  if (optionLiterals(options).some((o) => o.getProperty(ALLOW_SYSTEM))) return;
+  const { kind, node } = inspectPrompt(options);
+  if (kind === "hidden" || (kind === "none" && hidden)) return maybeSystem(ctx, call);
+  if (kind === "system" || kind === "unknown") {
+    allowSystem(ctx, node!, options, kind === "system"
+      ? "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default."
+      : "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default.");
+  }
+}
+
+/**
+ * The option is a constructor setting. Check how the agent is used: it is only left alone when every use
+ * is `.generate()`/`.stream()` with provably system-free messages. An agent we can't follow gets the option.
+ */
+function checkAgentSystemMessages(ctx: RuleContext, expr: NewExpression) {
+  const arg = expr.getArguments()[0];
+  if (!arg) return;
+  if (!Node.isObjectLiteralExpression(arg) || hasOpaqueSpread(arg)) return maybeSystem(ctx, expr);
+  if (optionLiterals(arg).some((o) => o.getProperty(ALLOW_SYSTEM))) return;
+  // prepareCall can supply messages of its own, so its output isn't visible here.
+  const uses = optionLiterals(arg).some((o) => o.getProperty("prepareCall")) ? undefined : agentCallOptions(expr);
+  if (uses?.every((o) => ["none", "free"].includes(inspectPrompt(o).kind))) return;
+  allowSystem(ctx, expr, arg,
+    "This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects " +
+    "by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't.");
+}
+
+/** Options of every `.generate()`/`.stream()` call on the agent; undefined if the agent can be used any other way. */
+function agentCallOptions(expr: NewExpression): ObjectLiteralExpression[] | undefined {
+  const decl = expr.getParent();
+  if (!decl || !Node.isVariableDeclaration(decl) || decl.getInitializer() !== expr) return undefined;
+  const name = decl.getNameNode();
+  if (!Node.isIdentifier(name) || decl.getVariableStatement()?.isExported()) return undefined;
+  const uses: ObjectLiteralExpression[] = [];
+  for (const ref of name.findReferencesAsNodes()) {
+    const access = ref.getParent();
+    if (!Node.isPropertyAccessExpression(access) || access.getExpression() !== ref) return undefined;
+    if (["id", "tools"].includes(access.getName())) continue;
+    const call = access.getParent();
+    const opts = Node.isCallExpression(call) ? call.getArguments()[0] : undefined;
+    if (!["generate", "stream"].includes(access.getName()) || !opts || !Node.isObjectLiteralExpression(opts)) return undefined;
+    uses.push(opts);
+  }
+  return uses;
+}
+
+type PromptKind = "none" | "free" | "system" | "unknown" | "hidden";
+
+/**
+ * What `messages`/`prompt` can hold. "free": provably no system message. "system": a literal one.
+ * "unknown": built elsewhere. "hidden": no messages in sight, but the options have a spread we can't see into.
+ */
+function inspectPrompt(options: ObjectLiteralExpression): { kind: PromptKind; node?: Node } {
+  let free = false;
+  let unknown: Node | undefined;
+  for (const o of optionLiterals(options)) {
+    for (const key of ["messages", "prompt"]) {
+      const prop = o.getProperty(key);
+      if (!prop) continue;
+      const r = classifyPrompt(prop, key);
+      if (r.kind === "system") return r;
+      if (r.kind === "unknown") unknown ??= prop;
+      else free = true;
     }
   }
+  if (unknown) return { kind: "unknown", node: unknown };
+  return { kind: free ? "free" : hasOpaqueSpread(options) ? "hidden" : "none" };
+}
+
+function classifyPrompt(prop: Node, key: string): { kind: "free" | "unknown" } | { kind: "system"; node: Node } {
+  const value = Node.isPropertyAssignment(prop) ? unwrap(prop.getInitializer()) : Node.isShorthandPropertyAssignment(prop) ? prop.getNameNode() : undefined;
+  if (!value) return { kind: "unknown" };
+  if (key === "prompt" && isStringType(value)) return { kind: "free" };
+  if (!Node.isArrayLiteralExpression(value)) return { kind: "unknown" };
+  let unknown = false;
+  for (const el of value.getElements()) {
+    const obj = unwrap(el);
+    const role = Node.isObjectLiteralExpression(obj) && !obj.getProperties().some((p) => Node.isSpreadAssignment(p)) ? obj.getProperty("role") : undefined;
+    const roleValue = role && Node.isPropertyAssignment(role) ? unwrap(role.getInitializer()) : undefined;
+    if (!roleValue || !(Node.isStringLiteral(roleValue) || Node.isNoSubstitutionTemplateLiteral(roleValue))) unknown = true;
+    else if (roleValue.getLiteralValue() === "system") return { kind: "system", node: obj };
+  }
+  return { kind: unknown ? "unknown" : "free" };
+}
+
+function unwrap(node: Node): Node;
+function unwrap(node: Node | undefined): Node | undefined;
+function unwrap(node: Node | undefined): Node | undefined {
+  while (node && (Node.isParenthesizedExpression(node) || Node.isAsExpression(node) || Node.isSatisfiesExpression(node) || Node.isNonNullExpression(node))) {
+    node = node.getExpression();
+  }
+  return node;
+}
+
+/** A `prompt` that is a string (not a message array); needs a resolvable type, so an unresolved import doesn't count. */
+function isStringType(node: Node): boolean {
+  const type = node.getType();
+  return [type, ...(type.isUnion() ? type.getUnionTypes() : [])].every((t) => t.isString() || t.isStringLiteral() || t.isTemplateLiteral());
+}
+
+/** Record the finding at `at` and queue the option as a new member after the options' last member. */
+function allowSystem(ctx: RuleContext, at: Node, options: ObjectLiteralExpression, why: string) {
+  add(ctx, at, "system-in-messages", "break", "auto", `${why} \`${ALLOW_SYSTEM}: true\` keeps the v6 behavior.`);
+  ctx.edits.push({ node: options.getProperties().at(-1) ?? options, text: `${ALLOW_SYSTEM}: true`, after: true });
+}
+
+/**
+ * Not "break": the agent can't make the scanner stop seeing opaque options, so a break here could never
+ * resolve and would block every such repo.
+ */
+function maybeSystem(ctx: RuleContext, node: Node) {
+  add(ctx, node, "maybe-system-in-messages", "silent", "agent",
+    "This call's options are built elsewhere. If `messages`/`prompt` can hold a system message, AI SDK 7 rejects it at runtime: " +
+    `set \`${ALLOW_SYSTEM}: true\` in the options (keeps the v6 behavior), or move it to \`instructions\`.`);
 }
 
 /**
@@ -301,10 +432,27 @@ function add(ctx: RuleContext, node: Node, ruleId: string, severity: Severity, f
 export async function applyAutoFixes(project: Project, ctx: RuleContext): Promise<number> {
   const edits = [...ctx.edits].sort((a, b) => b.node.getStart() - a.node.getStart());
   let applied = 0;
-  for (const { node, text } of edits) {
-    if (node.wasForgotten()) continue;
+  for (const { node, text, after } of edits) {
+    if (after || node.wasForgotten()) continue;
     (node as PropertyAccessExpression).replaceWithText(text);
     applied++;
+  }
+  // New members go in last, as plain text per file: ts-morph reindents text it inserts around a node.
+  const inserts = new Map<SourceFile, Array<{ end: number; text: string }>>();
+  for (const { node, text, after } of edits) {
+    if (!after || node.wasForgotten()) continue;
+    const full = node.getSourceFile().getFullText();
+    const lead = full.slice(full.lastIndexOf("\n", node.getStart() - 1) + 1, node.getStart());
+    const sep = /^\s*$/.test(lead) ? `,\n${lead}` : ", ";
+    const list = inserts.get(node.getSourceFile()) ?? [];
+    list.push({ end: node.getEnd(), text: sep + text });
+    inserts.set(node.getSourceFile(), list);
+    applied++;
+  }
+  for (const [sf, list] of inserts) {
+    let full = sf.getFullText();
+    for (const { end, text } of list.sort((a, b) => b.end - a.end)) full = full.slice(0, end) + text + full.slice(end);
+    sf.replaceWithText(full);
   }
   await project.save();
   return applied;
