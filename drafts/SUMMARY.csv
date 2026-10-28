@@ -18,3 +18,4 @@ aorizondo/opencode-claude-code-acpbridge,ready,code,4/4,0.5877,approve,all basel
 jodit/jodit-ai-adapter,ready,code,3/3,1.6758,approve,all baseline gates still pass and no breaking findings remain
 dpuyosa/venice-ai-sdk-provider,not-ready,deps-only,2/4,1.9343,not-run,"gates regressed: build, typecheck ."
 ChainFuse/packages,ready,code,3/3,2.2400,approve,all baseline gates still pass and no breaking findings remain
+echoVic/blade-agent-sdk,not-ready,code,3/3,3.2089,"reject: src/services/VercelAIModelService.ts:209 renames fullStream to stream (not required: fullStream is still a deprecated alias in v7), but the mocks in src/services/__tests__/VercelAIModelService.test.ts (e.g. line 60) still return only { fullStream }, so result.stream is undefined and the streamChat tests throw a TypeError",judge rejected
