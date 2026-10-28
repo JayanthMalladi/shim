@@ -1,0 +1,37 @@
+{
+  "repo": "yadimon/prio-llm-router",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.24993859999999998
+  },
+  "cost": 1.9636270000000002,
+  "fixMs": 155023,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 4 files changed, 134 insertions(+), 125 deletions(-)"
+}

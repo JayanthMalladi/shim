@@ -1,0 +1,146 @@
+{
+  "repo": "yadimon/prio-llm-router",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/anthropic: ^3.0.64 -> ^4.0.0",
+    "@ai-sdk/cohere: ^3.0.27 -> ^4.0.0",
+    "@ai-sdk/deepseek: ^2.0.26 -> ^3.0.0",
+    "@ai-sdk/google: ^3.0.54 -> ^4.0.0",
+    "@ai-sdk/groq: ^3.0.31 -> ^4.0.0",
+    "@ai-sdk/mistral: ^3.0.27 -> ^4.0.0",
+    "@ai-sdk/openai: ^3.0.48 -> ^4.0.0",
+    "@ai-sdk/openai-compatible: ^2.0.37 -> ^3.0.0",
+    "@ai-sdk/perplexity: ^3.0.26 -> ^5.0.0",
+    "@ai-sdk/togetherai: ^2.0.41 -> ^3.0.0",
+    "@ai-sdk/xai: ^3.0.74 -> ^5.0.0",
+    "ai: ^6.0.141 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 1,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=18.18\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "maybe-system-in-messages",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/provider-factory.ts",
+      "line": 64,
+      "snippet": "generateText(call)",
+      "message": "This call's options are built elsewhere. If `messages`/`prompt` can hold a system message, AI SDK 7 rejects it at runtime: set `allowSystemInMessages: true` in the options (keeps the v6 behavior), or move it to `instructions`."
+    },
+    {
+      "ruleId": "maybe-multi-step-result",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/provider-factory.ts",
+      "line": 72,
+      "snippet": "result.usage",
+      "message": "This call's options are built elsewhere; if they set stopWhen, `result.usage` now covers every step, not just the last one. `result.finalStep.usage` keeps the v6 value."
+    },
+    {
+      "ruleId": "maybe-multi-step-result",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/provider-factory.ts",
+      "line": 77,
+      "snippet": "result.warnings",
+      "message": "This call's options are built elsewhere; if they set stopWhen, `result.warnings` now covers every step, not just the last one. `result.finalStep.warnings` keeps the v6 value."
+    },
+    {
+      "ruleId": "maybe-system-in-messages",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/provider-factory.ts",
+      "line": 100,
+      "snippet": "streamText(call)",
+      "message": "This call's options are built elsewhere. If `messages`/`prompt` can hold a system message, AI SDK 7 rejects it at runtime: set `allowSystemInMessages: true` in the options (keeps the v6 behavior), or move it to `instructions`."
+    },
+    {
+      "ruleId": "total-usage",
+      "severity": "deprecated",
+      "fix": "auto",
+      "file": "src/provider-factory.ts",
+      "line": 105,
+      "snippet": "result.totalUsage",
+      "message": "`totalUsage` is deprecated; `usage` now covers all steps."
+    },
+    {
+      "ruleId": "maybe-multi-step-result",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/provider-factory.ts",
+      "line": 108,
+      "snippet": "result.warnings",
+      "message": "This call's options are built elsewhere; if they set stopWhen, `result.warnings` now covers every step, not just the last one. `result.finalStep.warnings` keeps the v6 value."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json              | 224 +++++++++++++++++++++--------------------\n package.json                   |  24 ++---\n src/provider-factory.ts        |   9 +-\n tests/provider-factory.test.ts |   2 +-\n 4 files changed, 134 insertions(+), 125 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json",
+    "src/provider-factory.ts",
+    "tests/provider-factory.test.ts"
+  ],
+  "repairedChecks": [
+    "typecheck .",
+    "test ."
+  ],
+  "agentRuns": [
+    "I finished the migration fixes in `src/provider-factory.ts` and the typecheck now passes. I couldn't run the test suite because running vitest needed approval, so the failing test hasn't been re-run yet.\n\n**What I changed:**\n1. **Typecheck error (line 158):** The codemod renamed both sides to `instructions: request.instructions`, but this repo's request type still calls the field `system`. It's now `instructions: request.system`. That keeps the AI SDK's new option name and reads the field the type actually has.\n2. **System messages in `messages` (lines 64 and 100):** `request.messages` accepts any `ModelMessage`, so a caller can pass a system message. AI SDK 7 rejects those at runtime. I added `allowSystemInMessages: true` to the shared options both calls use, which keeps the v6 behavior.\n3. **Undid the codemod's `totalUsage` → `usage` change in `stream()`:** The two give the same value in v7; `totalUsage` is only deprecated. But the repo's own test mock (`tests/provider-factory.test.ts:415,422`) only provides `totalUsage`, which is why the test got `undefined` for usage. Undoing the codemod edit should fix that test without touching it.\n\n**What I left alone, and why:**\n- **`result.usage` (line 72) and `result.warnings` (lines 77 and 108):** These only change if the call sets `stopWhen`. The options are all built in this file by `buildBaseTextCallOptions`, which never sets `stopWhen` or tools, and the request types have no such field. So every call is a single step, and these values already match v6. Switching `stream()` to `result.finalStep` would also break the existing test mocks, which don't provide `finalStep`.\n\n**Checks:**\n- `npx --no-install tsc --noEmit -p tsconfig.json` passes.\n- Not run: `npx --no-install vitest run`. Please run it (or `npm run check`) to confirm the streaming test passes."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 5,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 1.9636270000000002,
+  "fixMs": 155023
+}
