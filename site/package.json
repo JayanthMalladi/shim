@@ -1,0 +1,29 @@
+{
+  "name": "shim-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Landing page for Shim. Static export.",
+  "scripts": {
+    "dev": "next dev",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "eslint . --max-warnings 0 && next build",
+    "preview": "npx --yes serve@14.2.6 out"
+  },
+  "dependencies": {
+    "geist": "1.8.2",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5.9.3"
+  }
+}
