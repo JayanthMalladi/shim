@@ -5,6 +5,7 @@
  *
  * Source: ai@7 docs/08-migration-guides/23-migration-guide-7-0.mdx
  */
+import fs from "node:fs";
 import path from "node:path";
 import {
   Node,
@@ -66,10 +67,15 @@ export interface RuleContext {
     /** Add `text` as a new object member after `node` (a member of an object literal) instead of replacing it. */
     after?: boolean;
   }>;
+  /**
+   * Deferred plain-text rewrites for files that are not in the ts-morph project (CI workflow YAML):
+   * exact 1-based lines to replace or delete. Applied by applyAutoFixes, after the ts-morph edits.
+   */
+  fileEdits: Array<{ file: string; lines: Array<{ line: number; text?: string; delete?: boolean }> }>;
 }
 
 export function scanAiSdkV7(project: Project, root: string): RuleContext {
-  const ctx: RuleContext = { root, findings: [], edits: [] };
+  const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   let usesTelemetryOption = false;
   let registersTelemetry = false;
   let firstTelemetryNode: Node | undefined;
@@ -516,6 +522,28 @@ function add(ctx: RuleContext, node: Node, ruleId: string, severity: Severity, f
 export async function applyAutoFixes(project: Project, ctx: RuleContext): Promise<number> {
   const edits = [...ctx.edits].sort((a, b) => b.node.getStart() - a.node.getStart());
   let applied = 0;
+  // Plain-text edits: the file is not in the ts-morph project, so rewrite it line-by-line by number.
+  // Done before the ts-morph edits; project.save() only writes the project's own files, so they don't collide.
+  for (const fe of ctx.fileEdits) {
+    const abs = path.join(ctx.root, fe.file);
+    const lines = fs.readFileSync(abs, "utf8").split("\n");
+    const map = new Map(fe.lines.map((o) => [o.line, o]));
+    const out: string[] = [];
+    for (let i = 1; i <= lines.length; i++) {
+      const op = map.get(i);
+      if (!op) {
+        out.push(lines[i - 1]!);
+        continue;
+      }
+      if (op.delete) {
+        applied++;
+        continue;
+      }
+      out.push(op.text ?? "");
+      applied++;
+    }
+    fs.writeFileSync(abs, out.join("\n"));
+  }
   for (const { node, text, after } of edits) {
     if (after || node.wasForgotten()) continue;
     (node as PropertyAccessExpression).replaceWithText(text);

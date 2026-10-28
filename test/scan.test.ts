@@ -81,6 +81,22 @@ describe("ai-sdk v7 scan", () => {
   it("flags telemetry without registerTelemetry", () => {
     expect(at("telemetry-needs-otel")).toEqual(["src/agent.ts:39"]);
   });
+
+  it("flags CI node versions below 22 on PR- or push-triggered workflows, not on others", () => {
+    // Findings are relative to the root; normalize separators so the assertion holds on Windows too.
+    const ciAt = () => at("ci-node-version").map((l) => l.replace(/\\/g, "/"));
+    // CI runs on Node 18/20 go red for the AI SDK 7 upgrade, so the low versions are flagged and rewritten.
+    expect(ciAt()).toEqual([
+      ".github/workflows/ci.yml:11", // scalar node-version: '20'
+      ".github/workflows/ci.yml:17", // inline matrix [18, 20, 22]
+      ".github/workflows/nvmrc.yml:10", // node-version-file: .nvmrc (= 18): manual, never edited
+    ]);
+    // Not flagged: 22, lts/*, an expression over ['lts/*', 'latest'], and a release-only workflow.
+    expect(ciAt()).not.toContain(".github/workflows/ok.yml:9");
+    expect(ciAt()).not.toContain(".github/workflows/ok.yml:15");
+    expect(ciAt()).not.toContain(".github/workflows/ok.yml:24");
+    expect(ciAt()).not.toContain(".github/workflows/publish.yml:11");
+  });
 });
 
 describe("auto fixes", () => {
@@ -88,7 +104,8 @@ describe("auto fixes", () => {
     const dir = copyFixture();
     const { applied } = await scanAndFix(dir);
     const src = fs.readFileSync(path.join(dir, "src/agent.ts"), "utf8");
-    expect(applied).toBe(5 + 7);
+    // 12 code rewrites + 2 CI node-version rewrites (scalar '20'->'22', matrix [18,20,22]->[22]).
+    expect(applied).toBe(5 + 7 + 2);
     expect(src).toContain("bill(event.finalStep.usage.totalTokens)");
     expect(src).toContain("bill(result.finalStep.usage.totalTokens)");
     expect(src).toContain("const calls = result.finalStep.toolCalls");
@@ -99,6 +116,25 @@ describe("auto fixes", () => {
     // Hidden options and the repo's own totalUsage field untouched.
     expect(src).toContain("return result.toolCalls;\n}\n\ndeclare const billing");
     expect(src).toContain("return billing.totalUsage;");
+  });
+
+  it("rewrites CI node versions to 22, keeps quoting and leaves clean workflows alone", async () => {
+    const dir = copyFixture();
+    await scanAndFix(dir);
+    const ci = fs.readFileSync(path.join(dir, ".github", "workflows", "ci.yml"), "utf8");
+    expect(ci).toContain("node-version: '22'"); // the scalar kept its quotes
+    expect(ci).toContain("node-version: [22]"); // [18, 20, 22] dropped the low entries
+    expect(ci).toContain("node-version: ${{ matrix.node-version }}"); // the expression stayed
+    // ok.yml (22, lts/*, the expression over ['lts/*', 'latest']) and the release-only publish.yml are untouched.
+    expect(fs.readFileSync(path.join(dir, ".github", "workflows", "ok.yml"), "utf8"))
+      .toBe(fs.readFileSync(path.join(fixture, ".github", "workflows", "ok.yml"), "utf8"));
+    expect(fs.readFileSync(path.join(dir, ".github", "workflows", "publish.yml"), "utf8"))
+      .toBe(fs.readFileSync(path.join(fixture, ".github", "workflows", "publish.yml"), "utf8"));
+    // node-version-file is flagged but never edited: the .nvmrc is still 18.
+    expect(fs.readFileSync(path.join(dir, ".nvmrc"), "utf8").trim()).toBe("18");
+    // A second run finds nothing more to rewrite.
+    const r2 = await scanAndFix(dir);
+    expect(r2.result.findings.filter((f) => f.ruleId === "ci-node-version" && f.fix === "auto")).toEqual([]);
   });
 
   it("sets allowSystemInMessages where a system message can't be ruled out", async () => {
