@@ -1,0 +1,86 @@
+{
+  "repo": "aorizondo/opencode-claude-code-acpbridge",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/provider: ^3.0.0 -> ^4.0.0",
+    "ai: ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 3,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=18\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "scripts/verify-billing.mjs",
+      "line": 36,
+      "snippet": "messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "scripts/verify-interleave-fix.mjs",
+      "line": 19,
+      "snippet": "messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "scripts/verify-session-continuity.mjs",
+      "line": 29,
+      "snippet": "messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json                     | 182 +++++++++++++++++++++++++++++-----\n package.json                          |   4 +-\n scripts/spike-permission-bridge.mjs   |   6 +-\n scripts/verify-billing.mjs            |   2 +-\n scripts/verify-interleave-fix.mjs     |   2 +-\n scripts/verify-session-continuity.mjs |   2 +-\n scripts/verify-smart-revert.mjs       |   2 +-\n scripts/verify-stream-integrity.mjs   |   2 +-\n 8 files changed, 165 insertions(+), 37 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json",
+    "scripts/spike-permission-bridge.mjs",
+    "scripts/verify-billing.mjs",
+    "scripts/verify-interleave-fix.mjs",
+    "scripts/verify-session-continuity.mjs",
+    "scripts/verify-smart-revert.mjs",
+    "scripts/verify-stream-integrity.mjs"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 0.2617216,
+  "fixMs": 38518
+}
