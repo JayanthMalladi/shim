@@ -163,7 +163,8 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
 
   // Upstream: need the current HEAD sha and the default branch for the compare URL.
   const up = path.join(work, "upstream");
-  if (git(["clone", "-q", "--single-branch", opts.upstreamUrl ?? `https://github.com/${repo}`, up], work).ok) {
+  // autocrlf=false keeps the work tree byte-identical to the remote, so the patch applies cleanly.
+  if (git(["-c", "core.autocrlf=false", "clone", "-q", "--single-branch", opts.upstreamUrl ?? `https://github.com/${repo}`, up], work).ok) {
     const def = git(["rev-parse", "--abbrev-ref", "HEAD"], up);
     const head = git(["rev-parse", "HEAD"], up);
     if (!def.ok || !head.ok) return fail("git-failed", def.output, `cannot read upstream HEAD: ${head.output.trim()}`);
@@ -174,12 +175,17 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
       return fail("drift", undefined, `draft was cut against ${recorded}, upstream HEAD is ${upstreamHead}; re-cut the draft or pass --allow-drift`);
     }
 
-    // The patch applies to the fork's default branch, whose history matches upstream's.
+    // The patch applies to the fork's default branch, whose history matches upstream's. A fork of
+    // owner/repo lives at <forkOwner>/repo (forks drop the upstream owner from the path).
+    const forkName = repo.split("/").pop()!;
     const fork = path.join(work, "fork");
-    if (git(["clone", "-q", "--single-branch", opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${repo}`, fork], work).ok) {
+    if (git(["-c", "core.autocrlf=false", "clone", "-q", "--single-branch", opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${forkName}`, fork], work).ok) {
       if (!git(["checkout", "-q", "-b", PR_BRANCH], fork).ok) return fail("git-failed", undefined, `cannot create ${PR_BRANCH} on the fork`);
       fs.writeFileSync(path.join(fork, "changes.patch"), fs.readFileSync(path.join(draft, "changes.patch"), "utf8"));
-      const apply = git(["apply", "--3way", "changes.patch"], fork);
+      // Plain apply first: the patch was generated against the same HEAD, so it applies without
+      // needing the index; --3way is the fallback for small upstream drift.
+      let apply = git(["apply", "changes.patch"], fork);
+      if (!apply.ok) apply = git(["apply", "--3way", "changes.patch"], fork);
       if (!apply.ok) {
         // Leave the patch behind so the conflict can be inspected.
         return fail("conflict", apply.output, "conflict applying the patch; regenerate this draft against the current HEAD");
@@ -199,7 +205,7 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
         prPath: prMd,
       };
     }
-    return fail("git-failed", undefined, `cannot clone ${opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${repo}`}`);
+    return fail("git-failed", undefined, `cannot clone ${opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${repo.split("/").pop()}`}`);
   }
   return fail("git-failed", undefined, `cannot clone ${opts.upstreamUrl ?? `https://github.com/${repo}`}`);
 }
