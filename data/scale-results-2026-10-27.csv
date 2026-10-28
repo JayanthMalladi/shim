@@ -1,0 +1,46 @@
+repo,outcome,kind,checks,cost,reason
+ChainFuse/packages,open-issue,code,3,2.63,"reviewer flagged: packages/ai-tools/__tests__/ai-tools.test.mts:322 ToolLoopAgent.stream still passes a role:'system' message in messages; v7 rejects it by default, so it must move to instructions; packages/ai-tools/__tests__/ai-tools.test.mts:392 ToolLoopAgent.generate still passes a role:'system' "
+FirstClassTree/shapelessai,skip,,,,not on ai@6 (^7.0.140)
+HoudiniSwap/houdiniswap-agent,pr-ready,code,4,4.31,all baseline gates still pass and no breaking findings remain
+RenKoya1/ai-sdk-cost-calculator,skip,,,,not on ai@6 (^7.0.0)
+Ryrahul/Vendure-ai,pending,,,,
+Silmaril-Security/sdk-typescript,open-issue,deps-only,4,1.53,gates regressed: test .
+Uluops/-uluops-core,open-issue,code,3,5.15,"reviewer flagged: src/ai/AIProvider.ts:989 multi-step generateText (stopWhen set) still reads result.warnings, which spans all steps in v7 (v6: last step only); must read result.finalStep.warnings to preserve behavior"
+VoxellInc/forge-ai-provider,pr-ready,deps-only,4,0.16,all baseline gates still pass and no breaking findings remain
+WaniWani-AI/sdk,open-issue,code,4,4.76,gates regressed: test .
+Wiseair-srl/orpc-agent,skip,,,,"not on ai@6 (^5.0.220, ^5.0.220, ^5.0.220)"
+ably/ably-ai-transport-js,skip,,,,"not on ai@6 (^7, ^7.0.30)"
+agentmail-to/agentmail-toolkit,pending,,,,
+almero-digital-marketing/mikser-io-vector,skip,,,,baseline install fails
+aorizondo/opencode-claude-code-acpbridge,judge-rejected,code,4,0.21,"scripts/verify-billing.mjs:33 system message left in `messages`; AI SDK 7 rejects it by default, so the streamText call at line 36 fails at runtime. It must move to `instructions`; scripts/verify-session-continuity.mjs:21 sys() builds a { role: 'system' } message that is passed in `messages` (lines "
+apertis-ai/apertis-sdk,pr-ready,deps-only,4,0.19,all baseline gates still pass and no breaking findings remain
+ashwinpaulallen/ottrix,judge-rejected,code,5,3.56,packages/vercel-ai/tests/vercel-ai.test.ts:159 execute() options omit the `context` property that v7 requires in ToolExecutionOptions; `tsc -p tsconfig.test.json` (the package's typecheck script) fails to compile after the upgrade
+astropods/adapters,skip,,,,not on ai@6 (7.0.153)
+aws/bedrock-agentcore-sdk-typescript,pr-ready,deps-only,4,0.28,all baseline gates still pass and no breaking findings remain
+cc01cc/cmtx-project,skip,,,,baseline install fails
+costasoftware/maestro,open-issue,code,9,3.9,reviewer flagged: reviewer gave no verdict
+dakera-ai/dakera-ai-sdk,skip,,,,"not on ai@6 (^7.0.0, ^7.0.0)"
+dpuyosa/venice-ai-sdk-provider,judge-rejected,code,4,1.96,"src/venice-provider.ts:113 `as unknown as VeniceProvider` hides a real type mismatch: @ai-sdk/openai-compatible@3 completion/embedding/image models are now LanguageModelV4/EmbeddingModelV4/ImageModelV4 (specificationVersion 'v4'), but the exported VeniceProvider interface (src/venice-provider.ts:52-"
+echoVic/blade-agent-sdk,judge-rejected,code,3,3.24,"src/services/VercelAIModelService.ts:185 messages still contain role:'system' entries built by modelAdapter.ts:226-235; AI SDK 7 rejects system messages in messages by default, and the diff neither moves them to instructions nor sets allowSystemInMessages, so requests with a system prompt fail at ru"
+gkurt/padrone,skip,,,,"not on ai@6 (^7.0.118, ^7.0.118)"
+humanlayer/agentlayer,skip,,,,"not on ai@6 (catalog:, catalog:, catalog:, catalog:, catalog:, catalog:, catalog:, catalog:, catalog:)"
+jerome-benoit/sap-ai-provider,skip,,,,not on ai@6 (7.0.153)
+jodit/jodit-ai-adapter,judge-rejected,code,3,1.22,"src/adapters/base-adapter.ts:37 reformats the untouched GenerateTextResult type (unrelated to the upgrade); src/adapters/base-adapter.ts:100 reformats resolveModel/maxOutputTokens calls and removes a blank line at 118 (unrelated); src/adapters/base-adapter.ts:184 re-wraps the errorMessage ternary, e"
+ligaxai/ligaxai-typescript,skip,,,,"not on ai@6 (7.0.148, 7.0.148, 7.0.148)"
+loootai/looot-ai-sdk,skip,,,,not on ai@6 (7.0.126)
+merge-api/merge-gateway-ai-sdk-provider,pr-ready,deps-only,4,0.06,all baseline gates still pass and no breaking findings remain
+neurophic/neurophic-sdk-js,pr-ready,code,4,4.6,all baseline gates still pass and no breaking findings remain
+nixrajput/ai-sdk-threads,skip,,,,not on ai@6 (^7.0.58)
+nkwib/tapedeck,skip,,,,not on ai@6 (^7.0.58)
+nkwib/toolroute,pr-ready,code,4,0.18,all baseline gates still pass and no breaking findings remain
+paulsilcock/litmus,skip,,,,"not on ai@6 (catalog:, catalog:, catalog:)"
+philbert440/rivetOS,open-issue,code,18,5.63,"gates regressed: build, typecheck packages/aisdk, test packages/aisdk, typecheck packages/core, test packages/core, typecheck plugins/providers/anthropic, test plugins/providers/anthropic, typecheck plugins/providers/google"
+prismatic-labs/vetch,open-issue,code,1,0,no green typecheck or tests to validate against
+silverprotocol/typescript-sdk,pending,,,,
+telemetry-dev/telemetry,skip,,,,"not on ai@6 (catalog:, catalog:)"
+vargHQ/sdk,pending,,,,
+voightxyz/voight-vercel-ai,pr-ready,deps-only,4,0.18,all baseline gates still pass and no breaking findings remain
+wayza-protocol/wayza-js,skip,,,,not on ai@6 (^7.0.127)
+xtruder/opencode-claude-max-plugin,pr-ready,code,3,4.93,all baseline gates still pass and no breaking findings remain
+yadimon/prio-llm-router,pr-ready,code,4,2.03,all baseline gates still pass and no breaking findings remain
+zeabur/ai-sdk,pr-ready,deps-only,3,0.17,all baseline gates still pass and no breaking findings remain
