@@ -1,0 +1,15 @@
+{
+  "repo": "VoxellInc/forge-ai-provider",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.2193638
+  },
+  "cost": 0.1300782,
+  "fixMs": 16882,
+  "candidates": [],
+  "diffStat": " 2 files changed, 54 insertions(+), 46 deletions(-)"
+}

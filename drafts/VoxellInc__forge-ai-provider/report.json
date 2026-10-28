@@ -1,0 +1,44 @@
+{
+  "repo": "VoxellInc/forge-ai-provider",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/provider: ^3.0.10 -> ^4.0.0",
+    "ai: ^6.0.193 -> ^7.0.0",
+    "ai: ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json | 94 ++++++++++++++++++++++++++++++-------------------------\n package.json      |  6 ++--\n 2 files changed, 54 insertions(+), 46 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 0.1300782,
+  "fixMs": 16882
+}

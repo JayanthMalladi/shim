@@ -3,3 +3,4 @@ aws/bedrock-agentcore-sdk-typescript,ready,deps-only,4/4,1.1107,approve,all base
 zeabur/ai-sdk,ready,deps-only,3/3,0.3917,approve,all baseline gates still pass and no breaking findings remain
 merge-api/merge-gateway-ai-sdk-provider,ready,deps-only,4/4,0.4614,approve,all baseline gates still pass and no breaking findings remain
 apertis-ai/apertis-sdk,ready,deps-only,4/4,0.4128,approve,all baseline gates still pass and no breaking findings remain
+VoxellInc/forge-ai-provider,ready,deps-only,4/4,0.3494,approve,all baseline gates still pass and no breaking findings remain
