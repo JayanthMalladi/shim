@@ -195,14 +195,14 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
     arch: arch.id, cost, fixMs: Date.now() - started,
   };
-  writeReport(report, opts.outDir);
+  writeReport(report, opts.outDir, runCapture("git", ["diff", "-U0"], dir).stdout);
   return report;
 }
 
-function writeReport(report: MigrationReport, outDir: string) {
+function writeReport(report: MigrationReport, outDir: string, diff?: string) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
-  if (report.verdict !== "skip") fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report));
+  if (report.verdict !== "skip") fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report, diff));
 }
 
 function dedupe(findings: Finding[]): Finding[] {
