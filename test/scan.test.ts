@@ -191,4 +191,27 @@ export async function run() {
     expect(files.has("src/main.ts")).toBe(true);
     expect(files.has("dist/out.mjs")).toBe(false);
   });
+
+  it("walks a folder that sits inside an ignored directory of an outer repo", () => {
+    // The scan root (work/x) has no .git of its own; the outer repo gitignores work/.
+    // git ls-files would succeed against the outer repo and return nothing for this root,
+    // so the filesystem walk must be used instead. Guards against the zero-file-scan regression.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git4-"));
+    writeRepo(dir, "work/\n", []);
+    fs.mkdirSync(path.join(dir, "work", "x", "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "work", "x", "src", "a.ts"), TRIGGER);
+    const { result } = scan(path.join(dir, "work", "x"));
+    expect(result.filesScanned).toBeGreaterThan(0);
+    expect(result.findings.some((f) => f.ruleId === "multi-step-result")).toBe(true);
+    expect(flagFiles(result).has("src/a.ts")).toBe(true);
+  });
+
+  it("scans a tracked file whose name is not ASCII", () => {
+    // ls-files without -z quotes non-ASCII paths (e.g. "src/\303\274bung.ts") and drops them;
+    // with -z they come back NUL-separated and intact.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git5-"));
+    writeRepo(dir, "dist/\n", ["src/übung.ts"]);
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/übung.ts")).toBe(true);
+  });
 });

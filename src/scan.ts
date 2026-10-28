@@ -19,19 +19,16 @@ export function loadProject(root: string): Project {
 }
 
 /**
- * The source files the scanner sees. In a git work tree that is what git would commit: tracked
- * files plus untracked files that are not ignored, so gitignored build outputs are never scanned or
- * flagged. Outside a repo, fall back to a filesystem walk (offline use). Either way the built dirs
+ * The source files the scanner sees. In a git work tree whose root is the scan dir, that is what
+ * git would commit: tracked files plus untracked files that are not ignored, so gitignored build
+ * outputs are never scanned or flagged. Anything else — a subfolder of a repo, an ignored folder of
+ * an outer repo, or no repo at all — falls back to a filesystem walk. Either way the built dirs
  * and declaration files are skipped by name, as a safety net.
  */
 export function sourceFiles(root: string): string[] {
   const abs = path.resolve(root);
-  // In a work tree, git's own list is authoritative: tracked files plus untracked ones that are not
-  // ignored. Outside a repo the git call fails, so walk the filesystem instead.
-  const git = runCapture("git", ["ls-files", "-co", "--exclude-standard"], abs);
-  const found = git.ok
-    ? git.stdout.trim().split("\n").filter(Boolean).map((f) => path.join(abs, f))
-    : walkSource(abs);
+  const git = gitListedFiles(abs);
+  const found = git ? git.map((f) => path.join(abs, f)) : walkSource(abs);
   return found.filter((f) => {
     if (f.endsWith(".d.ts")) return false;
     const rel = path.relative(abs, f);
@@ -47,6 +44,26 @@ export function sourceFiles(root: string): string[] {
     // A name filter over the git list: repos that do not ignore node_modules would pull it in.
     return !IGNORED_DIRS.some((d) => rel.split(path.sep).includes(d));
   });
+}
+
+/**
+ * `git ls-files` for a root, or undefined when git's list is not authoritative. The list is only
+ * trusted when the root IS a repo root: inside an outer repo — including one of its gitignored
+ * folders — `git ls-files` succeeds against the outer repo and returns nothing (or wrong files).
+ * Compare realpath'd paths because Windows paths can differ in case and symlink form.
+ */
+function gitListedFiles(abs: string): string[] | undefined {
+  const top = runCapture("git", ["rev-parse", "--show-toplevel"], abs);
+  if (!top.ok) return undefined;
+  try {
+    if (fs.realpathSync(top.stdout.trim()) !== fs.realpathSync(abs)) return undefined;
+  } catch {
+    return undefined;
+  }
+  const git = runCapture("git", ["ls-files", "-z", "-co", "--exclude-standard"], abs);
+  if (!git.ok) return undefined;
+  // -z NUL-separates: non-ASCII paths come back without shell-style quoting.
+  return git.stdout.split("\0").filter(Boolean);
 }
 
 /** The fallback for a folder that is not a git repo: walk, skipping the built/ignored dirs. */
