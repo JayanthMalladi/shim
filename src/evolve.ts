@@ -4,7 +4,7 @@
  * LLM to propose a child of a strong parent given everyone's results, score the child on the same
  * prepared repos, and repeat. Every variant and its numbers are logged.
  *
- *   tsx src/evolve.ts --bench <dir> --repos a,b,c --out <dir> [--hours 6] [--concurrency 2] [--set dev]
+ *   tsx src/evolve.ts --bench <dir> --repos a,b,c --out <dir> [--hours 6] [--concurrency 2] [--set dev] [--budget-usd 300]
  *
  * Score = repos where the variant opens a PR (gates hold, no breaking findings) AND the fixed judge
  * approves the diff. The judge never changes, so a variant can't win by weakening its own reviewer.
@@ -14,6 +14,7 @@ import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
 import { runAsync, runClaude } from "./exec.js";
+import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, type ArchiveEntry } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -54,8 +55,41 @@ const deadline = Date.now() + Number(flag("--hours", "6")) * 3600_000;
 const concurrency = Number(flag("--concurrency", "2"));
 const only = flag("--only"); // evaluate one archived arch id on this set, then exit
 const mirror = flag("--mirror"); // a second folder to copy the logs into
+const budgetUsd = flag("--budget-usd") ? Number(flag("--budget-usd")) : undefined;
+
+/**
+ * What the run has spent so far: completed evaluations in the archive (every set), the mutator's
+ * own claude calls, and, for the in-flight architecture, its result.json files that postdate the
+ * newest archived evaluation of that id. Files older than that cutoff belong to runs the archive
+ * already counted (a rerun via --only, or the same id evaluated on another set), so they are not
+ * counted again.
+ */
+function spentSoFar(entries: ArchiveEntry[], inFlightArchId?: string): number {
+  let spent = totalSpent(entries);
+  // The mutator's own claude calls are real spend too, tracked in mutator.jsonl.
+  if (fs.existsSync(MUTATOR))
+    for (const line of fs.readFileSync(MUTATOR, "utf8").split("\n").filter(Boolean)) {
+      try { spent += JSON.parse(line).cost ?? 0; } catch { /* partial line */ }
+    }
+  if (inFlightArchId) {
+    const root = path.join(out, "runs", inFlightArchId);
+    const files: { mtimeMs: number; cost: number; judgeCost?: number }[] = [];
+    if (fs.existsSync(root))
+      for (const repo of fs.readdirSync(root)) {
+        const rj = path.join(root, repo, "result.json");
+        if (!fs.existsSync(rj)) continue;
+        try {
+          const r: RepoResult = JSON.parse(fs.readFileSync(rj, "utf8"));
+          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost });
+        } catch { /* no partial result yet */ }
+      }
+    spent += inFlightCost(entries, inFlightArchId, files);
+  }
+  return spent;
+}
 const SHIM = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const ARCHIVE = path.join(out, "archive.jsonl");
+const MUTATOR = path.join(out, "mutator.jsonl"); // one line per mutator claude call, so its spend counts
 const log = (m: string) => console.error(`[evolve ${new Date().toISOString().slice(11, 19)}] ${m}`);
 
 fs.mkdirSync(out, { recursive: true });
@@ -129,24 +163,23 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
   };
 }
 
-const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5"];
-
 function clamp(a: Partial<Architecture>, id: string, notes: string): Architecture {
-  const int = (v: unknown, lo: number, hi: number, d: number) => Math.min(hi, Math.max(lo, Math.round(Number(v ?? d)) || d));
   const text = (v: unknown, d: string) => (typeof v === "string" && v.trim().length > 40 ? v.slice(0, 5000) : d);
+  const models = sanitizeModels(a, V2);
+  const note = models.clamped.length ? ` (clamped ${models.clamped.join(", ")} off the model allowlist)` : "";
   return {
-    id, notes,
-    candidates: int(a.candidates, 1, 3, V2.candidates),
-    attempts: int(a.attempts, 1, 3, V2.attempts),
-    fixerModel: MODELS.includes(a.fixerModel ?? "") ? a.fixerModel! : V2.fixerModel,
-    fixerMaxTurns: int(a.fixerMaxTurns, 10, 60, V2.fixerMaxTurns),
+    id, notes: `${notes}${note}`,
+    candidates: bound(a.candidates, GENOME_BOUNDS.candidates, V2.candidates),
+    attempts: bound(a.attempts, GENOME_BOUNDS.attempts, V2.attempts),
+    fixerModel: models.fixerModel,
+    fixerMaxTurns: bound(a.fixerMaxTurns, GENOME_BOUNDS.fixerMaxTurns, V2.fixerMaxTurns),
     fixerRules: text(a.fixerRules, V2.fixerRules),
     fixerChecks: !!a.fixerChecks,
     audit: !!a.audit,
     review: a.review !== false,
-    reviewerModel: MODELS.includes(a.reviewerModel ?? "") ? a.reviewerModel! : V2.reviewerModel,
+    reviewerModel: models.reviewerModel,
     reviewerRules: text(a.reviewerRules, V2.reviewerRules),
-    reviewRounds: int(a.reviewRounds, 0, 2, 0),
+    reviewRounds: bound(a.reviewRounds, GENOME_BOUNDS.reviewRounds, 0),
     selection: a.selection === "first" ? "first" : "smallest",
   };
 }
@@ -179,8 +212,9 @@ response.messages -> responseMessages; system messages -> instructions), no unre
 no signature changes, no code that can't compile, no renamed exports.
 
 Genome fields:
-- candidates (1-3): parallel fixers on separate copies; attempts (1-3): fix->gates rounds per candidate.
-- fixerModel / reviewerModel: one of ${MODELS.join(", ")} (sonnet is cheaper, opus stronger).
+- candidates (1-4): parallel fixers on separate copies; attempts (1-3): fix->gates rounds per candidate.
+- fixerModel / reviewerModel: one of ${ALLOWED_MODELS.join(", ")} only (haiku is cheapest, sonnet middle, opus strongest).
+  Other models are not allowed and will be rejected; do not propose any.
 - fixerMaxTurns (10-60).
 - fixerRules: the rules text the fixer gets above its findings and failing checks. You may rewrite it.
 - fixerChecks: if true, the fixer may run the repo's own build/typecheck/test commands (the same ones the gates
@@ -207,6 +241,7 @@ Reply with a short hypothesis paragraph, then the child genome as a single \`\`\
     out,
     20 * 60_000,
   );
+  fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
   const text = res.text ?? res.output;
   const json = text.match(/```json\s*([\s\S]*?)```/)?.[1];
   const hypothesis = text.split("```")[0]!.trim().replace(/\s+/g, " ").slice(0, 600);
@@ -257,16 +292,35 @@ function writeLog(archive: Evaluation[]) {
   }
   fs.writeFileSync(path.join(out, "LOG.md"), lines.join("\n"));
   if (mirror) {
-    fs.mkdirSync(mirror, { recursive: true });
-    fs.copyFileSync(path.join(out, "LOG.md"), path.join(mirror, "LOG.md"));
-    fs.copyFileSync(ARCHIVE, path.join(mirror, "archive.jsonl"));
+    const status = syncMirror(mirror, out, new Date().toISOString());
+    log(`mirror: ${status}`);
   }
+}
+
+const toEntries = (archive: Evaluation[]): ArchiveEntry[] =>
+  archive.map((e) => ({ id: e.arch.id, parent: e.parent, cost: e.cost, at: e.at, set: e.set, invalid: e.invalid }));
+
+/**
+ * Before starting an evaluation: will it fit in budget? Spent = completed evaluations + this
+ * architecture's in-flight partial cost + the mutator's own calls. The next evaluation's estimate is
+ * the parent's cost (or the average over the set's valid runs, when the parent is unknown).
+ */
+function withinBudget(entries: ArchiveEntry[], archId: string, parent: string | undefined): boolean {
+  if (budgetUsd === undefined) return true;
+  const spent = spentSoFar(entries, archId);
+  const estimate = estimateNext(entries, parent, set, repos.length);
+  if (wouldExceedBudget({ spent, estimate, budgetUsd })) {
+    log(`budget stop: $${spent.toFixed(2)} spent + ~$${estimate.toFixed(2)} est for ${archId} exceeds $${budgetUsd}; not starting it`);
+    return false;
+  }
+  return true;
 }
 
 async function main() {
   if (only) {
     const arch = readArchive().find((e) => e.arch.id === only)?.arch ?? SEEDS.find((a) => a.id === only);
     if (!arch) throw new Error(`no arch ${only}`);
+    if (!withinBudget(toEntries(readArchive()), arch.id, undefined)) return;
     const ev = await evaluate(arch, undefined);
     fs.appendFileSync(ARCHIVE, `${JSON.stringify(ev)}\n`);
     writeLog(readArchive());
@@ -275,6 +329,7 @@ async function main() {
   let gen = readArchive().length;
   while (Date.now() < deadline) {
     const archive = readArchive();
+    const entries = toEntries(archive);
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
     // Only start an evaluation that can finish before the deadline (the caller may be killed at it).
     // Interrupted evaluations resume, so only a rough estimate is needed here.
@@ -287,8 +342,18 @@ async function main() {
     // A child proposed before an interruption is evaluated before proposing a new one.
     const PENDING = path.join(out, "pending.json");
     const pending = !seed && fs.existsSync(PENDING) ? JSON.parse(fs.readFileSync(PENDING, "utf8")) : undefined;
+    // When the next target is a fresh child, never let a spent budget call the mutator:
+    // mutate() costs real money on its claude call.
+    if (!seed && !pending && shouldStopForBudget({ spent: spentSoFar(entries), budgetUsd })) {
+      log(`budget reached; stopping`);
+      break;
+    }
     const { arch, parent } = seed ? { arch: seed, parent: undefined } : pending ?? (await mutate(archive, ++gen));
     if (!seed) fs.writeFileSync(PENDING, JSON.stringify({ arch, parent }));
+    if (!withinBudget(entries, arch.id, parent)) {
+      log(`budget reached; stopping`);
+      break;
+    }
     log(`evaluating ${arch.id} on ${set}: ${arch.notes.slice(0, 160)}`);
     const ev = await evaluate(arch, parent);
     fs.appendFileSync(ARCHIVE, `${JSON.stringify(ev)}\n`);
