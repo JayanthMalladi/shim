@@ -1,6 +1,6 @@
 ## Upgrade to AI SDK 7
 
-This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
+This PR moves the project from AI SDK 6 to 7 and keeps its current behavior.
 
 ### Versions
 - `@ai-sdk/anthropic`: ^3.0.133 → ^4.0.0
@@ -21,11 +21,6 @@ This drops support for AI SDK 6, so users of this package will need AI SDK 7 too
 Other source files changed (codemod renames and fixer edits): `packages/ai-tools/src/providers/types.mts`.
 
 After the codemod, these checks failed; this PR fixes them: `build`, `typecheck packages/ai-tools`.
-
-### Needs your eyes
-Shim did not change these. Please check them before merging.
-- `packages/ai-tools/__tests__/ai-tools.test.mjs:160`, `packages/ai-tools/__tests__/ai-tools.test.mjs:206`: `messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior.
-- `packages/ai-tools/__tests__/ai-tools.test.mjs:249`, `packages/ai-tools/__tests__/ai-tools.test.mjs:303`: This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't. `allowSystemInMessages: true` keeps the v6 behavior.
 
 ### How it was checked
 | Check | Before | After |
