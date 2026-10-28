@@ -1,0 +1,52 @@
+{
+  "repo": "voightxyz/voight-vercel-ai",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "ai: ^6.0.185 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=18\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json | 149 ++++++++++++++++++------------------------------------\n package.json      |   2 +-\n 2 files changed, 50 insertions(+), 101 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 0.1414176,
+  "fixMs": 19036
+}
