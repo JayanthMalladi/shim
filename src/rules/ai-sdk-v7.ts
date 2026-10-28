@@ -15,6 +15,7 @@ import {
   type Project,
   type PropertyAccessExpression,
   type SourceFile,
+  type TypeNode,
 } from "ts-morph";
 import type { Finding, FixKind, Severity } from "../types.js";
 
@@ -39,6 +40,9 @@ const ACCUMULATED_PROPS = new Set([
   "sources",
   "warnings",
 ]);
+
+/** Types from `ai` that a generateText/streamText result is declared with. */
+const RESULT_TYPES = new Set(["GenerateTextResult", "StreamTextResult"]);
 
 const END_CALLBACKS = new Set(["onFinish", "onEnd", "experimental_onFinish"]);
 
@@ -96,6 +100,8 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
         checkTotalUsage(ctx, aiCall);
       }
     }
+
+    checkTypedResults(ctx, sf, names);
 
     for (const expr of sf.getDescendantsOfKind(SyntaxKind.NewExpression)) {
       const cls = calleeName(expr, names);
@@ -349,6 +355,84 @@ function checkResultReads(ctx: RuleContext, { fn, call, multiStep }: AiCall) {
       if (auto) ctx.edits.push({ node: access, text: `${v}.finalStep.${prop}` });
     }
   }
+}
+
+/**
+ * Results that reach a read through a declared type instead of the call itself: a helper returns
+ * `generateText(...)` and another function takes `result: Awaited<ReturnType<typeof generateText>>`. We
+ * can't see the producing call, so these go to the agent with no rewrite. Variables initialised straight
+ * from a generateText/streamText call are checkResultReads' job and are skipped here.
+ */
+function checkTypedResults(ctx: RuleContext, sf: SourceFile, names: Map<string, string>) {
+  const typed = new Set<object>();
+  const symbolOf = (expr: Node) =>
+    Node.isIdentifier(expr) ? expr.getSymbol() : Node.isPropertyAccessExpression(expr) ? expr.getNameNode().getSymbol() : undefined;
+  const flag = (node: Node, label: string, prop: string) => add(ctx, node, "typed-multi-step-result", "silent", "agent",
+    `\`${label}\` is declared as an AI SDK result. If the call that produced it runs several steps, ` +
+    (prop === "response.messages"
+      ? "`response.messages` now holds only the final step's messages. Use `responseMessages` for the full history."
+      : `\`${prop}\` now covers every step. Read \`finalStep.${prop}\` to keep the v6 value.`));
+  const reads = (prop: string) => prop === "usage" || ACCUMULATED_PROPS.has(prop);
+
+  for (const decl of sf.getDescendants()) {
+    if (!(Node.isParameterDeclaration(decl) || Node.isVariableDeclaration(decl) || Node.isPropertyDeclaration(decl) || Node.isPropertySignature(decl))) continue;
+    const type = decl.getTypeNode();
+    if (!type || !namesResultType(type, names)) continue;
+    const init = Node.isVariableDeclaration(decl) ? decl.getInitializer() : undefined;
+    const call = Node.isAwaitExpression(init) ? init.getExpression() : init;
+    if (call && Node.isCallExpression(call) && RESULT_FNS.has(calleeName(call, names) ?? "")) continue;
+    const nameNode = decl.getNameNode();
+    if (Node.isObjectBindingPattern(nameNode)) {
+      for (const el of nameNode.getElements()) {
+        const prop = el.getPropertyNameNode()?.getText() ?? el.getName();
+        if (reads(prop)) flag(el, prop, prop);
+      }
+    } else {
+      const symbol = nameNode.getSymbol();
+      if (symbol) typed.add(symbol);
+    }
+  }
+  if (!typed.size) return;
+
+  for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    const nameNode = decl.getNameNode();
+    const init = decl.getInitializer();
+    const symbol = init && symbolOf(init);
+    if (!Node.isObjectBindingPattern(nameNode) || !init || !symbol || !typed.has(symbol)) continue;
+    for (const el of nameNode.getElements()) {
+      const prop = el.getPropertyNameNode()?.getText() ?? el.getName();
+      if (reads(prop)) flag(el, init.getText(), prop);
+    }
+  }
+  for (const access of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+    const target = access.getExpression();
+    const symbol = symbolOf(target);
+    if (!symbol || !typed.has(symbol)) continue;
+    const prop = access.getName();
+    const parent = access.getParent();
+    if (prop === "response" && Node.isPropertyAccessExpression(parent) && parent.getName() === "messages") {
+      flag(parent, parent.getText(), "response.messages");
+    } else if (reads(prop)) {
+      flag(access, access.getText(), prop);
+    }
+  }
+}
+
+/** `GenerateTextResult<...>`, `Awaited<ReturnType<typeof generateText>>` and the like, with `ai` as the source. */
+function namesResultType(type: TypeNode, names: Map<string, string>): boolean {
+  if (Node.isParenthesizedTypeNode(type)) return namesResultType(type.getTypeNode(), names);
+  if (Node.isUnionTypeNode(type)) return type.getTypeNodes().some((t) => namesResultType(t, names));
+  if (!Node.isTypeReference(type)) return false;
+  const ai = (text: string) => {
+    const dot = text.lastIndexOf(".");
+    return names.get(text) ?? (dot > 0 && names.has(`${text.slice(0, dot)}.*`) ? text.slice(dot + 1) : undefined);
+  };
+  const name = type.getTypeName().getText();
+  const arg = type.getTypeArguments()[0];
+  if (RESULT_TYPES.has(ai(name) ?? "")) return true;
+  if (name === "Awaited" && arg) return namesResultType(arg, names);
+  if (name === "ReturnType" && arg && Node.isTypeQuery(arg)) return RESULT_FNS.has(ai(arg.getExprName().getText()) ?? "");
+  return false;
 }
 
 function resultDeclaration(call: CallExpression) {

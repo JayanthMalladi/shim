@@ -23,6 +23,7 @@ describe("ai-sdk v7 scan", () => {
       "src/agent.ts:18",
       "src/agent.ts:31",
       "src/agent.ts:45",
+      "src/typed.ts:51", // streamText result declared with a type: reported once, by this rule
     ]);
   });
 
@@ -35,6 +36,19 @@ describe("ai-sdk v7 scan", () => {
     expect(at("multi-step-end-event")).toEqual(["src/agent.ts:14"]);
     expect(at("response-messages")).toEqual(["src/agent.ts:19"]);
     expect(at("total-usage")).toEqual(["src/agent.ts:20"]);
+  });
+
+  it("flags reads on values declared with an AI SDK result type, for the agent, with no rewrite", () => {
+    expect(at("typed-multi-step-result")).toEqual([
+      "src/typed.ts:14", // Awaited<ReturnType<typeof generateText>>: response.messages
+      "src/typed.ts:15", // .usage
+      "src/typed.ts:16", // .warnings
+      "src/typed.ts:20", // GenerateTextResult, destructured toolCalls
+      "src/typed.ts:21", // StreamTextResult, optional-chained .sources
+      "src/typed.ts:44", // property typed Awaited<ReturnType<typeof streamText>>
+    ]);
+    // Not flagged: .text, a field on the repo's own types, and a variable the tracker already owns (line 51).
+    expect(result.findings.filter((f) => f.ruleId === "typed-multi-step-result").every((f) => f.fix === "agent" && f.severity === "silent")).toBe(true);
   });
 
   it("flags runtime breaks: system messages, require, node engine", () => {

@@ -26,6 +26,7 @@ npx tsx src/cli.ts migrate path/to/repo --agent --repo owner/name
 | Rule | Severity | Fix |
 |---|---|---|
 | `multi-step-result`: `usage`, `toolCalls`, `content`, and similar reads on multi-step results | silent | auto (generateText), agent (streamText, destructuring) |
+| `typed-multi-step-result`: the same reads on a parameter, variable, or property declared as `GenerateTextResult`, `StreamTextResult`, or `Awaited<ReturnType<typeof generateText>>`, where the producing call can't be seen | silent | agent |
 | `multi-step-end-event`: the same reads on `onFinish`/`onEnd` events | silent | auto / agent |
 | `response-messages`: `result.response.messages` now holds only the final step | silent | auto (generateText) / agent |
 | `telemetry-needs-otel`: traces stop unless `@ai-sdk/otel` is registered | silent | manual |
