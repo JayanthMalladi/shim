@@ -1,0 +1,78 @@
+{
+  "repo": "dpuyosa/venice-ai-sdk-provider",
+  "verdict": "open-issue",
+  "reason": "gates regressed: build, typecheck .",
+  "versionChanges": [
+    "@ai-sdk/openai-compatible: ^2.0.81 -> ^3.0.0",
+    "@ai-sdk/provider: ^3.0.18 -> ^4.0.0",
+    "@ai-sdk/provider-utils: ^4.0.57 -> ^5.0.0",
+    "ai: ^6.0.90 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": false,
+    "typecheck .": false,
+    "test .": true
+  },
+  "regressions": [
+    "build",
+    "typecheck ."
+  ],
+  "diffStat": "bun.lock     | 38 +++++++++++++-------------------------\n package.json |  8 ++++----\n 2 files changed, 17 insertions(+), 29 deletions(-)",
+  "changedFiles": [
+    "bun.lock",
+    "package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [
+    "I didn't change anything. `src/venice-provider.ts:113` still fails, and the final `npx --no-install tsc --noEmit -p tsconfig.json` shows the same TS2352 error, so the build and typecheck still fail. There was no codemod diff to revert (`git diff` is empty).\n\n**Why it fails:** `@ai-sdk/openai-compatible` was bumped from `^2.0.81` to `^3.0.0`. In version 3, `OpenAICompatibleCompletionLanguageModel`, `OpenAICompatibleEmbeddingModel` and `OpenAICompatibleImageModel` all use the newer v4 model spec. `VeniceProvider` still extends `ProviderV3`, which requires `imageModel` and `embeddingModel` to return v3 models. It also still declares `completionModel` as `LanguageModelV3`. Its main chat model, `VeniceChatLanguageModel`, is written against the v3 spec.\n\n**Why I left it:** `completionModel` is only the first mismatch TypeScript reports. Changing it to `LanguageModelV4` would just surface the same error for `imageModel` and `embeddingModel`, which `ProviderV3` requires to return v3 models. No small edit makes this type-check:\n- **Switching `VeniceProvider` to `ProviderV4`:** this means rewriting `VeniceChatLanguageModel` and its streaming, usage and finish-reason code for the v4 spec. That's a large refactor, and it would change the public types.\n- **Pinning `@ai-sdk/openai-compatible` back to `^2.x` (the v6-era version):** that's a dependency change and needs `bun.lock` regenerated, which the rules and `AGENTS.md` don't allow without approval.\n- **Casting with `as unknown as VeniceProvider`:** this would hide a real v3/v4 mismatch, and your rules forbid it.\n\nWhich do you want: pin `@ai-sdk/openai-compatible` back to `^2.x`, or migrate the provider to v4? Pinning is smaller and keeps the completion, embedding and image models behaving exactly as they did on v6.",
+    "I couldn't fix this one safely, so I left `src/venice-provider.ts:113` as it was. The working tree is clean. `npx --no-install tsc --noEmit -p tsconfig.json` still fails with the same TS2352 error, so `build` and `typecheck` both still fail.\n\n**Why it fails:** `@ai-sdk/openai-compatible@^3` now creates v4 models: its completion, image and embedding model classes all declare `specificationVersion = \"v4\"`. This repo's types are still v3:\n- `VeniceProvider` extends `ProviderV3`.\n- `completionModel` is typed to return `LanguageModelV3`.\n- `VeniceChatLanguageModel` declares `'v3'`.\n- The provider object sets `specificationVersion = 'v3'`.\n\n**What I tried:** I changed `completionModel`'s return type to `LanguageModelV4`. That cleared the completion error, but the same mismatch then showed up on `imageModel`. I put the edit back, because a partial change wouldn't make anything pass.\n\n**Why there's no small fix:** `imageModel`, `embeddingModel` and `textEmbeddingModel` are members of `ProviderV3`, which requires them to return v3 types. They can't return v4 models while `VeniceProvider` extends `ProviderV3`. Switching to `ProviderV4` would mean moving `languageModel`, and so `VeniceChatLanguageModel` itself, to the `LanguageModelV4` contract. That rewrites the core chat model and changes the public API, which is outside \"smallest edit, no refactors\". A cast to `unknown` would only hide the error, which the rules forbid.\n\n**What's needed:** someone has to decide between two options:\n1. Migrate the provider and the chat model to the v4 contract (`ProviderV4` / `LanguageModelV4`, with `'v4'` in both places). This is a breaking change to the public API.\n2. Stop relying on `@ai-sdk/openai-compatible` for the completion, image and embedding models and keep the v3 surface. In practice that would likely mean pinning a version of it that still produces v3 models."
+  ],
+  "candidates": [
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    }
+  ],
+  "failures": {
+    "build": "KB\u001b[39m\n\u001b[32mESM\u001b[39m \u001b[1mdist/index.mjs.map \u001b[22m\u001b[32m1.33 MB\u001b[39m\n\u001b[32mESM\u001b[39m ⚡️ Build success in 354ms\n\u001b[32mCJS\u001b[39m \u001b[1mdist/index.js     \u001b[22m\u001b[32m782.56 KB\u001b[39m\n\u001b[32mCJS\u001b[39m \u001b[1mdist/index.js.map \u001b[22m\u001b[32m1.33 MB\u001b[39m\n\u001b[32mCJS\u001b[39m ⚡️ Build success in 397ms\n\u001b[34mDTS\u001b[39m Build start\n$ tsup --tsconfig tsconfig.build.json\nsrc/venice-provider.ts(113,12): error TS2352: Conversion of type '{ (modelId: string): VeniceChatLanguageModel; specificationVersion: \"v3\"; chatModel: (modelId: string) => VeniceChatLanguageModel; ... 4 more ...; textEmbeddingModel(modelId: string): OpenAICompatibleEmbeddingModel; }' to type 'VeniceProvider' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  The types of 'completionModel(...).specificationVersion' are incompatible between these types.\n    Type '\"v4\"' is not comparable to type '\"v3\"'.\n\n\u001b[31mError: error occurred in dts build\n    at Worker.<anonymous> (/tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/dpuyosa__venice-ai-sdk-provider.cand0/node_modules/tsup/dist/index.js:1545:26)\n    at Worker.emit (node:events:519:28)\n    at MessagePort.<anonymous> (node:internal/worker:270:53)\n    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20)\n    at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28)\u001b[39m\n\u001b[31mDTS\u001b[39m \u001b[31mBuild error\u001b[39m\nerror: script \"build\" exited with code 1\n",
+    "typecheck .": "src/venice-provider.ts(113,12): error TS2352: Conversion of type '{ (modelId: string): VeniceChatLanguageModel; specificationVersion: \"v3\"; chatModel: (modelId: string) => VeniceChatLanguageModel; ... 4 more ...; textEmbeddingModel(modelId: string): OpenAICompatibleEmbeddingModel; }' to type 'VeniceProvider' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  The types of 'completionModel(...).specificationVersion' are incompatible between these types.\n    Type '\"v4\"' is not comparable to type '\"v3\"'.\n$ tsc --noEmit\n"
+  },
+  "arch": "v2-parallel-review",
+  "cost": 1.9342858,
+  "fixMs": 135949
+}
