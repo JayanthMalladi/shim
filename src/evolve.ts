@@ -14,7 +14,7 @@ import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
 import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror } from "./evolve-guard.js";
+import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, type ArchiveEntry } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -58,12 +58,13 @@ const mirror = flag("--mirror"); // a second folder to copy the logs into
 const budgetUsd = flag("--budget-usd") ? Number(flag("--budget-usd")) : undefined;
 
 /**
- * What the run has spent so far: completed evaluations in the archive, plus the partial cost of
- * the in-flight evaluation (repos of this architecture already finished, from their result.json).
- * Resumed repos are re-scanned, so an interrupted run's partial cost is still live spend.
+ * What the run has spent so far: completed evaluations in the archive (every set), the mutator's
+ * own claude calls, and, for the in-flight architecture, its result.json files that postdate the
+ * newest archived evaluation of that id. Files older than that cutoff belong to runs the archive
+ * already counted (a rerun via --only, or the same id evaluated on another set), so they are not
+ * counted again.
  */
-function spentSoFar(inFlightArchId?: string): number {
-  const entries = readArchive().map((e) => ({ id: e.arch.id, parent: e.parent, cost: e.cost }));
+function spentSoFar(entries: ArchiveEntry[], inFlightArchId?: string): number {
   let spent = totalSpent(entries);
   // The mutator's own claude calls are real spend too, tracked in mutator.jsonl.
   if (fs.existsSync(MUTATOR))
@@ -72,15 +73,17 @@ function spentSoFar(inFlightArchId?: string): number {
     }
   if (inFlightArchId) {
     const root = path.join(out, "runs", inFlightArchId);
+    const files: { mtimeMs: number; cost: number; judgeCost?: number }[] = [];
     if (fs.existsSync(root))
       for (const repo of fs.readdirSync(root)) {
         const rj = path.join(root, repo, "result.json");
         if (!fs.existsSync(rj)) continue;
         try {
           const r: RepoResult = JSON.parse(fs.readFileSync(rj, "utf8"));
-          spent += (r.cost ?? 0) + (r.judge?.cost ?? 0);
+          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost });
         } catch { /* no partial result yet */ }
       }
+    spent += inFlightCost(entries, inFlightArchId, files);
   }
   return spent;
 }
@@ -294,16 +297,18 @@ function writeLog(archive: Evaluation[]) {
   }
 }
 
+const toEntries = (archive: Evaluation[]): ArchiveEntry[] =>
+  archive.map((e) => ({ id: e.arch.id, parent: e.parent, cost: e.cost, at: e.at, set: e.set, invalid: e.invalid }));
+
 /**
  * Before starting an evaluation: will it fit in budget? Spent = completed evaluations + this
  * architecture's in-flight partial cost + the mutator's own calls. The next evaluation's estimate is
- * the parent's cost (or the most expensive seed seen, when the parent is unknown).
+ * the parent's cost (or the average over the set's valid runs, when the parent is unknown).
  */
-function withinBudget(archId: string, parent: string | undefined): boolean {
+function withinBudget(entries: ArchiveEntry[], archId: string, parent: string | undefined): boolean {
   if (budgetUsd === undefined) return true;
-  const entries = readArchive().map((e) => ({ id: e.arch.id, parent: e.parent, cost: e.cost }));
-  const spent = spentSoFar(archId);
-  const estimate = estimateNext(entries, parent);
+  const spent = spentSoFar(entries, archId);
+  const estimate = estimateNext(entries, parent, set, repos.length);
   if (wouldExceedBudget({ spent, estimate, budgetUsd })) {
     log(`budget stop: $${spent.toFixed(2)} spent + ~$${estimate.toFixed(2)} est for ${archId} exceeds $${budgetUsd}; not starting it`);
     return false;
@@ -315,7 +320,7 @@ async function main() {
   if (only) {
     const arch = readArchive().find((e) => e.arch.id === only)?.arch ?? SEEDS.find((a) => a.id === only);
     if (!arch) throw new Error(`no arch ${only}`);
-    if (!withinBudget(arch.id, undefined)) return;
+    if (!withinBudget(toEntries(readArchive()), arch.id, undefined)) return;
     const ev = await evaluate(arch, undefined);
     fs.appendFileSync(ARCHIVE, `${JSON.stringify(ev)}\n`);
     writeLog(readArchive());
@@ -324,6 +329,7 @@ async function main() {
   let gen = readArchive().length;
   while (Date.now() < deadline) {
     const archive = readArchive();
+    const entries = toEntries(archive);
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
     // Only start an evaluation that can finish before the deadline (the caller may be killed at it).
     // Interrupted evaluations resume, so only a rough estimate is needed here.
@@ -336,9 +342,15 @@ async function main() {
     // A child proposed before an interruption is evaluated before proposing a new one.
     const PENDING = path.join(out, "pending.json");
     const pending = !seed && fs.existsSync(PENDING) ? JSON.parse(fs.readFileSync(PENDING, "utf8")) : undefined;
+    // When the next target is a fresh child, never let a spent budget call the mutator:
+    // mutate() costs real money on its claude call.
+    if (!seed && !pending && shouldStopForBudget({ spent: spentSoFar(entries), budgetUsd })) {
+      log(`budget reached; stopping`);
+      break;
+    }
     const { arch, parent } = seed ? { arch: seed, parent: undefined } : pending ?? (await mutate(archive, ++gen));
     if (!seed) fs.writeFileSync(PENDING, JSON.stringify({ arch, parent }));
-    if (!withinBudget(arch.id, parent)) {
+    if (!withinBudget(entries, arch.id, parent)) {
       log(`budget reached; stopping`);
       break;
     }

@@ -6,13 +6,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { run } from "./exec.js";
 
-
 /** A row of the scored archive: enough to estimate what the next evaluation will cost. */
 export interface ArchiveEntry {
   id: string;
   /** seed entries have no parent */
   parent?: string;
   cost: number;
+  /** When the evaluation finished (ISO timestamp; parsed for the in-flight cutoff). */
+  at: string;
+  /** Which bench set the evaluation ran on; runs/ is shared across sets. */
+  set: string;
+  /** Set when the run erred or hit rate limits; such runs don't count as evidence. */
+  invalid?: string;
 }
 
 /** Sum of every completed evaluation's cost. */
@@ -21,17 +26,46 @@ export function totalSpent(entries: ArchiveEntry[]): number {
 }
 
 /**
- * Estimate the next evaluation's cost: the parent's cost when we have one, otherwise the most
- * expensive seed so far (0 when nothing has run yet, so the first seed always gets to establish
- * the cost model).
+ * The in-flight part of the spend: completed result.json files that postdate the newest archived
+ * evaluation of this architecture (the cutoff looks at every set, since runs/<id> is shared).
+ * Result files older than that belong to runs the archive already counted, so a rerun of an
+ * archived id (including --only on another set) is not double-counted; no archive entry means no
+ * cutoff, so every result file counts.
  */
-export function estimateNext(entries: ArchiveEntry[], parent?: string): number {
+export function inFlightCost(
+  entries: ArchiveEntry[],
+  archId: string,
+  resultFiles: { mtimeMs: number; cost: number; judgeCost?: number }[],
+): number {
+  const own = entries.filter((e) => e.id === archId).map((e) => Date.parse(e.at)).filter((t) => !Number.isNaN(t));
+  const newest = own.length ? Math.max(...own) : undefined;
+  return resultFiles
+    .filter((f) => newest === undefined || f.mtimeMs > newest)
+    .reduce((s, f) => s + f.cost + (f.judgeCost ?? 0), 0);
+}
+
+/**
+ * Has the run already spent its budget? Checked before the mutator is called: once the spend
+ * reaches the cap, another mutation would only make an evaluation the stop below won't start.
+ */
+export function shouldStopForBudget({ spent, budgetUsd }: { spent: number; budgetUsd?: number }): boolean {
+  return budgetUsd !== undefined && spent >= budgetUsd;
+}
+
+/**
+ * Estimate the next evaluation's cost: the parent's full evaluation cost when we have one that is
+ * valid and from this set, otherwise the average evaluation cost of the set's non-invalid
+ * entries, scaled to the number of repos the next evaluation runs (0 when nothing valid has run
+ * in this set, so the first evaluation always gets to establish the cost model).
+ */
+export function estimateNext(entries: ArchiveEntry[], parent: string | undefined, set: string, repoCount: number): number {
   if (parent != null) {
     const p = entries.find((e) => e.id === parent);
-    if (p) return p.cost;
+    if (p && !p.invalid && p.set === set) return p.cost;
   }
-  const seedCosts = entries.filter((e) => e.parent == null).map((e) => e.cost);
-  return seedCosts.length ? Math.max(...seedCosts) : 0;
+  const eligible = entries.filter((e) => !e.invalid && e.set === set);
+  if (!eligible.length) return 0;
+  return (totalSpent(eligible) / eligible.length) * repoCount;
 }
 
 /** True when spent-so-far plus the next estimate would go over budget. */
@@ -92,6 +126,20 @@ export function syncMirror(mirror: string, outDir: string, label: string): strin
     fs.copyFileSync(path.join(outDir, f), path.join(mirror, f));
   if (!run("git", ["rev-parse", "--is-inside-work-tree"], mirror).ok) return "copied (mirror is not a git checkout)";
   const git = (...args: string[]) => run("git", args, mirror);
+  // Never commit or push to the main checkout: the mirror must be its own repo root and a
+  // dedicated branch, or we would land every evaluation on main (or the remote's default).
+  // Compare the reported root with the mirror dir case- and separator-insensitively: on
+  // Windows git prints forward slashes and drive letters may differ in case.
+  const norm = (p: string) => p.toLowerCase().split(/[\\/]/).filter(Boolean).join("/");
+  const toplevel = git("rev-parse", "--show-toplevel").output.trim();
+  if (norm(toplevel) !== norm(mirror))
+    return `copied (mirror is inside a bigger repo: ${toplevel}); not committing or pushing`;
+  const branch = git("rev-parse", "--abbrev-ref", "HEAD").output.trim();
+  if (branch === "main" || branch === "master")
+    return `copied (mirror is on ${branch}); not committing or pushing`;
+  const remoteDefault = git("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").output.trim();
+  if (remoteDefault && remoteDefault.split("/")[1] === branch)
+    return `copied (mirror is on ${branch}, the remote's default); not committing or pushing`;
   const cached = git("add", "LOG.md", "archive.jsonl");
   if (!cached.ok) return `copied; git add failed: ${cached.output.slice(-200)}`;
   if (git("diff", "--cached", "--quiet").code === 0) return "copied (no changes to commit)";
@@ -100,5 +148,4 @@ export function syncMirror(mirror: string, outDir: string, label: string): strin
   const push = git("push", "origin", "HEAD");
   return push.ok ? "committed and pushed" : `committed locally; push failed: ${push.output.slice(-200)}`;
 }
-
 
