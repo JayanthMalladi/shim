@@ -1,3 +1,4 @@
 repo,status,kind,checks_kept_green,agent_cost_usd,judge_verdict,reason
 aws/bedrock-agentcore-sdk-typescript,ready,deps-only,4/4,1.1107,approve,all baseline gates still pass and no breaking findings remain
 zeabur/ai-sdk,ready,deps-only,3/3,0.3917,approve,all baseline gates still pass and no breaking findings remain
+merge-api/merge-gateway-ai-sdk-provider,ready,deps-only,4/4,0.4614,approve,all baseline gates still pass and no breaking findings remain
