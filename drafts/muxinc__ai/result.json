@@ -1,0 +1,46 @@
+{
+  "repo": "muxinc/ai",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": false,
+    "issues": [
+      "tests/eval/ask-questions.eval.ts:119 usage is the project's TokenUsage, not AI SDK usage; inputTokenDetails does not exist on it (compile error, and throws at runtime when usage is {}); must stay usage.cachedInputTokens",
+      "tests/eval/burned-in-captions.eval.ts:199 same wrong codemod edit on project TokenUsage (inputTokenDetails does not exist)",
+      "tests/eval/chapters-translation.eval.ts:139 same wrong codemod edit on project TokenUsage",
+      "tests/eval/chapters.eval.ts:262 same wrong codemod edit on project TokenUsage",
+      "tests/eval/summarization-translation.eval.ts:134 same wrong codemod edit on project TokenUsage",
+      "tests/eval/summarization.eval.ts:244 same wrong codemod edit on project TokenUsage",
+      "tests/eval/translate-captions.eval.ts:340 same wrong codemod edit on project TokenUsage",
+      "tests/unit/translate-captions.test.ts:43 aggregateTokenUsage returns project TokenUsage; result.outputTokenDetails/inputTokenDetails do not exist, so the test fails to compile and throws at runtime; original reasoningTokens/cachedInputTokens assertions must be kept"
+    ],
+    "cost": 0.36494760000000004
+  },
+  "cost": 1.4586519999999998,
+  "fixMs": 303693,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 25 files changed, 186 insertions(+), 180 deletions(-)"
+}
