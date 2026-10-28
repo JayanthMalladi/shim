@@ -1,11 +1,45 @@
 import { spawn, spawnSync } from "node:child_process";
 
 /**
- * CI mode, no color, and never let pnpm "fix" dependencies before a script: its verify-deps-before-run
- * check runs a full `pnpm install` with lifecycle scripts, which breaks our --ignore-scripts rule and fails
- * in copied repos whose install state records another path.
+ * The environment split is a security boundary, not a convenience: target-repo code is untrusted,
+ * and its install, build, test and gate scripts run with whatever environment we hand them. So
+ * commands that execute target code get targetEnv() (no keys, tokens or credentials, and pnpm's
+ * verify-deps-before-run check off, since it can run a full install with lifecycle scripts), and
+ * only Shim's own headless `claude` runs get agentEnv() (the full environment, so claude's
+ * authentication keeps working).
  */
-const SAFE_ENV = { ...process.env, CI: "1", FORCE_COLOR: "0", npm_config_verify_deps_before_run: "false" };
+const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
+const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
+const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
+/**
+ * Environment essentials that survive the secret strip. Matched case-insensitively, so the
+ * lower-case forms of proxy and config variables are kept too.
+ */
+const KEEP_NAMES = new Set([
+  "PATH", "HOME", "USERPROFILE", "CI", "FORCE_COLOR", "NPM_CONFIG_VERIFY_DEPS_BEFORE_RUN",
+  "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+]);
+
+/** Environment for commands that run target-repo code: no API keys, tokens or credentials. */
+export function targetEnv(): NodeJS.ProcessEnv {
+  const secret = (up: string) =>
+    SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v === undefined) continue;
+    const up = k.toUpperCase();
+    if (KEEP_NAMES.has(up) || !secret(up)) env[k] = v;
+  }
+  env.CI = "1";
+  env.FORCE_COLOR = "0";
+  env.npm_config_verify_deps_before_run = "false";
+  return env;
+}
+
+/** Environment for Shim's own headless `claude` runs: the full process environment. */
+export function agentEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, CI: "1", FORCE_COLOR: "0" };
+}
 
 export interface ExecResult {
   ok: boolean;
@@ -17,31 +51,35 @@ export interface ExecResult {
   text?: string;
 }
 
-/** Run a command without a shell. Output is truncated to the tail, which is where errors live. */
-export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000): ExecResult {
+/**
+ * Run a command without a shell. Output is truncated to the tail, which is where errors live.
+ * The env defaults to the target-safe one, so a call that forgets to think about it still can't
+ * leak a key; pass env explicitly for the rare command that needs something unusual.
+ */
+export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv()): ExecResult {
   const start = Date.now();
   const r = spawnSync(cmd, args, {
     cwd,
     encoding: "utf8",
     timeout: timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
-    env: SAFE_ENV,
+    env,
   });
   const output = `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? `\n${r.error.message}` : ""}`;
   return { ok: r.status === 0, code: r.status, output: output.slice(-8000), ms: Date.now() - start };
 }
 
 /** Run with `input` on stdin and return all of stdout: `run` keeps only the tail, which can't be compared to a file. */
-export function runCapture(cmd: string, args: string[], cwd: string, input?: string): { ok: boolean; stdout: string } {
-  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", input, timeout: 5 * 60_000, maxBuffer: 64 * 1024 * 1024, env: SAFE_ENV });
+export function runCapture(cmd: string, args: string[], cwd: string, input?: string, env: NodeJS.ProcessEnv = targetEnv()): { ok: boolean; stdout: string } {
+  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", input, timeout: 5 * 60_000, maxBuffer: 64 * 1024 * 1024, env });
   return { ok: r.status === 0, stdout: r.stdout ?? "" };
 }
 
 /** Async `run`, for work that runs side by side (parallel fixer candidates). */
-export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000): Promise<ExecResult> {
+export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv()): Promise<ExecResult> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd, env: SAFE_ENV, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     const keep = (d: Buffer) => { output = (output + d.toString()).slice(-2_000_000); };
     child.stdout.on("data", keep);
@@ -73,8 +111,10 @@ const LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit re
  * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again.
  */
 export async function runClaude(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {
+  // The agent runs with the full environment so claude's auth (ANTHROPIC_API_KEY, a login profile,
+  // or ANTHROPIC_AUTH_TOKEN) works; every other command defaulting to runAsync is target-safe.
   for (let tries = 0; ; tries++) {
-    const res = await runAsync("claude", args, cwd, timeoutMs);
+    const res = await runAsync("claude", args, cwd, timeoutMs, agentEnv());
     const text = res.text ?? res.output;
     if (!LIMIT.test(text) || tries >= 6) return res;
     const wait = Math.min(msUntilReset(text) ?? 15 * 60_000, 6 * 3600_000);
