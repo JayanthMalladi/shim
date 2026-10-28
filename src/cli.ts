@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { scan, scanAndFix } from "./scan.js";
 import { prOpen, prRecord } from "./pr.js";
 import { triage } from "./triage.js";
+import { prStatus } from "./pr-status.js";
 
 const USAGE = `shim <command>
 
@@ -28,7 +29,9 @@ const USAGE = `shim <command>
                            Replay the draft's changes.patch on a fresh shim/ai-sdk-7
                            branch of the fork, push it, and print the compare URL
   pr record <owner/repo> <pr-url>
-                           Record the opened PR in data/prs.csv`;
+                           Record the opened PR in data/prs.csv
+  pr status [--write]      Refresh PR states from the GitHub API; print totals;
+                           --write updates data/prs.csv`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -112,6 +115,10 @@ switch (cmd) {
         process.exit(1);
       }
       console.log(JSON.stringify(prRecord({ repo, prUrl: url }), null, 2));
+      break;
+    }
+    if (target === "status") {
+      await prStatus(path.resolve("data", "prs.csv"), { write: rest.includes("--write") });
       break;
     }
     if (target !== "open") {
