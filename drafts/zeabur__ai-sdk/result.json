@@ -1,0 +1,15 @@
+{
+  "repo": "zeabur/ai-sdk",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.21245540000000002
+  },
+  "cost": 0.17925320000000006,
+  "fixMs": 22494,
+  "candidates": [],
+  "diffStat": " 2 files changed, 35 insertions(+), 58 deletions(-)"
+}
