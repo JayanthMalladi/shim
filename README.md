@@ -33,6 +33,7 @@ npx tsx src/cli.ts migrate path/to/repo --agent --repo owner/name
 | `system-in-messages`: `role: 'system'` in `messages`/`prompt` is rejected at runtime; Shim sets `allowSystemInMessages: true` on the call or `ToolLoopAgent` unless the messages are provably system-free | break | auto (agent when the options are built elsewhere) |
 | `esm-only`: `require('ai')` throws | break | agent |
 | `node-22`: `engines.node` below 22 | break | manual |
+| `ci-node-version`: PR/push-triggered CI runs on Node below 22; rewrites the scalar/inline-matrix `node-version` to 22 (and a same-job matrix list it feeds), and flags a `node-version-file` below 22 | break | auto (node-version) / manual (node-version-file) |
 | `total-usage`: `totalUsage` becomes `usage` | deprecated | auto |
 
 ## Tracking
