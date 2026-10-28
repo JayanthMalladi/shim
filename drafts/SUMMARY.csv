@@ -9,3 +9,4 @@ nkwib/toolroute,ready,code,4/4,0.4133,approve,all baseline gates still pass and 
 yadimon/prio-llm-router,ready,code,4/4,2.2136,approve,all baseline gates still pass and no breaking findings remain
 HoudiniSwap/houdiniswap-agent,not-ready,code,2/4,3.3416,not-run,"gates regressed: build, typecheck packages/ai-tools"
 neurophic/neurophic-sdk-js,ready,code,4/4,4.7063,approve,all baseline gates still pass and no breaking findings remain
+xtruder/opencode-claude-max-plugin,ready,code,3/3,5.8502,approve,all baseline gates still pass and no breaking findings remain

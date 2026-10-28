@@ -1,0 +1,37 @@
+{
+  "repo": "xtruder/opencode-claude-max-plugin",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.5627352
+  },
+  "cost": 5.2874328,
+  "fixMs": 245042,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 72,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 72,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 70,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "diffStat": " 3 files changed, 62 insertions(+), 179 deletions(-)"
+}

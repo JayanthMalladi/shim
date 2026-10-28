@@ -1,0 +1,72 @@
+{
+  "repo": "xtruder/opencode-claude-max-plugin",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/provider: 3.0.8 -> ^4.0.0",
+    "@ai-sdk/provider-utils: 3.0.2 -> ^5.0.0",
+    "ai: ^6.0.146 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "regressions": [],
+  "diffStat": "examples/standalone-ai-sdk.ts |   2 +-\n package-lock.json             | 233 +++++++++++-------------------------------\n package.json                  |   6 +-\n 3 files changed, 62 insertions(+), 179 deletions(-)",
+  "changedFiles": [
+    "examples/standalone-ai-sdk.ts",
+    "package-lock.json",
+    "package.json"
+  ],
+  "repairedChecks": [
+    "build",
+    "typecheck ."
+  ],
+  "agentRuns": [
+    "The type errors are fixed and `npx --no-install tsc --noEmit -p tsconfig.json` now passes. I couldn't run `npm test` or `npm run build` because both needed approval that wasn't granted. The build's only failing step was the same `tsc` errors, so it should pass now, but I haven't confirmed that.\n\n**Cause:** the codemod's `rename-system-to-instructions` step renamed every `system` it found to `instructions`. Almost none of those were the AI SDK option. They were the Anthropic Messages API `system` field, this repo's own `ConvertedPrompt` type, and OpenCode's `SessionContext` hook event. Those types still use `system`, so I reverted those edits:\n\n- **`src/prompt.ts`**: `convertPrompt` returns `system` again, and the stray `;` the codemod added is gone.\n- **`src/model.ts`**: `buildParams` reads `system` again and sets `params.system` at all five sites. Leaving `params.instructions` would have dropped the billing block from every OAuth request, and Sonnet/Opus reject requests without it.\n- **`src/server.ts`**: the context hook uses `event.system` again. This also clears the implicit-`any` error on `part`.\n- **`src/cch.ts`**: reads `parsed?.system` from the raw request body again.\n- **`scripts/cache-proxy.ts`**: reads `reqJson.system` again. It wasn't in the failing checks, but it inspects raw Anthropic request bodies, so the rename was wrong there too.\n- **Tests (reverted because the codemod edits were wrong, not to make them pass):**\n  - `src/cch.test.ts` and `src/server.test.ts`: the request-body and hook-event fixtures use `system` again.\n  - `src/model.test.ts`: the codemod changed `r1.cachedInputTokens` to `r1.inputTokenDetails.cacheReadTokens`. But `r1` comes from the test file's own `streamUsage` helper, which returns `cachedInputTokens`, so I reverted it.\n\n**Kept:** the one correct codemod edit, `system` → `instructions` in the `streamText` call in `examples/standalone-ai-sdk.ts`.\n\nNo sites were left unfixed. Apart from that example file, all of `src/` and `scripts/` now match the pre-codemod commit."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 72,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 72,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 70,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 5.2874328,
+  "fixMs": 245042
+}
