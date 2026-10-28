@@ -14,7 +14,7 @@ import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
 import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, estimateNext, wouldExceedBudget } from "./evolve-guard.js";
+import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -160,22 +160,22 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
   };
 }
 
-const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5"];
-
 function clamp(a: Partial<Architecture>, id: string, notes: string): Architecture {
   const int = (v: unknown, lo: number, hi: number, d: number) => Math.min(hi, Math.max(lo, Math.round(Number(v ?? d)) || d));
   const text = (v: unknown, d: string) => (typeof v === "string" && v.trim().length > 40 ? v.slice(0, 5000) : d);
+  const models = sanitizeModels(a, V2);
+  const note = models.clamped.length ? ` (clamped ${models.clamped.join(", ")} off the model allowlist)` : "";
   return {
-    id, notes,
+    id, notes: `${notes}${note}`,
     candidates: int(a.candidates, 1, 3, V2.candidates),
     attempts: int(a.attempts, 1, 3, V2.attempts),
-    fixerModel: MODELS.includes(a.fixerModel ?? "") ? a.fixerModel! : V2.fixerModel,
+    fixerModel: models.fixerModel,
     fixerMaxTurns: int(a.fixerMaxTurns, 10, 60, V2.fixerMaxTurns),
     fixerRules: text(a.fixerRules, V2.fixerRules),
     fixerChecks: !!a.fixerChecks,
     audit: !!a.audit,
     review: a.review !== false,
-    reviewerModel: MODELS.includes(a.reviewerModel ?? "") ? a.reviewerModel! : V2.reviewerModel,
+    reviewerModel: models.reviewerModel,
     reviewerRules: text(a.reviewerRules, V2.reviewerRules),
     reviewRounds: int(a.reviewRounds, 0, 2, 0),
     selection: a.selection === "first" ? "first" : "smallest",
@@ -211,7 +211,8 @@ no signature changes, no code that can't compile, no renamed exports.
 
 Genome fields:
 - candidates (1-3): parallel fixers on separate copies; attempts (1-3): fix->gates rounds per candidate.
-- fixerModel / reviewerModel: one of ${MODELS.join(", ")} (sonnet is cheaper, opus stronger).
+- fixerModel / reviewerModel: one of ${ALLOWED_MODELS.join(", ")} only (haiku is cheapest, sonnet middle, opus strongest).
+  Other models are not allowed and will be rejected; do not propose any.
 - fixerMaxTurns (10-60).
 - fixerRules: the rules text the fixer gets above its findings and failing checks. You may rewrite it.
 - fixerChecks: if true, the fixer may run the repo's own build/typecheck/test commands (the same ones the gates

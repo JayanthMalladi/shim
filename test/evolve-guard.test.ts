@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { totalSpent, estimateNext, wouldExceedBudget, type ArchiveEntry } from "../src/evolve-guard.js";
+import { totalSpent, estimateNext, wouldExceedBudget, sanitizeModels, ALLOWED_MODELS, type ArchiveEntry } from "../src/evolve-guard.js";
+
+const D = { fixerModel: "claude-opus-5-5", reviewerModel: "claude-opus-5-5" };
 
 const SEEDS: ArchiveEntry[] = [
   { id: "v1", cost: 20 },
@@ -28,6 +30,26 @@ describe("estimateNext", () => {
   });
   it("falls back to the seed estimate when the parent is unknown", () => {
     expect(estimateNext([...SEEDS, CHILD], "never-seen")).toBe(55);
+  });
+});
+
+describe("sanitizeModels", () => {
+  it("lets allowlisted models through untouched", () => {
+    for (const m of ALLOWED_MODELS) {
+      const out = sanitizeModels({ fixerModel: m, reviewerModel: m }, D);
+      expect(out).toEqual({ fixerModel: m, reviewerModel: m, clamped: [] });
+    }
+  });
+  it("clamps Fable or Mythos ids back to the default and records which fields", () => {
+    const out = sanitizeModels({ fixerModel: "claude-fable-5-1", reviewerModel: "claude-mythos-5-1" }, D);
+    expect(out).toEqual({ fixerModel: D.fixerModel, reviewerModel: D.reviewerModel, clamped: ["fixerModel", "reviewerModel"] });
+  });
+  it("falls back to the default when a model is absent, without flagging it", () => {
+    expect(sanitizeModels({}, D)).toEqual({ fixerModel: D.fixerModel, reviewerModel: D.reviewerModel, clamped: [] });
+  });
+  it("clamps a single offending field and leaves the other alone", () => {
+    const out = sanitizeModels({ fixerModel: "claude-gpt-9", reviewerModel: "claude-haiku-5-5" }, D);
+    expect(out).toEqual({ fixerModel: D.fixerModel, reviewerModel: "claude-haiku-5-5", clamped: ["fixerModel"] });
   });
 });
 
