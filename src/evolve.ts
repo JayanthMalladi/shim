@@ -14,7 +14,7 @@ import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
 import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels } from "./evolve-guard.js";
+import { totalSpent, estimateNext, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -161,23 +161,22 @@ async function evaluate(arch: Architecture, parent: string | undefined): Promise
 }
 
 function clamp(a: Partial<Architecture>, id: string, notes: string): Architecture {
-  const int = (v: unknown, lo: number, hi: number, d: number) => Math.min(hi, Math.max(lo, Math.round(Number(v ?? d)) || d));
   const text = (v: unknown, d: string) => (typeof v === "string" && v.trim().length > 40 ? v.slice(0, 5000) : d);
   const models = sanitizeModels(a, V2);
   const note = models.clamped.length ? ` (clamped ${models.clamped.join(", ")} off the model allowlist)` : "";
   return {
     id, notes: `${notes}${note}`,
-    candidates: int(a.candidates, 1, 3, V2.candidates),
-    attempts: int(a.attempts, 1, 3, V2.attempts),
+    candidates: bound(a.candidates, GENOME_BOUNDS.candidates, V2.candidates),
+    attempts: bound(a.attempts, GENOME_BOUNDS.attempts, V2.attempts),
     fixerModel: models.fixerModel,
-    fixerMaxTurns: int(a.fixerMaxTurns, 10, 60, V2.fixerMaxTurns),
+    fixerMaxTurns: bound(a.fixerMaxTurns, GENOME_BOUNDS.fixerMaxTurns, V2.fixerMaxTurns),
     fixerRules: text(a.fixerRules, V2.fixerRules),
     fixerChecks: !!a.fixerChecks,
     audit: !!a.audit,
     review: a.review !== false,
     reviewerModel: models.reviewerModel,
     reviewerRules: text(a.reviewerRules, V2.reviewerRules),
-    reviewRounds: int(a.reviewRounds, 0, 2, 0),
+    reviewRounds: bound(a.reviewRounds, GENOME_BOUNDS.reviewRounds, 0),
     selection: a.selection === "first" ? "first" : "smallest",
   };
 }
@@ -210,7 +209,7 @@ response.messages -> responseMessages; system messages -> instructions), no unre
 no signature changes, no code that can't compile, no renamed exports.
 
 Genome fields:
-- candidates (1-3): parallel fixers on separate copies; attempts (1-3): fix->gates rounds per candidate.
+- candidates (1-4): parallel fixers on separate copies; attempts (1-3): fix->gates rounds per candidate.
 - fixerModel / reviewerModel: one of ${ALLOWED_MODELS.join(", ")} only (haiku is cheapest, sonnet middle, opus strongest).
   Other models are not allowed and will be rejected; do not propose any.
 - fixerMaxTurns (10-60).

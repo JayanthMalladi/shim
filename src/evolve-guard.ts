@@ -43,6 +43,24 @@ export function wouldExceedBudget({ spent, estimate, budgetUsd }: { spent: numbe
  */
 export const ALLOWED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 
+/** Numeric bounds on the genome knobs: one bad mutation must not be able to spend the whole budget. */
+export const GENOME_BOUNDS: Record<"candidates" | "attempts" | "fixerMaxTurns" | "reviewRounds", readonly [number, number]> = {
+  candidates: [1, 4],
+  attempts: [1, 3],
+  fixerMaxTurns: [10, 60],
+  reviewRounds: [0, 2],
+};
+
+/**
+ * Round and clamp an unknown value into `[lo, hi]`. A value that does not parse (or is absent)
+ * falls back to the default; a parseable number like 0 clamps to the range edge instead.
+ */
+export function bound(v: unknown, [lo, hi]: readonly [number, number], d: number): number {
+  const n = Number(v ?? d);
+  const value = Number.isNaN(n) ? d : Math.round(n);
+  return Math.min(hi, Math.max(lo, value));
+}
+
 /**
  * Replace any fixer/reviewer model off the allowlist with the default. This is how a child that
  * names a Fable or Mythos id (or any other unknown model) gets clamped back to a safe one. Returns

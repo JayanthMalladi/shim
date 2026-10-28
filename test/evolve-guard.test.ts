@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { totalSpent, estimateNext, wouldExceedBudget, sanitizeModels, ALLOWED_MODELS, type ArchiveEntry } from "../src/evolve-guard.js";
+import { totalSpent, estimateNext, wouldExceedBudget, sanitizeModels, ALLOWED_MODELS, bound, GENOME_BOUNDS, type ArchiveEntry } from "../src/evolve-guard.js";
 
 const D = { fixerModel: "claude-opus-5-5", reviewerModel: "claude-opus-5-5" };
 
@@ -50,6 +50,30 @@ describe("sanitizeModels", () => {
   it("clamps a single offending field and leaves the other alone", () => {
     const out = sanitizeModels({ fixerModel: "claude-gpt-9", reviewerModel: "claude-haiku-5-5" }, D);
     expect(out).toEqual({ fixerModel: D.fixerModel, reviewerModel: "claude-haiku-5-5", clamped: ["fixerModel"] });
+  });
+});
+
+describe("bound", () => {
+  it("clamps out-of-range values to the range edges", () => {
+    expect(bound(99, GENOME_BOUNDS.candidates, 3)).toBe(4);
+    expect(bound(0, GENOME_BOUNDS.candidates, 3)).toBe(1);
+    expect(bound(7, GENOME_BOUNDS.attempts, 2)).toBe(3);
+    expect(bound(400, GENOME_BOUNDS.fixerMaxTurns, 40)).toBe(60);
+    expect(bound(9, GENOME_BOUNDS.reviewRounds, 0)).toBe(2);
+  });
+  it("rounds fractional values and keeps in-range values intact", () => {
+    expect(bound(2.4, GENOME_BOUNDS.candidates, 3)).toBe(2);
+    expect(bound(1.6, GENOME_BOUNDS.candidates, 3)).toBe(2);
+    expect(bound(1, GENOME_BOUNDS.attempts, 2)).toBe(1);
+  });
+  it("falls back to the default when the value does not parse", () => {
+    expect(bound(undefined, GENOME_BOUNDS.attempts, 2)).toBe(2);
+    expect(bound("garbage", GENOME_BOUNDS.attempts, 2)).toBe(2);
+    expect(bound(null, GENOME_BOUNDS.reviewRounds, 0)).toBe(0);
+  });
+  it("keeps the seed values inside the bounds", () => {
+    // If a seed ever left the range this would break: seeds are evaluated unclamped.
+    expect(bound(3, GENOME_BOUNDS.candidates, 3)).toBe(3);
   });
 });
 
