@@ -79,7 +79,7 @@ describe("runGates typecheck", () => {
 });
 
 describe("formatChanged", () => {
-  // A stand-in prettier whose only rule is double quotes, so the test needs no install.
+  // Stand-ins whose only rule is double quotes, so the tests need no install.
   const fakePrettier = `#!/usr/bin/env node
 const fs = require("fs");
 const fmt = (s) => s.replace(/'/g, '"');
@@ -87,26 +87,57 @@ const args = process.argv.slice(2);
 if (args.includes("--stdin-filepath")) process.stdout.write(fmt(fs.readFileSync(0, "utf8")));
 else for (const f of args.filter((a) => a !== "--write")) fs.writeFileSync(f, fmt(fs.readFileSync(f, "utf8")));
 `;
+  // Like eslint: JSON on stdout for --fix-dry-run (with `output` only when a fix would change the text), exit 1 on lint errors.
+  const fakeEslint = `#!/usr/bin/env node
+const fs = require("fs");
+const fmt = (s) => s.replace(/'/g, '"');
+const args = process.argv.slice(2);
+if (args.includes("--stdin")) {
+  const src = fs.readFileSync(0, "utf8");
+  console.log(JSON.stringify([{ filePath: "x", messages: [{ ruleId: "other", severity: 2 }], ...(fmt(src) === src ? {} : { output: fmt(src) }) }]));
+  process.exit(1);
+}
+for (const f of args.filter((a) => a !== "--fix")) fs.writeFileSync(f, fmt(fs.readFileSync(f, "utf8")));
+`;
+  const brokenEslint = "#!/usr/bin/env node\nconsole.error('Oops, config error'); process.exit(2);\n";
 
-  it("formats only files that were formatter-clean before the edit", () => {
+  /** A repo with one tool installed, a file that was clean and one that wasn't, then Shim's single-quoted edit to each. */
+  const repo = (tool: "prettier" | "eslint", script: string) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-fmt-"));
     const write = (f: string, text: string) => fs.writeFileSync(path.join(dir, f), text);
     const git = (...args: string[]) => run("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], dir);
     fs.mkdirSync(path.join(dir, "node_modules/.bin"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "node_modules/.bin/prettier"), fakePrettier, { mode: 0o755 });
-    write("package.json", JSON.stringify({ devDependencies: { prettier: "^3" } }));
+    fs.writeFileSync(path.join(dir, "node_modules/.bin", tool), script, { mode: 0o755 });
+    write("package.json", JSON.stringify({ devDependencies: { [tool]: "*" } }));
     write("clean.ts", 'const a = "x";\n');
     write("dirty.ts", "const a = 'x';\n");
     git("init", "-q");
     git("add", "-A");
     git("commit", "-q", "-m", "init");
-    // Shim's edit adds a single-quoted line to each file.
     write("clean.ts", 'const a = "x";\nconst b = \'y\';\n');
     write("dirty.ts", "const a = 'x';\nconst b = 'y';\n");
-
     formatChanged(dir);
-    expect(fs.readFileSync(path.join(dir, "clean.ts"), "utf8")).toBe('const a = "x";\nconst b = "y";\n');
-    expect(fs.readFileSync(path.join(dir, "dirty.ts"), "utf8")).toBe("const a = 'x';\nconst b = 'y';\n");
+    return (f: string) => fs.readFileSync(path.join(dir, f), "utf8");
+  };
+  const CLEAN_FIXED = 'const a = "x";\nconst b = "y";\n';
+  const DIRTY_UNTOUCHED = "const a = 'x';\nconst b = 'y';\n";
+
+  it("formats only files that were formatter-clean before the edit", () => {
+    const read = repo("prettier", fakePrettier);
+    expect(read("clean.ts")).toBe(CLEAN_FIXED);
+    expect(read("dirty.ts")).toBe(DIRTY_UNTOUCHED);
+  });
+
+  it("runs eslint --fix only on files that had no autofixes pending before the edit", () => {
+    const read = repo("eslint", fakeEslint);
+    expect(read("clean.ts")).toBe(CLEAN_FIXED);
+    expect(read("dirty.ts")).toBe(DIRTY_UNTOUCHED);
+  });
+
+  it("skips files when eslint can't run on stdin", () => {
+    const read = repo("eslint", brokenEslint);
+    expect(read("clean.ts")).toBe('const a = "x";\nconst b = \'y\';\n');
+    expect(read("dirty.ts")).toBe(DIRTY_UNTOUCHED);
   });
 });
 

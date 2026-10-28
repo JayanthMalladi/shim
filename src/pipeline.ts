@@ -214,8 +214,9 @@ function dedupe(findings: Finding[]): Finding[] {
 }
 
 /**
- * Run the repo's own formatter on the files we touched, so the diff matches its style. Only on files that
- * were formatter-clean before we edited them: formatting any other file would rewrite code we never touched.
+ * Run the repo's own formatter and lint autofix on the files we touched, so the diff matches its style.
+ * Each runs only on files it would have left alone before we edited them: on any other file it would
+ * rewrite code we never touched.
  */
 export function formatChanged(dir: string) {
   const files = run("git", ["diff", "--name-only"], dir).output.split("\n")
@@ -227,19 +228,32 @@ export function formatChanged(dir: string) {
     ? { bin: "biome", write: ["format", "--write"], stdin: (f: string) => ["format", `--stdin-file-path=${f}`] }
     : deps.prettier ? { bin: "prettier", write: ["--write"], stdin: (f: string) => ["--stdin-filepath", f] } : undefined;
   if (formatter) {
-    const clean = files.filter((f) => formattedBeforeEdit(dir, f, formatter));
+    const clean = files.filter((f) => cleanBeforeEdit(dir, f, (src) => {
+      const formatted = runCapture("npx", ["--no-install", formatter.bin, ...formatter.stdin(f)], dir, src);
+      return formatted.ok && formatted.stdout === src;
+    }));
     if (clean.length) run("npx", ["--no-install", formatter.bin, ...formatter.write, ...clean], dir);
   }
   // Codemod output uses its own quote style; the repo's lint autofix puts it back.
-  if (deps.eslint) run("npx", ["--no-install", "eslint", "--fix", ...files], dir);
+  if (deps.eslint) {
+    const clean = files.filter((f) => cleanBeforeEdit(dir, f, (src) => {
+      const out = runCapture("npx", ["--no-install", "eslint", "--fix-dry-run", "--format", "json", "--stdin", "--stdin-filename", f], dir, src);
+      // Lint errors exit non-zero but still print JSON; no JSON at all means eslint can't run here, so skip the file.
+      try {
+        const results: Array<{ output?: string }> = JSON.parse(out.stdout);
+        return Array.isArray(results) && results.every((r) => r.output === undefined);
+      } catch {
+        return false;
+      }
+    }));
+    if (clean.length) run("npx", ["--no-install", "eslint", "--fix", ...clean], dir);
+  }
 }
 
-/** True if the committed version of `file` is unchanged by the formatter (or has no committed version). */
-function formattedBeforeEdit(dir: string, file: string, formatter: { bin: string; stdin: (f: string) => string[] }): boolean {
+/** True if the committed version of `file` passes `check` (or there is no committed version). */
+function cleanBeforeEdit(dir: string, file: string, check: (committed: string) => boolean): boolean {
   const original = runCapture("git", ["show", `HEAD:${file}`], dir);
-  if (!original.ok) return true;
-  const formatted = runCapture("npx", ["--no-install", formatter.bin, ...formatter.stdin(file)], dir, original.stdout);
-  return formatted.ok && formatted.stdout === original.stdout;
+  return !original.ok || check(original.stdout);
 }
 
 /** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
