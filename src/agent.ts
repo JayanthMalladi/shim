@@ -121,6 +121,10 @@ export const JUDGE_RULES = `${REVIEWER_RULES}
   or responseMessages. Check every such call in the repo, not only the lines in the diff.
 - Any added cast or suppression (\`as unknown as\`, \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\`) sits on code that
   the upgrade made fail to type check, hiding a real mismatch. Check the whole diff, tests included.
+- Any added explicit type annotation on an exported function or constant (return type, \`Tool<...>\`) used to
+  satisfy the compiler. Compare each exported signature before and after.
+- Any test edit beyond type-only changes the new API requires: a changed assertion or expectation, a deleted or
+  skipped test, or a changed mock return value.
 - The diff leaves code that cannot compile, references names that do not exist, or renames anything this
   package exports.`;
 
