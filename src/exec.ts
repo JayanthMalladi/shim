@@ -1,5 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 
+/**
+ * CI mode, no color, and never let pnpm "fix" dependencies before a script: its verify-deps-before-run
+ * check runs a full `pnpm install` with lifecycle scripts, which breaks our --ignore-scripts rule and fails
+ * in copied repos whose install state records another path.
+ */
+const SAFE_ENV = { ...process.env, CI: "1", FORCE_COLOR: "0", npm_config_verify_deps_before_run: "false" };
+
 export interface ExecResult {
   ok: boolean;
   code: number | null;
@@ -18,7 +25,7 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
     encoding: "utf8",
     timeout: timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, CI: "1", FORCE_COLOR: "0" },
+    env: SAFE_ENV,
   });
   const output = `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? `\n${r.error.message}` : ""}`;
   return { ok: r.status === 0, code: r.status, output: output.slice(-8000), ms: Date.now() - start };
@@ -28,7 +35,7 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
 export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000): Promise<ExecResult> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, CI: "1", FORCE_COLOR: "0" }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { cwd, env: SAFE_ENV, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     const keep = (d: Buffer) => { output = (output + d.toString()).slice(-2_000_000); };
     child.stdout.on("data", keep);
@@ -53,7 +60,7 @@ function parseAgentJson(output: string): { total_cost_usd?: number; result?: str
   return undefined;
 }
 
-const LIMIT = /hit your (session|usage|weekly) limit|usage limit reached|rate_limit_error|overloaded_error/i;
+const LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit reached|rate_limit_error|overloaded_error/i;
 
 /**
  * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit ·

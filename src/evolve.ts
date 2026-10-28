@@ -77,7 +77,7 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
   return results;
 }
 
-const RATE_LIMIT = /hit your (session|usage|weekly) limit|usage limit reached|rate_limit_error|overloaded_error/i;
+const RATE_LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit reached|rate_limit_error|overloaded_error/i;
 
 async function evaluate(arch: Architecture, parent: string | undefined): Promise<Evaluation> {
   const started = Date.now();
