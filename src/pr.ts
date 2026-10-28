@@ -18,7 +18,7 @@ export const PR_BRANCH = "shim/ai-sdk-7";
 export function recordedHead(statusTxt: string | undefined): string | undefined {
   const lines = (statusTxt ?? "").trimEnd().split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
-    const m = lines[i]!.match(/^HEAD:\s*([0-9a-f]{40})$/i);
+    const m = lines[i]!.match(/^HEAD:\s*([0-9a-f]{7,40})$/i);
     if (m) return m[1]!.toLowerCase();
   }
   return undefined;
