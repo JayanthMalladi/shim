@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { scan, scanAndFix } from "../src/scan.js";
+import { run } from "../src/exec.js";
 
 const fixture = path.join(import.meta.dirname, "fixtures/v6-app");
 
@@ -121,5 +122,96 @@ describe("auto fixes", () => {
     expect(src.match(/allowSystemInMessages/g)).toHaveLength(7);
     // A second run finds nothing left to set.
     expect((await scanAndFix(dir)).result.findings.filter((f) => f.ruleId === "system-in-messages")).toEqual([]);
+  });
+});
+
+describe("source file loading (gitignored build outputs are not scanned)", () => {
+  // A call that runs more than one step and reads usage: the `multi-step-result` rule flags it.
+  const TRIGGER = `import { generateText, stepCountIs } from "ai";
+declare const model: any;
+export async function run() {
+  const result = await generateText({ model, stopWhen: stepCountIs(2) });
+  return result.usage.totalTokens;
+}
+`;
+  // Finding files are relative to the root; normalize separators so the assertions hold on Windows too.
+  const flagFiles = (result: ReturnType<typeof scan>["result"]) =>
+    new Set(result.findings.map((f) => f.file.split(path.sep).join("/")));
+
+  /** git init, a package.json with ai@6, and a commit; `tracked` source files each hold the trigger call. */
+  const writeRepo = (dir: string, ignore: string, tracked: string[]) => {
+    const git = (...args: string[]) => run("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], dir);
+    git("init", "-q");
+    for (const f of tracked) fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    for (const f of tracked) fs.writeFileSync(path.join(dir, f), TRIGGER);
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true, dependencies: { ai: "^6.0.0" } }));
+    fs.writeFileSync(path.join(dir, ".gitignore"), ignore);
+    git("add", "-A");
+    git("commit", "-q", "-m", "init");
+  };
+
+  it("flags tracked source but not gitignored build output", () => {
+    // The .output dir is gitignored but NOT in the scanner's name filter, so only the
+    // git-based file list excludes it: this is the case the fix actually addresses.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git1-"));
+    writeRepo(dir, ".output/\ndist/\nnode_modules/\n", ["src/main.ts"]);
+    fs.mkdirSync(path.join(dir, ".output"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".output", "out.mjs"), TRIGGER); // gitignored, so not loaded
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/main.ts")).toBe(true);
+    expect([...files].some((f) => f.startsWith(".output/"))).toBe(false);
+  });
+
+  it("includes an untracked source file that is not ignored", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git2-"));
+    writeRepo(dir, "dist/\n", ["src/main.ts"]);
+    fs.writeFileSync(path.join(dir, "src", "new.ts"), TRIGGER); // created after the commit, not ignored
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/main.ts")).toBe(true);
+    expect(files.has("src/new.ts")).toBe(true);
+  });
+
+  it("drops node_modules files even when git tracks them", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git3-"));
+    // node_modules is NOT in .gitignore here, so git's list includes it; the name filter must still drop it.
+    writeRepo(dir, "dist/\n", ["src/main.ts", "node_modules/pkg/index.js"]);
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/main.ts")).toBe(true);
+    expect([...files].some((f) => f.startsWith("node_modules/"))).toBe(false);
+  });
+
+  it("falls back to a filesystem walk outside a git repo, still skipping dist", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-nogit-"));
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "main.ts"), TRIGGER);
+    fs.writeFileSync(path.join(dir, "dist", "out.mjs"), TRIGGER);
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true, dependencies: { ai: "^6.0.0" } }));
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/main.ts")).toBe(true);
+    expect(files.has("dist/out.mjs")).toBe(false);
+  });
+
+  it("walks a folder that sits inside an ignored directory of an outer repo", () => {
+    // The scan root (work/x) has no .git of its own; the outer repo gitignores work/.
+    // git ls-files would succeed against the outer repo and return nothing for this root,
+    // so the filesystem walk must be used instead. Guards against the zero-file-scan regression.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git4-"));
+    writeRepo(dir, "work/\n", []);
+    fs.mkdirSync(path.join(dir, "work", "x", "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "work", "x", "src", "a.ts"), TRIGGER);
+    const { result } = scan(path.join(dir, "work", "x"));
+    expect(result.filesScanned).toBeGreaterThan(0);
+    expect(result.findings.some((f) => f.ruleId === "multi-step-result")).toBe(true);
+    expect(flagFiles(result).has("src/a.ts")).toBe(true);
+  });
+
+  it("scans a tracked file whose name is not ASCII", () => {
+    // ls-files without -z quotes non-ASCII paths (e.g. "src/\303\274bung.ts") and drops them;
+    // with -z they come back NUL-separated and intact.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-git5-"));
+    writeRepo(dir, "dist/\n", ["src/übung.ts"]);
+    const files = flagFiles(scan(dir).result);
+    expect(files.has("src/übung.ts")).toBe(true);
   });
 });
