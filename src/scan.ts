@@ -36,6 +36,15 @@ export async function scanAndFix(root: string) {
   return { result, applied };
 }
 
+/** Every package.json in the repo, workspace packages and the root included. */
+export function findPackageJsons(root: string): string[] {
+  const out: string[] = [];
+  walk(root, (file) => {
+    if (path.basename(file) === "package.json") out.push(file);
+  });
+  return out;
+}
+
 /** package.json files (including workspaces) that depend on ai@6. */
 export function findAiPackages(root: string): Array<{ file: string; range: string }> {
   const out: Array<{ file: string; range: string }> = [];
