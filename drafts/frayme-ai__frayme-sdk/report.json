@@ -1,0 +1,111 @@
+{
+  "repo": "frayme-ai/frayme-sdk",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "ai: ^6.0.0 -> ^7.0.0",
+    "ai: ^6.0.0 -> ^7.0.0",
+    "@ai-sdk/react: ^3.0.0 -> ^4.0.0",
+    "ai: ^6.0.0 -> ^7.0.0",
+    "@ai-sdk/react: ^3.0.0 -> ^4.0.0",
+    "ai: ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 1,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/api/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20.19.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/api/test/ai-sdk-tools.test.ts",
+      "line": 1037,
+      "snippet": "messages: await convertToModelMessages(messages as UIMessage[], { tools })",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/runtime/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20.19.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "test .": true,
+    "typecheck packages/api": true,
+    "test packages/api": true,
+    "typecheck packages/runtime": true,
+    "test packages/runtime": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "test .": true,
+    "typecheck packages/api": true,
+    "test packages/api": true,
+    "typecheck packages/runtime": true,
+    "test packages/runtime": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json                      | 210 ++++++++++++++++-----------------\n packages/api/package.json              |   4 +-\n packages/api/src/ai-sdk/index.ts       |   2 +-\n packages/api/test/ai-sdk-tools.test.ts |  18 +--\n packages/runtime/package.json          |   8 +-\n 5 files changed, 117 insertions(+), 125 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "packages/api/package.json",
+    "packages/api/src/ai-sdk/index.ts",
+    "packages/api/test/ai-sdk-tools.test.ts",
+    "packages/runtime/package.json"
+  ],
+  "repairedChecks": [
+    "typecheck packages/api",
+    "typecheck packages/runtime"
+  ],
+  "agentRuns": [
+    "Both packages now typecheck with no errors. There's no `tsconfig.json` at the repo root, so I ran `npx --no-install tsc --noEmit -p tsconfig.json` in `packages/api` and `packages/runtime` instead. I didn't run the test suites.\n\n**`packages/runtime`: undid a wrong codemod edit.** In `src/react/registry/ai-chat.tsx` the codemod had renamed `system` to `instructions` in three of the repo's own style tables (`messageRow`, `messageBubble`, `avatarBubble`). These aren't AI SDK messages. They're keyed by the component's own `role` prop, which is still `'user' | 'assistant' | 'system' | 'tool'`, and the code still checks `role === 'system'` further down. I put `system` back in all three, which fixes both errors at lines 252 and 281 and keeps the v6 styling for system messages.\n\n**`packages/api`: `ToolExecutionOptions` now needs a type argument in v7.** The argument is the type of a new `context` field.\n- **`src/ai-sdk/index.ts:534`:** changed to `ToolExecutionOptions<unknown>`. The function only reads `options.abortSignal`, so behaviour is unchanged.\n- **`test/ai-sdk-tools.test.ts:57` and `:66`:** added the same `<unknown>` to the test helper's types.\n- **The test helper also needed a new field.** v7 requires `context` on the options object, so the `callOptions` helper now sets `context: undefined`. That's the value the SDK itself passes when no tool context is given. This is the one place I added a field to test code rather than only fixing a type. Nothing in the tool reads `context`, so no test checks less than before.\n\nI left the codemod's other test edits alone (`stepCountIs` → `isStepCount` and `allowSystemInMessages: true`), because they weren't on the list.\n\nNothing was silenced with casts or ignore comments, and no sites were left unfixed."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 2.7264990000000004,
+  "fixMs": 1115087
+}

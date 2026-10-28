@@ -11,6 +11,6 @@ HoudiniSwap/houdiniswap-agent,not-ready,code,2/4,3.3416,not-run,"gates regressed
 neurophic/neurophic-sdk-js,ready,code,4/4,4.7063,approve,all baseline gates still pass and no breaking findings remain
 xtruder/opencode-claude-max-plugin,ready,code,3/3,5.8502,approve,all baseline gates still pass and no breaking findings remain
 KrzysztofMarmol/mjml-agent-editor,ready,code,7/7,5.5707,approve,all baseline gates still pass and no breaking findings remain
-frayme-ai/frayme-sdk,skip,code,,0.0000,not-run,not run: budget stop ($25.16 spent + $5 assumed upper estimate > $30 cap)
 muxinc/ai,skip,code,,0.0000,not-run,not run: budget stop ($25.16 spent + $5 assumed upper estimate > $30 cap)
 upstash/context7,ready,code,4/4,3.1639,approve,all baseline gates still pass and no breaking findings remain
+frayme-ai/frayme-sdk,ready,code,7/7,3.0403,approve,all baseline gates still pass and no breaking findings remain

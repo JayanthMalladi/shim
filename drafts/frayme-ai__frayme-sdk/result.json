@@ -1,0 +1,37 @@
+{
+  "repo": "frayme-ai/frayme-sdk",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.3137842
+  },
+  "cost": 2.7264990000000004,
+  "fixMs": 1115087,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 5 files changed, 117 insertions(+), 125 deletions(-)"
+}
