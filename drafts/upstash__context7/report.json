@@ -1,0 +1,149 @@
+{
+  "repo": "upstash/context7",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "ai: ^6.0.5 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 8,
+  "before": [
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 55,
+      "snippet": "result.toolCalls",
+      "message": "`result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 56,
+      "snippet": "result.toolCalls",
+      "message": "`result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 57,
+      "snippet": "result.toolResults",
+      "message": "`result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 58,
+      "snippet": "result.toolResults",
+      "message": "`result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 74,
+      "snippet": "result.toolCalls",
+      "message": "`result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 75,
+      "snippet": "result.toolCalls",
+      "message": "`result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 76,
+      "snippet": "result.toolResults",
+      "message": "`result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value."
+    },
+    {
+      "ruleId": "multi-step-result",
+      "severity": "silent",
+      "fix": "auto",
+      "file": "packages/tools-ai-sdk/src/index.test.ts",
+      "line": 77,
+      "snippet": "result.toolResults",
+      "message": "`result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false,
+    "typecheck packages/tools-ai-sdk": true,
+    "test packages/tools-ai-sdk": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false,
+    "typecheck packages/tools-ai-sdk": true,
+    "test packages/tools-ai-sdk": false
+  },
+  "regressions": [],
+  "diffStat": "packages/tools-ai-sdk/package.json                 |  2 +-\n packages/tools-ai-sdk/src/agents/context7.ts       |  4 +-\n packages/tools-ai-sdk/src/index.test.ts            | 26 ++++----\n packages/tools-ai-sdk/src/tools/query-docs.ts      |  6 +-\n .../tools-ai-sdk/src/tools/resolve-library-id.ts   |  6 +-\n pnpm-lock.yaml                                     | 74 ++++++++++++----------\n 6 files changed, 64 insertions(+), 54 deletions(-)",
+  "changedFiles": [
+    "packages/tools-ai-sdk/package.json",
+    "packages/tools-ai-sdk/src/agents/context7.ts",
+    "packages/tools-ai-sdk/src/index.test.ts",
+    "packages/tools-ai-sdk/src/tools/query-docs.ts",
+    "packages/tools-ai-sdk/src/tools/resolve-library-id.ts",
+    "pnpm-lock.yaml"
+  ],
+  "repairedChecks": [
+    "build"
+  ],
+  "agentRuns": [
+    "I fixed the `tools-ai-sdk` build failure; both the typecheck and the declaration build that was failing now pass. I didn't run the full `tsup` build itself, because running it needed approval.\n\n**Cause:** with AI SDK 7, `tool()` returns a type that refers to internal types from `@ai-sdk/provider-utils` and `@ai-sdk/provider`. TypeScript can't write those types into a `.d.ts` file (error TS2883, \"the inferred type ... cannot be named\"). `resolveLibraryId` and `queryDocs` had no return type annotation, so generating declarations failed. tsup reported this under `src/agents/index.ts` because that file imports the tools. A plain `tsc --noEmit` doesn't show these errors, because they only appear when TypeScript writes declarations.\n\n**Fix:** two small edits, each importing `type Tool` from `ai` and adding an explicit return type.\n- `src/tools/query-docs.ts:33`: returns `Tool<{ libraryId: string; query: string }, string>`\n- `src/tools/resolve-library-id.ts:33`: returns `Tool<{ query: string; libraryName: string }, string>`\n\nThese are the same types the functions returned under v6, so their signatures and runtime behavior are unchanged. I didn't use any casts or `@ts-` comments. The working tree had no codemod changes, so there was nothing to revert.\n\n**Checks:**\n- `npx --no-install tsc -p tsconfig.json --declaration --emitDeclarationOnly`, writing to the scratchpad, used to give 10 errors in those two files and now passes.\n- `npx --no-install tsc --noEmit -p tsconfig.json` passes."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 2.6892938,
+  "fixMs": 405441
+}
