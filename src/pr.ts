@@ -181,7 +181,10 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
     const fork = path.join(work, "fork");
     if (git(["-c", "core.autocrlf=false", "clone", "-q", "--single-branch", opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${forkName}`, fork], work).ok) {
       if (!git(["checkout", "-q", "-b", PR_BRANCH], fork).ok) return fail("git-failed", undefined, `cannot create ${PR_BRANCH} on the fork`);
-      fs.writeFileSync(path.join(fork, "changes.patch"), fs.readFileSync(path.join(draft, "changes.patch"), "utf8"));
+      // Normalize to LF: a CRLF check-out of the drafts tree turns every patch line CRLF, and
+      // git apply of a CRLF patch fails against the repo's LF blobs. No-op when already LF.
+      const patch = fs.readFileSync(path.join(draft, "changes.patch"), "utf8").replace(/\r\n/g, "\n");
+      fs.writeFileSync(path.join(fork, "changes.patch"), patch);
       // Plain apply first: the patch was generated against the same HEAD, so it applies without
       // needing the index; --3way is the fallback for small upstream drift.
       let apply = git(["apply", "changes.patch"], fork);
