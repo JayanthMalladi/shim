@@ -1,0 +1,3 @@
+not-ready
+gates regressed: typecheck ., typecheck packages/vercel-ai
+head: HEAD: f9a8455
