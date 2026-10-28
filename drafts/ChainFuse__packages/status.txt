@@ -1,3 +1,5 @@
 ready
 all baseline gates still pass and no breaking findings remain
 head: HEAD: b6d357c
+
+Vs last night: FIXED. Last night's rejection (system messages in ToolLoopAgent test calls) is gone: allowSystemInMessages: true is now set in the ToolLoopAgent constructors and generateText/streamText calls in the tests; judge approved.

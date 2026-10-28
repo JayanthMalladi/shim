@@ -1,3 +1,5 @@
 not-ready
 judge rejected
 head: HEAD: 1238435
+
+Judge rejected (gates stayed green 3/3, so the gates did not catch it). The official codemod rewrote reads on the project's own TokenUsage type (cachedInputTokens -> inputTokenDetails.cacheReadTokens etc.) in tests/eval/*.eval.ts and tests/unit/translate-captions.test.ts; those fail to compile and would throw at runtime, and the fixer did not revert them. Not usable as is; was previously PR-ready.

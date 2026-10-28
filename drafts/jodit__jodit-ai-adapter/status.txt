@@ -1,3 +1,5 @@
 ready
 all baseline gates still pass and no breaking findings remain
 head: HEAD: eba05a3
+
+Vs last night: FIXED. Last night's rejection (reformatting of untouched code) is gone: diff keeps the repo's tab indentation and touches only the 3 flagged calls, the fullStream rename and package.json/lockfile; judge approved.

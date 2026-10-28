@@ -1,3 +1,5 @@
-ready
+needs-review
 all baseline gates still pass and no breaking findings remain
 head: HEAD: 7d2ac17
+
+Needs-review (quality bar, read-only check of changes.patch/pr.md): pr.md overclaims: lists 6 findings under 'Fixed' (provider-factory.ts lines 64,72,77,100,105,108) but the diff only adds allowSystemInMessages/instructions at ~line 158 and renames createGoogle; usage/warnings reads (72,77,108) and totalUsage (105) are not changed in the diff, so possibly unfixed multi-step reads on options built elsewhere. Needs a manual look before opening.
