@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import crossSpawn from "cross-spawn";
 
 /**
  * The environment split is a security boundary, not a convenience: target-repo code is untrusted,
@@ -56,9 +56,14 @@ export interface ExecResult {
  * The env defaults to the target-safe one, so a call that forgets to think about it still can't
  * leak a key; pass env explicitly for the rare command that needs something unusual.
  */
+/**
+ * Spawn via cross-spawn: on Windows `npx`/`npm`/`pnpm` are .cmd shims that node:child_process
+ * cannot resolve, so the pipeline's shell-outs ENOENT there. On Linux and macOS it is a thin
+ * wrapper over node:child_process.
+ */
 export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv()): ExecResult {
   const start = Date.now();
-  const r = spawnSync(cmd, args, {
+  const r = crossSpawn.sync(cmd, args, {
     cwd,
     encoding: "utf8",
     timeout: timeoutMs,
@@ -71,7 +76,7 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
 
 /** Run with `input` on stdin and return all of stdout: `run` keeps only the tail, which can't be compared to a file. */
 export function runCapture(cmd: string, args: string[], cwd: string, input?: string, env: NodeJS.ProcessEnv = targetEnv()): { ok: boolean; stdout: string } {
-  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", input, timeout: 5 * 60_000, maxBuffer: 64 * 1024 * 1024, env });
+  const r = crossSpawn.sync(cmd, args, { cwd, encoding: "utf8", input, timeout: 5 * 60_000, maxBuffer: 64 * 1024 * 1024, env });
   return { ok: r.status === 0, stdout: r.stdout ?? "" };
 }
 
@@ -79,11 +84,11 @@ export function runCapture(cmd: string, args: string[], cwd: string, input?: str
 export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv()): Promise<ExecResult> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = crossSpawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     const keep = (d: Buffer) => { output = (output + d.toString()).slice(-2_000_000); };
-    child.stdout.on("data", keep);
-    child.stderr.on("data", keep);
+    child.stdout?.on("data", keep);
+    child.stderr?.on("data", keep);
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.on("error", (e) => { output += `\n${e.message}`; });
     child.on("close", (code) => {
