@@ -2,22 +2,17 @@
 
 This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
 
-AI SDK 7 changes some values without a type error, so the official codemod alone is not enough here.
-For example, `result.usage` on a multi-step call now counts every step instead of only the last one.
-Where your code relied on the v6 meaning, this PR reads the same value from `finalStep`.
-
 ### Versions
-- ai: >=6.0.0 <7 -> ^7.0.0
+- `ai`: >=6.0.0 <7 → ^7.0.0
 
 This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.
 
 ### What changed and why
-The codemod's renames covered the code changes.
-
+Source files changed (codemod renames): `examples/code-review-agent/run.ts`.
 
 ### Needs your eyes
 Shim did not change these. Please check them before merging.
-- `package.json:1` AI SDK 7 requires Node.js 22 or later.
+- `package.json:1`: AI SDK 7 requires Node.js 22 or later.
 
 ### How it was checked
 | Check | Before | After |

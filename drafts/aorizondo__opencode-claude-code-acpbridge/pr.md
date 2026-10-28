@@ -2,26 +2,21 @@
 
 This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
 
-AI SDK 7 changes some values without a type error, so the official codemod alone is not enough here.
-For example, `result.usage` on a multi-step call now counts every step instead of only the last one.
-Where your code relied on the v6 meaning, this PR reads the same value from `finalStep`.
-
 ### Versions
-- @ai-sdk/provider: ^3.0.0 -> ^4.0.0
-- ai: ^6.0.0 -> ^7.0.0
+- `@ai-sdk/provider`: ^3.0.0 → ^4.0.0
+- `ai`: ^6.0.0 → ^7.0.0
 
 This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.
 
 ### What changed and why
 **Fixed: would fail at runtime on v7**
-- `scripts/verify-billing.mjs:36` `messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior.
-- `scripts/verify-interleave-fix.mjs:19` `messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior.
-- `scripts/verify-session-continuity.mjs:29` `messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior.
+- `scripts/verify-billing.mjs:36`, `scripts/verify-interleave-fix.mjs:19`, `scripts/verify-session-continuity.mjs:29`: `messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior.
 
+Other source files changed (codemod renames): `scripts/spike-permission-bridge.mjs`, `scripts/verify-smart-revert.mjs`, `scripts/verify-stream-integrity.mjs`.
 
 ### Needs your eyes
 Shim did not change these. Please check them before merging.
-- `package.json:1` AI SDK 7 requires Node.js 22 or later.
+- `package.json:1`: AI SDK 7 requires Node.js 22 or later.
 
 ### How it was checked
 | Check | Before | After |

@@ -1,29 +1,21 @@
 ## Upgrade to AI SDK 7
 
 This PR moves the project from AI SDK 6 to 7 and keeps its current behavior.
-
-AI SDK 7 changes some values without a type error, so the official codemod alone is not enough here.
-For example, `result.usage` on a multi-step call now counts every step instead of only the last one.
-Where your code relied on the v6 meaning, this PR reads the same value from `finalStep`.
+On a multi-step call, `result.usage` now counts every step instead of only the last one. Where your code relied on the v6 meaning, this PR reads the same value from `finalStep`.
 
 ### Versions
-- ai: ^6.0.5 -> ^7.0.0
+- `ai`: ^6.0.5 → ^7.0.0
 
 This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.
 
 ### What changed and why
 **Fixed: same code, different behavior on v7**
-- `packages/tools-ai-sdk/src/index.test.ts:55` `result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:56` `result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:57` `result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:58` `result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:74` `result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:75` `result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:76` `result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value.
-- `packages/tools-ai-sdk/src/index.test.ts:77` `result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value.
+- `packages/tools-ai-sdk/src/index.test.ts:55`, `packages/tools-ai-sdk/src/index.test.ts:56`, `packages/tools-ai-sdk/src/index.test.ts:74`, `packages/tools-ai-sdk/src/index.test.ts:75`: `result.toolCalls` now covers every step, not just the last one. `result.finalStep.toolCalls` keeps the v6 value.
+- `packages/tools-ai-sdk/src/index.test.ts:57`, `packages/tools-ai-sdk/src/index.test.ts:58`, `packages/tools-ai-sdk/src/index.test.ts:76`, `packages/tools-ai-sdk/src/index.test.ts:77`: `result.toolResults` now covers every step, not just the last one. `result.finalStep.toolResults` keeps the v6 value.
+
+Other source files changed (codemod renames and fixer edits): `packages/tools-ai-sdk/src/agents/context7.ts`, `packages/tools-ai-sdk/src/tools/query-docs.ts`, `packages/tools-ai-sdk/src/tools/resolve-library-id.ts`.
 
 After the codemod, these checks failed; this PR fixes them: `build`.
-
 
 ### How it was checked
 | Check | Before | After |
