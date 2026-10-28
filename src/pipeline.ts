@@ -5,7 +5,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
-import { run } from "./exec.js";
+import { run, runCapture } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
@@ -213,17 +213,33 @@ function dedupe(findings: Finding[]): Finding[] {
   });
 }
 
-/** Run the repo's own formatter on the files we touched, so the diff matches its style. */
-function formatChanged(dir: string) {
+/**
+ * Run the repo's own formatter on the files we touched, so the diff matches its style. Only on files that
+ * were formatter-clean before we edited them: formatting any other file would rewrite code we never touched.
+ */
+export function formatChanged(dir: string) {
   const files = run("git", ["diff", "--name-only"], dir).output.split("\n")
     .filter((f) => /\.(m|c)?[jt]sx?$/.test(f) && fs.existsSync(path.join(dir, f)));
   if (!files.length) return;
   const pkg = readPkg(dir);
   const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
-  if (deps["@biomejs/biome"]) run("npx", ["--no-install", "biome", "format", "--write", ...files], dir);
-  else if (deps.prettier) run("npx", ["--no-install", "prettier", "--write", ...files], dir);
+  const formatter = deps["@biomejs/biome"]
+    ? { bin: "biome", write: ["format", "--write"], stdin: (f: string) => ["format", `--stdin-file-path=${f}`] }
+    : deps.prettier ? { bin: "prettier", write: ["--write"], stdin: (f: string) => ["--stdin-filepath", f] } : undefined;
+  if (formatter) {
+    const clean = files.filter((f) => formattedBeforeEdit(dir, f, formatter));
+    if (clean.length) run("npx", ["--no-install", formatter.bin, ...formatter.write, ...clean], dir);
+  }
   // Codemod output uses its own quote style; the repo's lint autofix puts it back.
   if (deps.eslint) run("npx", ["--no-install", "eslint", "--fix", ...files], dir);
+}
+
+/** True if the committed version of `file` is unchanged by the formatter (or has no committed version). */
+function formattedBeforeEdit(dir: string, file: string, formatter: { bin: string; stdin: (f: string) => string[] }): boolean {
+  const original = runCapture("git", ["show", `HEAD:${file}`], dir);
+  if (!original.ok) return true;
+  const formatted = runCapture("npx", ["--no-install", formatter.bin, ...formatter.stdin(file)], dir, original.stdout);
+  return formatted.ok && formatted.stdout === original.stdout;
 }
 
 /** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */

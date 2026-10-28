@@ -31,6 +31,12 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
   return { ok: r.status === 0, code: r.status, output: output.slice(-8000), ms: Date.now() - start };
 }
 
+/** Run with `input` on stdin and return all of stdout: `run` keeps only the tail, which can't be compared to a file. */
+export function runCapture(cmd: string, args: string[], cwd: string, input?: string): { ok: boolean; stdout: string } {
+  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", input, timeout: 5 * 60_000, maxBuffer: 64 * 1024 * 1024, env: SAFE_ENV });
+  return { ok: r.status === 0, stdout: r.stdout ?? "" };
+}
+
 /** Async `run`, for work that runs side by side (parallel fixer candidates). */
 export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000): Promise<ExecResult> {
   const start = Date.now();

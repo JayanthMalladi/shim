@@ -4,7 +4,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseReview } from "../src/agent.js";
 import { rank, type Candidate } from "../src/candidates.js";
+import { run } from "../src/exec.js";
 import { gateOrder, runGates } from "../src/gates.js";
+import { formatChanged } from "../src/pipeline.js";
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
 const fail = { ...ok, ok: false, code: 1 };
@@ -73,6 +75,38 @@ describe("runGates typecheck", () => {
   });
   it("adds no typecheck gate without a script or a tsconfig", () => {
     expect(Object.keys(gates(pkg({})))).toEqual(["install"]);
+  });
+});
+
+describe("formatChanged", () => {
+  // A stand-in prettier whose only rule is double quotes, so the test needs no install.
+  const fakePrettier = `#!/usr/bin/env node
+const fs = require("fs");
+const fmt = (s) => s.replace(/'/g, '"');
+const args = process.argv.slice(2);
+if (args.includes("--stdin-filepath")) process.stdout.write(fmt(fs.readFileSync(0, "utf8")));
+else for (const f of args.filter((a) => a !== "--write")) fs.writeFileSync(f, fmt(fs.readFileSync(f, "utf8")));
+`;
+
+  it("formats only files that were formatter-clean before the edit", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-fmt-"));
+    const write = (f: string, text: string) => fs.writeFileSync(path.join(dir, f), text);
+    const git = (...args: string[]) => run("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], dir);
+    fs.mkdirSync(path.join(dir, "node_modules/.bin"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "node_modules/.bin/prettier"), fakePrettier, { mode: 0o755 });
+    write("package.json", JSON.stringify({ devDependencies: { prettier: "^3" } }));
+    write("clean.ts", 'const a = "x";\n');
+    write("dirty.ts", "const a = 'x';\n");
+    git("init", "-q");
+    git("add", "-A");
+    git("commit", "-q", "-m", "init");
+    // Shim's edit adds a single-quoted line to each file.
+    write("clean.ts", 'const a = "x";\nconst b = \'y\';\n');
+    write("dirty.ts", "const a = 'x';\nconst b = 'y';\n");
+
+    formatChanged(dir);
+    expect(fs.readFileSync(path.join(dir, "clean.ts"), "utf8")).toBe('const a = "x";\nconst b = "y";\n');
+    expect(fs.readFileSync(path.join(dir, "dirty.ts"), "utf8")).toBe("const a = 'x';\nconst b = 'y';\n");
   });
 });
 
