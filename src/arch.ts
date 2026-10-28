@@ -39,8 +39,12 @@ export const FIXER_RULES = `Rules:
 - Never change a function's signature: keep sync functions sync, and keep parameters and return types.
   If a value is now behind a promise, chain it (e.g. \`result.finalStep.then((s) => s.toolCalls)\`).
 - The codemod's edits are in \`git diff\`. If one of them is wrong (for example it changed a value that
-  this repo's own types still require), revert that edit, even in a test. Otherwise never edit or weaken
-  tests to make them pass.
+  this repo's own types still require), revert that edit, even in a test. If a gated typecheck that covers
+  tests fails because of the new API, make the minimal type-only test edit it needs (for example a
+  now-required \`context\` field in a ToolExecutionOptions literal). Never change assertions or
+  expectations, and never delete, skip or weaken tests.
+- Never add explicit type annotations (return types, \`Tool<...>\`) to exported functions or public API to
+  satisfy the compiler: that widens or changes the public type. Fix the cause, or leave the site and report it.
 - Never silence an error the upgrade introduced with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
   \`@ts-expect-error\` or similar. Fix the types, or leave the site and report it.
 - If a site cannot be fixed safely, leave it and say why in your final message.
@@ -58,7 +62,11 @@ export const REVIEWER_RULES = `Reject it if any of these is true:
 - An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
 - A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\` or
   a similar cast or suppression instead of fixed.
-- A test is deleted, skipped, or loosened, unless it only reverts a wrong codemod edit.
+- An explicit type annotation (return type, \`Tool<...>\`) is added to an exported function or public API,
+  changing the public type.
+- A test is deleted, skipped, or loosened, or an assertion or expectation changes, unless the edit only reverts
+  a wrong codemod edit or is a minimal type-only change the new API requires (for example a now-required
+  field in an options literal).
 - A function's signature changes (sync to async, parameters, return type).`;
 
 /** Fixer v1, the pipeline before parallel candidates: one fixer, retried, no reviewer. */
