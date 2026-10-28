@@ -7,6 +7,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { finish, migrate, prepare } from "./pipeline.js";
 import { execFileSync } from "node:child_process";
 import { scan, scanAndFix } from "./scan.js";
+import { prOpen, prRecord } from "./pr.js";
 import { triage } from "./triage.js";
 
 const USAGE = `shim <command>
@@ -22,7 +23,12 @@ const USAGE = `shim <command>
   prepare <dir> --out <dir> [--repo <owner/name>]
                            Everything before the fix stage; writes prepared.json
   finish <dir> --prep <prepared.json> --out <dir> [--arch <arch.json>] [--judge]
-                           The fix stage on a prepared repo; --judge adds the fixed judge's verdict`;
+                           The fix stage on a prepared repo; --judge adds the fixed judge's verdict
+  pr open <draft-dir> --fork <forkOwner> [--allow-drift]
+                           Replay the draft's changes.patch on a fresh shim/ai-sdk-7
+                           branch of the fork, push it, and print the compare URL
+  pr record <owner/repo> <pr-url>
+                           Record the opened PR in data/prs.csv`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -97,6 +103,30 @@ switch (cmd) {
     const candidates = await discover(Number(target) || 60);
     console.log(JSON.stringify(candidates, null, 2));
     break;
+  }
+  case "pr": {
+    if (target === "record") {
+      const repo = rest[0], url = rest[1];
+      if (!repo || !url) {
+        console.error("usage: shim pr record <owner/repo> <pr-url>");
+        process.exit(1);
+      }
+      console.log(JSON.stringify(prRecord({ repo, prUrl: url }), null, 2));
+      break;
+    }
+    if (target !== "open") {
+      console.log(USAGE);
+      process.exit(1);
+    }
+    const draftDir = rest[0];
+    const forkOwner = flag("--fork");
+    if (!draftDir || !forkOwner) {
+      console.error("usage: shim pr open <draft-dir> --fork <forkOwner> [--allow-drift]");
+      process.exit(1);
+    }
+    const r = prOpen({ draftDir, forkOwner, allowDrift: rest.includes("--allow-drift") });
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(r.ok ? 0 : 1);
   }
   default:
     console.log(USAGE);
