@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseReview } from "../src/agent.js";
 import { rank, type Candidate } from "../src/candidates.js";
-import { gateOrder } from "../src/gates.js";
+import { gateOrder, runGates } from "../src/gates.js";
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
 const fail = { ...ok, ok: false, code: 1 };
@@ -52,6 +52,27 @@ describe("gateOrder", () => {
     const demo = pkg("demos/a", { name: "a", private: true });
     const lib = pkg("packages/z-provider", { name: "z-provider" });
     expect(gateOrder(root, [demo, lib, root])).toEqual([root, lib, demo]);
+  });
+});
+
+describe("runGates typecheck", () => {
+  const pkg = (scripts: object, files: Record<string, string> = {}) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-tc-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "p", scripts }));
+    for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
+    return dir;
+  };
+  const gates = (dir: string) => runGates(dir, "npm", false, [dir], { install: false });
+
+  it("runs the package's own typecheck script instead of tsc -p tsconfig.json", () => {
+    // The tsconfig is broken: the old gate would have failed or not run; the script is what the repo relies on.
+    const dir = pkg({ typecheck: "node -e 0" }, { "tsconfig.json": "{ not json" });
+    expect(gates(dir)["typecheck ."]?.ok).toBe(true);
+    const red = pkg({ typecheck: "node -e process.exit(1)" }, { "tsconfig.json": "{}" });
+    expect(gates(red)["typecheck ."]?.ok).toBe(false);
+  });
+  it("adds no typecheck gate without a script or a tsconfig", () => {
+    expect(Object.keys(gates(pkg({})))).toEqual(["install"]);
   });
 });
 

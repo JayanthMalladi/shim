@@ -45,7 +45,10 @@ export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDi
 
   for (const pkgDir of gateOrder(dir, pkgDirs).slice(0, MAX_GATED_PACKAGES)) {
     const rel = path.relative(dir, pkgDir) || ".";
-    if (fs.existsSync(path.join(pkgDir, "tsconfig.json"))) {
+    // The package's own script wins: it may check more than tsconfig.json does (a test tsconfig, project references).
+    if (hasTypecheckScript(pkgDir)) {
+      results[`typecheck ${rel}`] = run(pm, ["run", "typecheck"], pkgDir);
+    } else if (fs.existsSync(path.join(pkgDir, "tsconfig.json"))) {
       results[`typecheck ${rel}`] = run("npx", ["--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"], pkgDir);
     }
     const testScript = readPkg(pkgDir)?.scripts?.test;
@@ -57,6 +60,10 @@ export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDi
 }
 
 const MAX_GATED_PACKAGES = 12;
+
+export function hasTypecheckScript(pkgDir: string): boolean {
+  return typeof readPkg(pkgDir)?.scripts?.typecheck === "string";
+}
 
 /**
  * Which packages to check, most important first: the root, then published packages, then private

@@ -6,7 +6,7 @@ import { bumpAiSdk } from "./bump.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { run } from "./exec.js";
-import { detectPackageManager, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
+import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
 import type { Finding } from "./types.js";
@@ -154,7 +154,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
       checks: Object.keys(baseline).filter((g) => g !== "install").map((g) => {
         const [kind, rel = "."] = g.split(" ");
         if (kind === "build") return `${pm} run build`;
-        if (kind === "typecheck") return `cd ${rel} && npx --no-install tsc --noEmit -p tsconfig.json`;
+        if (kind === "typecheck") return `cd ${rel} && ${hasTypecheckScript(path.join(dir, rel)) ? `${pm} run typecheck` : "npx --no-install tsc --noEmit -p tsconfig.json"}`;
         return `cd ${rel} && ${pm} run test`;
       }),
     });
