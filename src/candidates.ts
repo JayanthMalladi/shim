@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { runFixer, runReviewer, type Review } from "./agent.js";
 import type { Architecture } from "./arch.js";
-import { copyRepo, unshareNodeModules } from "./copy.js";
+import { copyRepo, rmTree, unshareNodeModules } from "./copy.js";
 import { run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
 import type { Finding } from "./types.js";
@@ -50,7 +50,7 @@ export async function fixInParallel(dir: string, arch: Architecture, ctx: FixCon
 }
 
 async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext): Promise<Candidate> {
-  fs.rmSync(cdir, { recursive: true, force: true });
+  await rmTree(cdir);
   copyRepo(dir, cdir);
   // Snapshot so the candidate's own diff can be measured, then undone before review.
   git(cdir, "add", "-A");
@@ -69,7 +69,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
     cost += res.cost ?? 0;
     // Reinstall only if the fixer touched a manifest; then drop the shared node_modules first.
     const manifests = git(cdir, "diff", "--name-only", "HEAD").output.split("\n").some((f) => MANIFESTS.test(f));
-    if (manifests) unshareNodeModules(cdir);
+    if (manifests) await unshareNodeModules(cdir);
     after = ctx.gates(cdir, manifests);
     remaining = ctx.breaks(cdir);
   };
@@ -115,9 +115,14 @@ export function rank(cands: Candidate[], baseline: GateResults, selection: Archi
   });
 }
 
-/** Make the chosen candidate the repo, and drop the rest. */
-export function adopt(dir: string, chosen: Candidate, all: Candidate[]) {
-  fs.rmSync(dir, { recursive: true, force: true });
+/**
+ * Make the chosen candidate the repo, and drop the rest. Removes go through rmTree because the
+ * original tree still carries the gates' node_modules (and candidate copies share hard links
+ * into it): on Windows a lingering handle throws EBUSY on the first pass, which a plain
+ * rmSync cannot get past.
+ */
+export async function adopt(dir: string, chosen: Candidate, all: Candidate[]): Promise<void> {
+  await rmTree(dir);
   fs.renameSync(chosen.dir, dir);
-  for (const c of all) if (c !== chosen) fs.rmSync(c.dir, { recursive: true, force: true });
+  for (const c of all) if (c !== chosen) await rmTree(c.dir);
 }

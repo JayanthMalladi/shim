@@ -161,7 +161,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     cost += cands.reduce((s, c) => s + c.cost, 0);
     candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));
     const chosen = rank(cands, baseline, arch.selection)[0]!;
-    adopt(dir, chosen, cands);
+    await adopt(dir, chosen, cands);
     after = chosen.after;
     remaining = chosen.remaining;
     agentRuns.push(...chosen.agentRuns);

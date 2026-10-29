@@ -24,15 +24,33 @@ export function copyRepo(src: string, dst: string) {
   }
 }
 
+/**
+ * Recursive delete that retries with backoff: on Windows a lingering handle (a gate's node
+ * process, pnpm's cache writer) makes rmdir throw EBUSY even after the process that held it is
+ * gone. Used wherever the pipeline removes trees that candidate copies share hard links with.
+ */
+export async function rmTree(p: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    if (!fs.existsSync(p)) return;
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+      return;
+    } catch {
+      if (attempt >= 40) throw new Error(`could not remove ${p} after 40 attempts (locked?)`);
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+}
+
 /** Replace hard-linked node_modules with nothing, so a reinstall can't write through to other copies. */
-export function unshareNodeModules(dir: string) {
-  const walk = (d: string) => {
+export async function unshareNodeModules(dir: string): Promise<void> {
+  const walk = async (d: string) => {
     for (const name of fs.readdirSync(d)) {
       const p = path.join(d, name);
       if (name === ".git" || !fs.lstatSync(p).isDirectory()) continue;
-      if (name === "node_modules") fs.rmSync(p, { recursive: true, force: true });
-      else walk(p);
+      if (name === "node_modules") await rmTree(p);
+      else await walk(p);
     }
   };
-  walk(dir);
+  await walk(dir);
 }
