@@ -1,0 +1,55 @@
+# Keep the landing page's numbers honest. The site is a static export that bakes in
+# site/lib/stats.json at build time; this job refreshes that file from the live PR
+# ledger so the page's counts track the real upstream PRs as they get replies and merge.
+#
+# Everything here is free-tier:
+#   - runs on a public repo -> 2,000 Actions min/mo, no bill
+#   - refreshes data/prs.csv via `shim pr status` using the auto-provided GITHUB_TOKEN
+#   - regenerates site/lib/stats.json via `shim stats`
+#   - commits both; Vercel auto-deploys the site/ export on push
+name: Refresh site stats
+
+on:
+  # Every 6 hours is plenty for the YC stage; GitHub adds its own jitter.
+  schedule:
+    - cron: "0 */6 * * *"
+  # So we can force a refresh on demand (e.g. right after opening a batch of PRs).
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm ci
+
+      # Pull live open/merged/replied state for every tracked PR into the ledger.
+      # GITHUB_TOKEN (auto) has pull-requests:read on this public repo, so no secret needed.
+      - name: Refresh data/prs.csv from GitHub
+        run: npx tsx src/cli.ts pr status --write
+
+      # Re-derive the site's numbers from the refreshed ledger.
+      - name: Regenerate site/lib/stats.json
+        run: npx tsx src/cli.ts stats
+
+      - name: Commit + push if changed
+        run: |
+          git config user.name  "shim[bot]"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/prs.csv site/lib/stats.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(site): refresh stats $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin HEAD:main
+          else
+            echo "no changes; nothing to deploy"
+          fi

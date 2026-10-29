@@ -8,6 +8,7 @@ import { finish, migrate, prepare } from "./pipeline.js";
 import { execFileSync } from "node:child_process";
 import { scan, scanAndFix } from "./scan.js";
 import { prOpen, prRecord } from "./pr.js";
+import { writeStats } from "./stats.js";
 import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
 
@@ -31,7 +32,10 @@ const USAGE = `shim <command>
   pr record <owner/repo> <pr-url>
                            Record the opened PR in data/prs.csv
   pr status [--write]      Refresh PR states from the GitHub API; print totals;
-                           --write updates data/prs.csv`;
+                           --write updates data/prs.csv
+  stats [--csv <file>] [--out <file>]
+                           Regenerate site/lib/stats.json from data/prs.csv
+                           (the site's live numbers); commit it to redeploy`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -47,6 +51,15 @@ const flag = (name: string) => {
   const i = rest.indexOf(name);
   return i >= 0 ? rest[i + 1] : undefined;
 };
+
+// `stats` takes no positional target: run it before the guard (which requires one) and exit.
+if (cmd === "stats") {
+  const csv = flag("--csv") ? path.resolve(flag("--csv")!) : undefined;
+  const out = flag("--out") ? path.resolve(flag("--out")!) : undefined;
+  const s = writeStats({ prCsv: csv, out });
+  console.log(JSON.stringify(s, null, 2));
+  process.exit(0);
+}
 
 if (!cmd || !target) {
   console.log(USAGE);

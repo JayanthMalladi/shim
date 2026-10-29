@@ -1,0 +1,36 @@
+{
+  "asOf": "2026-10-29T09:00:08.057Z",
+  "prs": {
+    "total": 14,
+    "open": 14,
+    "merged": 0,
+    "replied": 0,
+    "mergeRate": "0%",
+    "mergeRate3d": "n/a (<3 days open)"
+  },
+  "proof": {
+    "headline": "5",
+    "stats": [
+      [
+        "repos attempted, night one",
+        "23"
+      ],
+      [
+        "pr-ready, night one",
+        "11 · 48%"
+      ],
+      [
+        "pr-ready, two nights",
+        "16"
+      ],
+      [
+        "agent cost per repo",
+        "$0.06–$5.63"
+      ],
+      [
+        "v6 packages self-migrated, ~6 wks",
+        "12 / 45"
+      ]
+    ]
+  }
+}

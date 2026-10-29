@@ -1,4 +1,5 @@
 import { links, scanCommand } from "@/lib/site";
+import { prs } from "@/lib/stats";
 import { CopyCommand } from "./copy-command";
 import { HeroTranscript } from "./hero-transcript";
 import { SiteLink } from "./placeholder";
@@ -35,6 +36,19 @@ export function Hero() {
           <CopyCommand command={scanCommand} />
         </div>
         <p className="m-0 text-sm text-muted">The scan is read-only. It lists every silent change with file and line.</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line pt-4 font-mono text-[13px] text-muted">
+          <span>
+            <span className="font-semibold text-fg">{prs.open}</span> PRs open upstream
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            <span className="font-semibold text-fg">{prs.merged}</span> merged
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            merge rate <span className="font-semibold text-fg">{prs.mergeRate}</span>
+          </span>
+        </div>
       </div>
 
       <HeroTranscript />
