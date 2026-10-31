@@ -1,6 +1,6 @@
 # Shim spec
 
-Written 2026-10-31 for whoever works on Shim next, human or agent. Agents are expected to be DeepSeek models running in DeepSeek Harness (`dsh`). Read this file and `CLAUDE.md` before changing anything. Where they disagree, `CLAUDE.md` wins on rules and this file wins on the plan.
+Written 2026-10-31 for whoever works on Shim next, human or agent. Agents are expected to run in DeepSeek Harness (`dsh`), with open-source models from a third-party API provider. Nothing in this spec assumes a particular model. Read this file and `CLAUDE.md` before changing anything. Where they disagree, `CLAUDE.md` wins on rules and this file wins on the plan.
 
 Contents:
 1. What Shim is
@@ -48,7 +48,7 @@ These are copied from `CLAUDE.md`. An agent that breaks one has failed its task,
 1. **Agents never open PRs, issues or comments on target repos.** `shim pr open` pushes to Jayanth's fork and prints a compare URL. Jayanth reads the diff and clicks Create. Never open a second PR on a repo that is already in `data/prs.csv`.
 2. **Never open a PR unless every gate that passed at baseline still passes** (`src/gates.ts`). Otherwise the outcome is an issue draft.
 3. **Installs of target repos always use `--ignore-scripts`.** Target repos are untrusted code.
-4. **Target commands never get credentials.** `src/exec.ts` strips `ANTHROPIC_*`, `CLAUDE_*`, `AWS_*`, `GH_*` and `GITHUB_*` from target-repo commands. Keep it that way, and add `DEEPSEEK_*` when you touch it (see WP1).
+4. **Target commands never get credentials.** `src/exec.ts` strips `ANTHROPIC_*`, `CLAUDE_*`, `AWS_*`, `GH_*` and `GITHUB_*` from target-repo commands. Keep it that way, and add the provider's key prefix (e.g. `OPENAI_*`, `OPENROUTER_*`, whatever the provider uses) when you touch it (see WP1).
 5. **Fixes must preserve the target repo's current runtime behavior.** Prefer a deterministic rewrite in `src/rules/` over the agent.
 6. **Every new rule gets a fixture case** in `test/fixtures/v6-app` and an assertion in `test/scan.test.ts`, including a case that must **not** be flagged.
 7. The fixer must never: add casts or suppressions that hide type errors, add public-type annotations, change function signatures, or reformat files Shim didn't otherwise touch. Type-only edits in test files are allowed.
@@ -85,7 +85,7 @@ These are copied from `CLAUDE.md`. An agent that breaks one has failed its task,
 - The YC application is deferred. Spend the time getting **merges**, not raw PR count.
 - Expand to more repos, but choose targets for how likely they are to merge (WP6). Prefer code changes that fix a silent break over pure version bumps, which Renovate already does.
 - For libraries, prefer widening to `^6 || ^7` over forcing a major bump (WP4).
-- Use DeepSeek Harness for interactive work on this repo. Inside the pipeline (fixer, reviewer, judge in untrusted repos), keep the Claude Code CLI as the harness and point it at DeepSeek's endpoint (WP1, WP2). Section 4 explains why.
+- Use DeepSeek Harness for interactive work on this repo. The pipeline's fixer, reviewer and judge run inside untrusted repos, so they need a harness with a strict tool allowlist. WP1 makes the agent backend and model configurable, and WP2 calibrates whatever model mix is used before it opens PRs. Section 4 explains why.
 
 ## 4. Running work in DeepSeek Harness
 
@@ -98,8 +98,10 @@ npx @deepseek-ai/dsh --profile headless "<task text>"
 ```
 Start `dsh` from the Shim checkout. It uses the invoking directory as the workspace and loads `CLAUDE.md` automatically.
 
+Point `dsh` at your third-party provider following dsh's own provider docs. It reads credentials from the environment, `$DSH_HOME/.credentials.yaml`, or a `.env` file. **Never put a `.env` with keys in the Shim checkout**: the repo is public, and `.env` files are easy to commit by accident. Use `$DSH_HOME/.env` instead.
+
 Settings to change before the first run:
-- **Turn off session-log upload**: Web UI → Settings → General → "Upload Session Log when using the official model API" off, or set the `session-log-deepseek` plugin's `enabled: false`. Otherwise full session logs go to DeepSeek with later requests.
+- **Turn off session-log upload**: Web UI → Settings → General → "Upload Session Log when using the official model API" off, or set the `session-log-deepseek` plugin's `enabled: false`. This applies when a DeepSeek endpoint is used. Check it's off anyway.
 - `export DSH_TELEMETRY_MODE=DISABLED`.
 - Don't keep `GITHUB_TOKEN`, `GH_TOKEN` or cloud credentials in the shell `dsh` starts from. The agent's bash sees that environment, and reads and network access are not sandboxed. `pr status` only needs `GITHUB_TOKEN` when you run it yourself.
 - `dsh` is a developer preview. Its own SAFETY.md says not to rely on it as the only safety control. Run it in a VM or container when it will touch cloned target repos.
@@ -107,7 +109,7 @@ Settings to change before the first run:
 ### What dsh should and shouldn't do
 | Use dsh for | Don't use dsh for |
 |---|---|
-| Writing and testing Shim code (WP1, WP4, WP5, WP7, WP11) | Being the fixer or judge inside target repos. Its default `workspace-write` preset allows any bash command, and it has no per-command allowlist and no turn or budget cap. The pipeline's fixer may only run `tsc` and `git diff`. |
+| Writing and testing Shim code (WP1, WP4, WP5, WP7, WP11) | Being the fixer or judge inside target repos **outside a sandbox**. Its default `workspace-write` preset allows any bash command, and it has no per-command allowlist and no turn or budget cap, whereas the pipeline's fixer may only run `tsc` and `git diff`. The WP1 `dsh` backend is only allowed with `SHIM_SANDBOX=1`, inside a throwaway container with no credentials. |
 | Hand-fixing drafts (WP3), writing issue drafts (WP8), drafting replies | Opening PRs, issues or comments on any target repo |
 | Running `shim discover`, `triage`, `prepare`, `stats` | Pushing to `main` without Jayanth |
 
@@ -146,7 +148,7 @@ discover ─► triage ─► prepare ──────────────
 | `arch.ts` | The fix-stage "genome" (`Architecture`): candidates, attempts, models, rules text, audit, review rounds, `fixerChecks`, selection. Seeds `v1`..`v4`; `DEFAULT_ARCH` = `v2-parallel-review` | – |
 | `candidates.ts` | Runs N fixer candidates in parallel on copies, ranks them (approved and green first, then regressions, remaining findings, diff size), adopts the winner | yes (via agent.ts) |
 | `copy.ts` | Copies a repo per candidate, hard-linking `node_modules` | no |
-| `agent.ts` | `runFixer`, `runReviewer`, `runJudge` (opus, fixed rules), `parseReview` (last-line JSON) | **yes** |
+| `agent.ts` | `runFixer`, `runReviewer`, `runJudge` (fixed rules), `parseReview` (last-line JSON) | **yes** |
 | `exec.ts` | `run`/`runAsync`; `targetEnv()` (no secrets, `CI=1`, `npm_config_verify_deps_before_run=false`) vs `agentEnv()`; `runClaude` (spawns `claude`, waits out plan limits) | – |
 | `pr-body.ts` | Renders the PR text: versions, what changed, "Needs your eyes", gates table, rollback. Claims only what the patch did | no |
 | `pr.ts` | `prOpen` (replay `changes.patch` on a fork branch `shim/ai-sdk-7`, refuse on upstream drift), `prRecord` (append to `data/prs.csv`, refuse duplicates) | no |
@@ -174,7 +176,7 @@ All three go through `runClaude` → the `claude` CLI, with the full environment
 - `agent.ts runReviewer`/`runJudge`: read-only tools, last line must be `{"approve": bool, "issues": [...]}`.
 - `evolve.ts:240`: the mutator, read-only tools.
 
-`claude-opus-5-5` is hard-coded in `arch.ts` (seed defaults), `agent.ts:131` (judge) and `evolve.ts:240`, and listed in `ALLOWED_MODELS` in `evolve-guard.ts`. WP1 makes this configurable.
+A default model id is hard-coded in `arch.ts` (seed defaults), `agent.ts:131` (judge) and `evolve.ts:240`, and the allowed ids are listed in `ALLOWED_MODELS` in `evolve-guard.ts`. The `claude` CLI is the only agent backend. WP1 makes both configurable.
 
 ## 6. Data formats
 
@@ -229,7 +231,7 @@ scripts/scale-all.sh                  # every repo in data/overnight-2026-10-28/
 
 Each one lists **who** can do it:
 - **any**: no model needed; a human or any agent can run it.
-- **dsh**: a DeepSeek agent in DeepSeek Harness, editing Shim code.
+- **dsh**: an agent in DeepSeek Harness, editing Shim code.
 - **pipeline**: the fixer and judge run on a model; quality must be calibrated first (WP2).
 - **Jayanth**: needs his GitHub account or judgment.
 
@@ -240,33 +242,33 @@ Priority order: WP0 → WP1 → WP2 → WP3 → WP4 → WP6 → the rest.
 - The `roadmap-docs` branch has older planning docs (`docs/roadmap/*`). They're superseded by this spec, so leave that branch unmerged.
 - **Done when** `main` has `docs/SPEC.md` and the next `refresh-site` run shows "replied 0".
 
-### WP1. Make the pipeline's model configurable (dsh, ~1 hour)
-Goal: run the fixer, reviewer, judge and mutator on DeepSeek through the Claude Code CLI without editing code each time.
-- In `src/arch.ts`, read `process.env.SHIM_FIXER_MODEL` and `SHIM_REVIEWER_MODEL` as the defaults for `fixerModel` and `reviewerModel` when set. Otherwise keep `claude-opus-5-5`.
-- In `src/agent.ts`, the judge model = `process.env.SHIM_JUDGE_MODEL ?? "claude-opus-5-5"`.
-- In `src/evolve.ts:240`, mutator model = `process.env.SHIM_MUTATOR_MODEL ?? "claude-opus-5-5"`.
-- In `src/evolve-guard.ts`, extend `ALLOWED_MODELS` with entries from `SHIM_EXTRA_MODELS` (comma-separated). Still reject any id containing `fable` or `mythos`, case-insensitive. Add a test for that rejection.
-- In `src/exec.ts`, add `DEEPSEEK_` to `SECRET_PREFIXES`, and test that `targetEnv()` drops `DEEPSEEK_API_KEY`.
-- Document in `CLAUDE.md` how to run against DeepSeek:
-  ```sh
-  export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic   # check DeepSeek's docs for the current URL
-  export ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY
-  export SHIM_FIXER_MODEL=<deepseek model id> SHIM_REVIEWER_MODEL=<id> SHIM_JUDGE_MODEL=<id>
-  export SHIM_EXTRA_MODELS=<ids>
-  ```
-- `--max-budget-usd` and `cost` assume Claude pricing. When `ANTHROPIC_BASE_URL` is set, label the cost "unpriced" in reports and logs instead of trusting it.
-- **Done when** typecheck and tests pass, there are new tests for the env overrides and the Fable/Mythos rejection, and `claude -p "reply ok" --model <deepseek id> --output-format json` works with the env above (Jayanth runs this check).
+### WP1. Make the agent backend and models configurable (dsh, ~half a day)
+Goal: run the fixer, reviewer, judge and mutator on any model from the third-party provider without editing code. No model id is hard-coded in the result.
 
-### WP2. Calibrate DeepSeek against the Claude results (pipeline, Jayanth runs; ~half a day)
-Goal: know whether DeepSeek-backed runs can open PRs.
+1. **Model ids from env.** Make `fixerModel`, `reviewerModel`, the judge model (`agent.ts:131`) and the mutator model (`evolve.ts:240`) come from `SHIM_FIXER_MODEL`, `SHIM_REVIEWER_MODEL`, `SHIM_JUDGE_MODEL` and `SHIM_MUTATOR_MODEL`. Keep the current values only as fallbacks when the env var is unset. Fail with a clear message if the judge model is unset and no fallback is configured.
+2. **Allowlist from env.** `ALLOWED_MODELS` in `src/evolve-guard.ts` extends from `SHIM_EXTRA_MODELS` (comma-separated). Keep rejecting any id containing `fable` or `mythos` (case-insensitive), and add a test for that.
+3. **Agent backend.** Add `SHIM_AGENT_BACKEND` with these values:
+   - `claude-cli` (default): today's `runClaude`. Works with any provider that has an **Anthropic-compatible** endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
+   - `dsh`: a new `runDsh` in `src/exec.ts` that runs `dsh --profile headless "<prompt>"` in the repo dir, takes stdout as the final text, and maps exit 0/1 to ok/not-ok. Because dsh has no per-command allowlist or turn cap, this backend must **refuse to start unless `SHIM_SANDBOX=1`**, meaning the run is inside a throwaway container or VM with no credentials in the environment. Enforce the timeout in `runAsync`.
+   - Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract stays unchanged.
+4. **Secrets.** Add the provider's key prefix to `SECRET_PREFIXES` in `src/exec.ts` (make the list extendable via `SHIM_SECRET_PREFIXES`), and test that `targetEnv()` drops it.
+5. **Cost.** `--max-budget-usd` and `cost` are only meaningful on the `claude-cli` backend with its own pricing. When `ANTHROPIC_BASE_URL` is set or the backend is `dsh`, record cost as `null` ("unpriced") and take spend from the provider's dashboard.
+6. **Docs.** Add an "Agent backend" section to `CLAUDE.md` listing the env vars above, with placeholders (`<model id>`), not specific models.
+
+**Done when** typecheck and tests pass, with new tests for: env model overrides, the Fable/Mythos rejection, `dsh` refusing without `SHIM_SANDBOX=1`, and secret stripping. Then Jayanth runs one `scan`-only repo through `finish` on each backend he plans to use.
+
+### WP2. Calibrate the chosen model mix (pipeline, Jayanth runs; ~half a day)
+Goal: know whether runs on the new models can open PRs. The earlier results are the baseline to compare against.
 - Set: the 11 repos that were PR-ready on 2026-10-28 (`data/overnight-2026-10-28/scale-results.csv`, `outcome=pr-ready`) plus the 5 judge-rejected ones.
-- Run `scripts/scale-one.sh` for each with WP1's env set to DeepSeek. Write to a new `SHIM_WORK` so nothing gets overwritten.
-- Compare per repo: verdict, judge verdict, diff size, and whether the diff matches the Claude draft's intent. Write the results to `data/calibration-deepseek-<date>.csv` and a 10-line summary to `data/calibration-deepseek-<date>.md`.
+- Run `scripts/scale-one.sh` for each with WP1's env set to the new mix. Write to a new `SHIM_WORK` so nothing gets overwritten.
+- Compare per repo: verdict, judge verdict, diff size, and whether the diff matches the existing draft's intent. Write the results to `data/calibration-<date>.csv` (including the model ids used per role) and a 10-line summary to `data/calibration-<date>.md`.
 - Thresholds, decided before running:
-  - DeepSeek can open **deps-only** PRs if it reproduces the Claude outcome on all deps-only repos.
-  - It can open **code** PRs without extra review only if its judge rejects at least 4 of the 5 known-bad diffs, and it ships at least 70% of what Claude shipped.
+  - The mix can open **deps-only** PRs if it reproduces the baseline outcome on all deps-only repos.
+  - It can open **code** PRs without extra review only if its judge rejects at least 4 of the 5 known-bad diffs, and it ships at least 70% of what the baseline shipped.
   - Otherwise every code PR gets Jayanth's line-by-line review.
-- **Done when** the CSV and summary are committed and the thresholds above are applied.
+- The judge matters most. If only one role gets the strongest available model, give it to the judge.
+- Re-run WP2 whenever a role's model changes.
+- **Done when** the CSV and summary are committed and the thresholds are applied.
 
 ### WP3. Finish the four needs-review drafts (dsh, then Jayanth reviews)
 For each one: clone upstream at the `HEAD:` in `status.txt` (or the latest commit), `git apply changes.patch`, make the edit below, run the repo's gates by hand (`--ignore-scripts` installs), regenerate `changes.patch` with `git add -A && git diff --cached --binary`, and update `pr.md` and `status.txt`.
@@ -314,10 +316,10 @@ Goal: 12 of 45 repos migrated to v7 themselves. Find the silent bugs they kept, 
 For each `outcome=open-issue` row in `data/overnight-2026-10-28/scale-results.csv`, write `drafts/issues/<o>__<r>.md` (≤15 lines): which v7 change breaks what (file:line), why the codemod doesn't fix it, a suggested fix, and an offer to send a PR. No fluff. Jayanth posts.
 
 ### WP9. Finish the 4 unfinished scale repos (pipeline)
-`scripts/scale-one.sh` for Ryrahul/Vendure-ai, agentmail-to/agentmail-toolkit, silverprotocol/typescript-sdk, vargHQ/sdk. Run after WP2 if on DeepSeek.
+`scripts/scale-one.sh` for Ryrahul/Vendure-ai, agentmail-to/agentmail-toolkit, silverprotocol/typescript-sdk, vargHQ/sdk. Run after WP2 if the pipeline uses a new model mix.
 
 ### WP10. Architecture evolution (pipeline; later)
-Follow `docs/evolve-runbook.md` (8-repo dev set, 5-repo holdout, budget cap). Not before WP2. If the judge runs on DeepSeek, start a fresh archive. Adopt the winner as `DEFAULT_ARCH` only if it beats v2 on the holdout.
+Follow `docs/evolve-runbook.md` (8-repo dev set, 5-repo holdout, budget cap). Not before WP2. If the judge's model changes, start a fresh archive. Adopt the winner as `DEFAULT_ARCH` only if it beats v2 on the holdout.
 
 ### WP11. Fix the 5 container-only test failures (dsh)
 Run `npm test` on Jayanth's machine. If they pass there, mark them with a clear reason or make them robust to the cloud container's filesystem (likely hard links or git config). Never skip a test just to get green. **Done when** `npm test` is green on Jayanth's machine and the cause is written in the commit message.
