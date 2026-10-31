@@ -560,7 +560,8 @@ function add(ctx: RuleContext, node: Node, ruleId: string, severity: Severity, f
     ruleId,
     severity,
     fix,
-    file: path.relative(ctx.root, sf.getFilePath()),
+    // Forward slashes: the documented finding-path convention, so Windows output matches Linux.
+    file: path.relative(ctx.root, sf.getFilePath()).split(path.sep).join("/"),
     line: node.getStartLineNumber(),
     snippet: node.getText().split("\n")[0]!.slice(0, 160),
     message,

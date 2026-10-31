@@ -101,13 +101,36 @@ for (const f of args.filter((a) => a !== "--fix")) fs.writeFileSync(f, fmt(fs.re
 `;
   const brokenEslint = "#!/usr/bin/env node\nconsole.error('Oops, config error'); process.exit(2);\n";
 
-  /** A repo with one tool installed, a file that was clean and one that wasn't, then Shim's single-quoted edit to each. */
+  /**
+   * A repo with one tool installed, a file that was clean and one that wasn't, then Shim's
+   * single-quoted edit to each.
+   *
+   * `npx --no-install` resolves the tool by package name: it needs `node_modules/<tool>/package.json`
+   * plus the bin script. The `.bin` entry is how the bin is actually run — a `.cmd` batch shim on
+   * Windows (cmd.exe can't execute shebang scripts directly), a Unix executable on POSIX.
+   */
+  const installTool = (dir: string, tool: string, script: string) => {
+    // Full npm-style layout so `npx --no-install <tool>` can resolve it by name.
+    const pkgDir = path.join(dir, "node_modules", tool);
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, "package.json"),
+      JSON.stringify({ name: tool, version: "1.0.0", bin: { [tool]: `${tool}.js` } }));
+    const jsPath = path.join(pkgDir, `${tool}.js`);
+    fs.writeFileSync(jsPath, script.replace(/^#!.*\n/, "")); // shebang is irrelevant when run via node
+    const binPath = path.join(dir, "node_modules", ".bin", tool);
+    fs.mkdirSync(path.dirname(binPath), { recursive: true });
+    if (process.platform === "win32") {
+      // cmd batch shim; npx and cross-spawn both resolve <tool>.cmd on Windows.
+      fs.writeFileSync(binPath + ".cmd", `@ECHO OFF\r\nnode "${jsPath.replace(/\\/g, "\\/")}" %*\r\n`);
+    } else {
+      fs.writeFileSync(binPath, script, { mode: 0o755 });
+    }
+  };
   const repo = (tool: "prettier" | "eslint", script: string) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-fmt-"));
     const write = (f: string, text: string) => fs.writeFileSync(path.join(dir, f), text);
     const git = (...args: string[]) => run("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], dir);
-    fs.mkdirSync(path.join(dir, "node_modules/.bin"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "node_modules/.bin", tool), script, { mode: 0o755 });
+    installTool(dir, tool, script);
     write("package.json", JSON.stringify({ devDependencies: { [tool]: "*" } }));
     write("clean.ts", 'const a = "x";\n');
     write("dirty.ts", "const a = 'x';\n");

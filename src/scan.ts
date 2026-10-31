@@ -132,8 +132,12 @@ export function findAiPackages(root: string): Array<{ file: string; range: strin
 function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
   const findings: Finding[] = [];
   for (const wf of findWorkflowFiles(root)) {
-    const rel = path.relative(root, wf);
-    const lines = fs.readFileSync(wf, "utf8").split("\n");
+    const rel = path.relative(root, wf).split(path.sep).join("/");
+    // Windows checkouts can be CRLF (core.autocrlf): strip \r so the line regexes hold, and
+    // remember the line ending so an unedited rewrite keeps the file byte-identical.
+    const raw = fs.readFileSync(wf, "utf8");
+    const lf = raw.includes("\r\n");
+    const lines = raw.replace(/\r\n/g, "\n").split("\n");
     if (!namesPrOrPush(lines)) continue; // only PR/push-triggered workflows matter here
     const edits: Array<{ line: number; text?: string; delete?: boolean }> = [];
     const flag = (line: number, snippet: string, fix: FixKind, message: string) =>
@@ -173,12 +177,18 @@ function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
       }
       const mj = parseMajor(value);
       if (mj !== null && mj < NODE_REQUIRED) {
-        edits.push({ line: at, text: `${indent}node-version: ${rewriteScalar(value)}` });
+        const w = rewriteScalar(value);
+        // Re-quote the CRLF run's \r on Windows checkouts so the edited line keeps the file's line ending.
+        edits.push({ line: at, text: lf ? `${indent}node-version: ${w}\r` : `${indent}node-version: ${w}` });
         flag(at, line.trim().slice(0, 160), "auto", CI_NODE_AUTO_MSG);
       }
     }
 
-    if (edits.length) ctx.fileEdits.push({ file: rel, lines: edits });
+    // Unchanged files keep their original bytes (no line-ending churn in the diff).
+    if (edits.length) {
+      ctx.fileEdits.push({ file: rel, lines: edits });
+      fs.writeFileSync(wf, raw);
+    }
   }
   return findings;
 }
@@ -288,7 +298,8 @@ function checkPackageJsons(root: string): Finding[] {
         ruleId: "node-22",
         severity: "break",
         fix: "manual",
-        file: path.relative(root, file),
+        // Forward slashes: the documented finding-path convention, so Windows output matches Linux.
+        file: path.relative(root, file).split(path.sep).join("/"),
         line: 1,
         snippet: `"engines": { "node": "${engine}" }`,
         message: "AI SDK 7 requires Node.js 22 or later.",
