@@ -1,5 +1,7 @@
 # Shim
 
+Start with `docs/SPEC.md`: current status, architecture, and the work packages (WP0–WP12) with acceptance criteria.
+
 Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 
 ## Commands
