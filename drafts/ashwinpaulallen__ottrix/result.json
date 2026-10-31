@@ -1,0 +1,38 @@
+{
+  "repo": "ashwinpaulallen/ottrix",
+  "arch": "v2-parallel-review",
+  "verdict": "open-issue",
+  "reason": "gates regressed: typecheck ., typecheck packages/vercel-ai",
+  "cost": 3.0236670000000005,
+  "fixMs": 339851,
+  "candidates": [
+    {
+      "ok": false,
+      "size": 18,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 15,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 15,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    }
+  ],
+  "diffStat": " 3 files changed, 101 insertions(+), 13 deletions(-)"
+}

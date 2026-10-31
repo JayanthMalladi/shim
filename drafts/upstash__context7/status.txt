@@ -1,0 +1,5 @@
+needs-review
+all baseline gates still pass and no breaking findings remain
+head: HEAD: 5c368c9
+
+Needs-review (quality bar, read-only check of changes.patch/pr.md): Fixer added hand-written Tool<...> return annotations to exported queryDocs/resolveLibraryId (public type widened, execute optional) and rewrote test reads to result.finalStep.*; pr.md does not mention the annotations. Check consumer typing before opening.

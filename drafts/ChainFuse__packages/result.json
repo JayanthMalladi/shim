@@ -1,0 +1,37 @@
+{
+  "repo": "ChainFuse/packages",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.5818514
+  },
+  "cost": 1.658134,
+  "fixMs": 261218,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 4 files changed, 331 insertions(+), 64 deletions(-)"
+}

@@ -1,0 +1,651 @@
+diff --git a/.changeset/upgrade-ai-sdk-7.md b/.changeset/upgrade-ai-sdk-7.md
+new file mode 100644
+index 0000000..9085b96
+--- /dev/null
++++ b/.changeset/upgrade-ai-sdk-7.md
+@@ -0,0 +1,5 @@
++---
++"@chainfuse/ai-tools": major
++---
++
++Upgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.
+diff --git a/package-lock.json b/package-lock.json
+index 24b1150..18d76b6 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -71,6 +71,8 @@
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/anthropic/-/anthropic-3.0.133.tgz",
+ 			"integrity": "sha512-ODK8CN/Q4WH4xFG5CLj+0oz99bjGCkgBHopnuIfRH2OUtwqyitJSo9UuyvBFeaAm05kGYrmgwfZWCg4sEFPB/w==",
+ 			"license": "Apache-2.0",
++			"optional": true,
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/provider": "3.0.19",
+ 				"@ai-sdk/provider-utils": "4.0.61"
+@@ -83,44 +85,141 @@
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/azure": {
+-			"version": "3.0.141",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/azure/-/azure-3.0.141.tgz",
+-			"integrity": "sha512-1lG0C9njLmI33YEN/O17EozJ3xV/p1nItt7vnAZyetwf847C1m1YesU2ExcIf/pMwlJII9sRWAmie+kJusyQBA==",
++			"version": "4.0.112",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/azure/-/azure-4.0.112.tgz",
++			"integrity": "sha512-59klLCQ5w9ZNjARJ0D0eEp1KerMoDK9NtnWVP3WQach6GbTWWGAbR1/B7O9bX/CnWynzkWrDLuF7d/6OS0BQgA==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/deepseek": "2.0.76",
+-				"@ai-sdk/openai": "3.0.130",
+-				"@ai-sdk/provider": "3.0.19",
+-				"@ai-sdk/provider-utils": "4.0.61"
++				"@ai-sdk/deepseek": "3.0.75",
++				"@ai-sdk/openai": "4.0.104",
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"node_modules/@ai-sdk/azure/node_modules/@ai-sdk/openai": {
++			"version": "4.0.104",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-4.0.104.tgz",
++			"integrity": "sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"node_modules/@ai-sdk/azure/node_modules/@ai-sdk/provider": {
++			"version": "4.0.34",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++			"integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"json-schema": "^0.4.0"
++			},
++			"engines": {
++				"node": ">=22"
++			}
++		},
++		"node_modules/@ai-sdk/azure/node_modules/@ai-sdk/provider-utils": {
++			"version": "5.0.70",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++			"integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@standard-schema/spec": "^1.1.0",
++				"@workflow/serde": "4.1.0",
++				"eventsource-parser": "^3.0.8",
++				"undici": "^7.29.0"
++			},
++			"engines": {
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+ 			}
+ 		},
++		"node_modules/@ai-sdk/azure/node_modules/undici": {
++			"version": "7.30.1",
++			"resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++			"integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++			"license": "MIT",
++			"engines": {
++				"node": ">=20.18.1"
++			}
++		},
+ 		"node_modules/@ai-sdk/deepseek": {
+-			"version": "2.0.76",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/deepseek/-/deepseek-2.0.76.tgz",
+-			"integrity": "sha512-nXndej2BhgAtEk4P43IcXTrg6+X/6C/xIC9hp+vS6ayCi0+YrTRRu6YcX8E8p3OA/TNmpExhWuyOD5HRnEJJZg==",
++			"version": "3.0.75",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/deepseek/-/deepseek-3.0.75.tgz",
++			"integrity": "sha512-cWhJomtEUP4ksJf8a93pDJ7CShU481LAaVHtaa15aH2TDqjy/dmpGKJP55SLyKuzleQKDpBhy9RXEeeI0DC99w==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/provider": "3.0.19",
+-				"@ai-sdk/provider-utils": "4.0.61"
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+ 			}
+ 		},
++		"node_modules/@ai-sdk/deepseek/node_modules/@ai-sdk/provider": {
++			"version": "4.0.34",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++			"integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"json-schema": "^0.4.0"
++			},
++			"engines": {
++				"node": ">=22"
++			}
++		},
++		"node_modules/@ai-sdk/deepseek/node_modules/@ai-sdk/provider-utils": {
++			"version": "5.0.70",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++			"integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@standard-schema/spec": "^1.1.0",
++				"@workflow/serde": "4.1.0",
++				"eventsource-parser": "^3.0.8",
++				"undici": "^7.29.0"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"node_modules/@ai-sdk/deepseek/node_modules/undici": {
++			"version": "7.30.1",
++			"resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++			"integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++			"license": "MIT",
++			"engines": {
++				"node": ">=20.18.1"
++			}
++		},
+ 		"node_modules/@ai-sdk/gateway": {
+ 			"version": "3.0.218",
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.218.tgz",
+ 			"integrity": "sha512-EA8pGRl4BJ5c7kwexSgkUSHtPb5j9DVtJHRXVSzlVix3ClOAo1z1a4Pn1KPz+8QLJUObopsrIDJpdvQcGAR7Cg==",
+ 			"license": "Apache-2.0",
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/provider": "3.0.19",
+ 				"@ai-sdk/provider-utils": "4.0.61",
+@@ -138,6 +237,8 @@
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/google/-/google-3.0.136.tgz",
+ 			"integrity": "sha512-YZuiNniWnvU6d2xheeLjYU9SQZl1BHa5Yd876kIC8aUwOXIt5Pvf1+6q9xPGs4tSDG/DgHVFWyeV7GOHyJIj2g==",
+ 			"license": "Apache-2.0",
++			"optional": true,
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/provider": "3.0.19",
+ 				"@ai-sdk/provider-utils": "4.0.61"
+@@ -154,6 +255,8 @@
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-3.0.130.tgz",
+ 			"integrity": "sha512-4v0HiJBv2Y/e3HBuKKbcXVCMQHJLVcO4BUMs019+vGOIMCLSwDrugMIM3CWmMkGHwhqyHWvPUUMSdlJciSH6Eg==",
+ 			"license": "Apache-2.0",
++			"optional": true,
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/provider": "3.0.19",
+ 				"@ai-sdk/provider-utils": "4.0.61"
+@@ -166,26 +269,67 @@
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/openai-compatible": {
+-			"version": "2.0.86",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-2.0.86.tgz",
+-			"integrity": "sha512-ZOqn3sHxmYZo4B1c9KXrvQdLiUYd3s5swCamk7VPXDyxzM2nUDq35QIVV1JgNZuwYSfC30EkhYm81744Af6Vyg==",
++			"version": "3.0.80",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-3.0.80.tgz",
++			"integrity": "sha512-FoFoYodwufDyuOlPrFBnGD6HNA8nIB5a6HofyTJoPUJn9NBtDmloWudbNDyf4hYV8YTPOyR5iPfn1ufK2XD2Zg==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/provider": "3.0.19",
+-				"@ai-sdk/provider-utils": "4.0.61"
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+ 			}
+ 		},
++		"node_modules/@ai-sdk/openai-compatible/node_modules/@ai-sdk/provider": {
++			"version": "4.0.34",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++			"integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"json-schema": "^0.4.0"
++			},
++			"engines": {
++				"node": ">=22"
++			}
++		},
++		"node_modules/@ai-sdk/openai-compatible/node_modules/@ai-sdk/provider-utils": {
++			"version": "5.0.70",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++			"integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@standard-schema/spec": "^1.1.0",
++				"@workflow/serde": "4.1.0",
++				"eventsource-parser": "^3.0.8",
++				"undici": "^7.29.0"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"node_modules/@ai-sdk/openai-compatible/node_modules/undici": {
++			"version": "7.30.1",
++			"resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++			"integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++			"license": "MIT",
++			"engines": {
++				"node": ">=20.18.1"
++			}
++		},
+ 		"node_modules/@ai-sdk/provider": {
+ 			"version": "3.0.19",
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.19.tgz",
+ 			"integrity": "sha512-5lWq7zSfRaU5ylDESn3sDQjgGl2AI1vjZKO/6JY3aFW70ct4zcP1kN+ZUYOuTXr28fVsYbyu2YFhddLdIgQFZQ==",
+ 			"license": "Apache-2.0",
++			"peer": true,
+ 			"dependencies": {
+ 				"json-schema": "^0.4.0"
+ 			},
+@@ -198,6 +342,7 @@
+ 			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.61.tgz",
+ 			"integrity": "sha512-spROQutwsgm9ezXdoKP5PUPuHnNqMnuFqjioihmYDMJaaJnknYiEXYctH9hL4NJjaHuQBIl4ageCNsIZrQ+yCg==",
+ 			"license": "Apache-2.0",
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/provider": "3.0.19",
+ 				"@standard-schema/spec": "^1.1.0",
+@@ -2678,9 +2823,6 @@
+ 				"arm64"
+ 			],
+ 			"dev": true,
+-			"libc": [
+-				"glibc"
+-			],
+ 			"license": "MIT",
+ 			"optional": true,
+ 			"os": [
+@@ -2695,9 +2837,6 @@
+ 				"arm64"
+ 			],
+ 			"dev": true,
+-			"libc": [
+-				"musl"
+-			],
+ 			"license": "MIT",
+ 			"optional": true,
+ 			"os": [
+@@ -2712,9 +2851,6 @@
+ 				"x64"
+ 			],
+ 			"dev": true,
+-			"libc": [
+-				"glibc"
+-			],
+ 			"license": "MIT",
+ 			"optional": true,
+ 			"os": [
+@@ -2729,9 +2865,6 @@
+ 				"x64"
+ 			],
+ 			"dev": true,
+-			"libc": [
+-				"musl"
+-			],
+ 			"license": "MIT",
+ 			"optional": true,
+ 			"os": [
+@@ -2979,6 +3112,7 @@
+ 			"resolved": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.0.tgz",
+ 			"integrity": "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==",
+ 			"license": "Apache-2.0",
++			"peer": true,
+ 			"engines": {
+ 				"node": ">=8.0.0"
+ 			}
+@@ -3534,6 +3668,12 @@
+ 				"npm": ">=7.0.0"
+ 			}
+ 		},
++		"node_modules/@workflow/serde": {
++			"version": "4.1.0",
++			"resolved": "https://registry.npmjs.org/@workflow/serde/-/serde-4.1.0.tgz",
++			"integrity": "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==",
++			"license": "Apache-2.0"
++		},
+ 		"node_modules/@yarnpkg/lockfile": {
+ 			"version": "1.1.0",
+ 			"resolved": "https://registry.npmjs.org/@yarnpkg/lockfile/-/lockfile-1.1.0.tgz",
+@@ -3602,6 +3742,7 @@
+ 			"resolved": "https://registry.npmjs.org/ai/-/ai-6.0.311.tgz",
+ 			"integrity": "sha512-KAq15radG9/R85sflVG+5NqsJg2kJCyTl+qiPKMElCxdNzDobMwJoHnh9Tydj76t90f/b6IdUZcTdlRYL8bcEA==",
+ 			"license": "Apache-2.0",
++			"peer": true,
+ 			"dependencies": {
+ 				"@ai-sdk/gateway": "3.0.218",
+ 				"@ai-sdk/provider": "3.0.19",
+@@ -9533,18 +9674,18 @@
+ 		},
+ 		"packages/ai-tools": {
+ 			"name": "@chainfuse/ai-tools",
+-			"version": "2.0.17",
++			"version": "2.0.18",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/anthropic": "^3.0.133",
+-				"@ai-sdk/azure": "^3.0.141",
+-				"@ai-sdk/google": "^3.0.136",
+-				"@ai-sdk/openai": "^3.0.10",
+-				"@ai-sdk/openai-compatible": "^2.0.86",
+-				"@ai-sdk/provider": "^3.0.19",
+-				"@chainfuse/helpers": "^5.0.8",
+-				"@chainfuse/types": "^4.2.34",
+-				"ai": "6.0.311",
++				"@ai-sdk/anthropic": "^4.0.0",
++				"@ai-sdk/azure": "^4.0.0",
++				"@ai-sdk/google": "^4.0.0",
++				"@ai-sdk/openai": "^4.0.0",
++				"@ai-sdk/openai-compatible": "^3.0.0",
++				"@ai-sdk/provider": "^4.0.0",
++				"@chainfuse/helpers": "^5.0.9",
++				"@chainfuse/types": "^4.2.35",
++				"ai": "^7.0.0",
+ 				"chalk": "^6.0.1",
+ 				"haversine-distance": "^1.2.4",
+ 				"workers-ai-provider": "^3.3.1",
+@@ -9558,12 +9699,134 @@
+ 				"node": ">=22.11.0"
+ 			}
+ 		},
++		"packages/ai-tools/node_modules/@ai-sdk/anthropic": {
++			"version": "4.0.90",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/anthropic/-/anthropic-4.0.90.tgz",
++			"integrity": "sha512-J0UD9KKy9yVC7rEMUB6MV7D5XyAv09FT57yGJXr4VuhvJVima4DWnF5IGNYqfspttT4tgF5nBAX2YewsA0DtxQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/@ai-sdk/gateway": {
++			"version": "4.0.128",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-4.0.128.tgz",
++			"integrity": "sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70",
++				"@vercel/oidc": "3.2.0"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/@ai-sdk/google": {
++			"version": "4.0.107",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/google/-/google-4.0.107.tgz",
++			"integrity": "sha512-BB3a85erZ8VN3aUzHawFfArKjCeqARRiC5xiNB3vc7Sw7Wshvv2LA+41VF2EJbnz5gCjZUmqdmOPFZ4Oz0MmQQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/@ai-sdk/openai": {
++			"version": "4.0.104",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-4.0.104.tgz",
++			"integrity": "sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/@ai-sdk/provider": {
++			"version": "4.0.34",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++			"integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"json-schema": "^0.4.0"
++			},
++			"engines": {
++				"node": ">=22"
++			}
++		},
++		"packages/ai-tools/node_modules/@ai-sdk/provider-utils": {
++			"version": "5.0.70",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++			"integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/provider": "4.0.34",
++				"@standard-schema/spec": "^1.1.0",
++				"@workflow/serde": "4.1.0",
++				"eventsource-parser": "^3.0.8",
++				"undici": "^7.29.0"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/ai": {
++			"version": "7.0.155",
++			"resolved": "https://registry.npmjs.org/ai/-/ai-7.0.155.tgz",
++			"integrity": "sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==",
++			"license": "Apache-2.0",
++			"dependencies": {
++				"@ai-sdk/gateway": "4.0.128",
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
++			},
++			"engines": {
++				"node": ">=22"
++			},
++			"peerDependencies": {
++				"zod": "^3.25.76 || ^4.1.8"
++			}
++		},
++		"packages/ai-tools/node_modules/undici": {
++			"version": "7.30.1",
++			"resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++			"integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++			"license": "MIT",
++			"engines": {
++				"node": ">=20.18.1"
++			}
++		},
+ 		"packages/helpers": {
+ 			"name": "@chainfuse/helpers",
+-			"version": "5.0.8",
++			"version": "5.0.9",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@chainfuse/types": "^4.2.34",
++				"@chainfuse/types": "^4.2.35",
+ 				"@discordjs/rest": "^2.6.3",
+ 				"chalk": "^6.0.1",
+ 				"cloudflare": "^7.3.0",
+@@ -9583,7 +9846,7 @@
+ 		},
+ 		"packages/types": {
+ 			"name": "@chainfuse/types",
+-			"version": "4.2.34",
++			"version": "4.2.35",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+ 				"validator": "^13.15.35",
+diff --git a/packages/ai-tools/__tests__/ai-tools.test.mts b/packages/ai-tools/__tests__/ai-tools.test.mts
+index 2b7233e..9037b00 100644
+--- a/packages/ai-tools/__tests__/ai-tools.test.mts
++++ b/packages/ai-tools/__tests__/ai-tools.test.mts
+@@ -201,6 +201,7 @@ await describe('AI Tests', () => {
+ 									}),
+ 									description: 'Return the current city and state of the runner',
+ 								}),
++								allowSystemInMessages: true,
+ 							});
+ 
+ 							let accumulatedOutput: AiStreamChunkType<(typeof result)['partialOutputStream']> = {};
+@@ -261,6 +262,7 @@ await describe('AI Tests', () => {
+ 									}),
+ 									description: 'Return the current city and state of the runner',
+ 								}),
++								allowSystemInMessages: true,
+ 							});
+ 
+ 							await doesNotReject(responsePromise);
+@@ -322,6 +324,7 @@ await describe('AI Tests', () => {
+ 										state: z4.string().describe('The ISO 3166-2 name for the first level region of the incoming request'),
+ 									}),
+ 								}),
++								allowSystemInMessages: true,
+ 							}).stream({
+ 								messages: [
+ 									{
+@@ -392,6 +395,7 @@ await describe('AI Tests', () => {
+ 										state: z4.string().describe('The ISO 3166-2 name for the first level region of the incoming request'),
+ 									}),
+ 								}),
++								allowSystemInMessages: true,
+ 							}).generate({
+ 								messages: [
+ 									{
+diff --git a/packages/ai-tools/package.json b/packages/ai-tools/package.json
+index 0c6feb7..cc9e631 100644
+--- a/packages/ai-tools/package.json
++++ b/packages/ai-tools/package.json
+@@ -48,15 +48,15 @@
+ 	},
+ 	"prettier": "@demosjarco/prettier-config",
+ 	"dependencies": {
+-		"@ai-sdk/anthropic": "^3.0.133",
+-		"@ai-sdk/azure": "^3.0.141",
+-		"@ai-sdk/google": "^3.0.136",
+-		"@ai-sdk/openai": "^3.0.10",
+-		"@ai-sdk/openai-compatible": "^2.0.86",
+-		"@ai-sdk/provider": "^3.0.19",
++		"@ai-sdk/anthropic": "^4.0.0",
++		"@ai-sdk/azure": "^4.0.0",
++		"@ai-sdk/google": "^4.0.0",
++		"@ai-sdk/openai": "^4.0.0",
++		"@ai-sdk/openai-compatible": "^3.0.0",
++		"@ai-sdk/provider": "^4.0.0",
+ 		"@chainfuse/helpers": "^5.0.9",
+ 		"@chainfuse/types": "^4.2.35",
+-		"ai": "^6.0.311",
++		"ai": "^7.0.0",
+ 		"chalk": "^6.0.1",
+ 		"haversine-distance": "^1.2.4",
+ 		"workers-ai-provider": "^3.3.1",
+diff --git a/packages/ai-tools/src/providers/types.mts b/packages/ai-tools/src/providers/types.mts
+index e625b22..4bdc4e6 100644
+--- a/packages/ai-tools/src/providers/types.mts
++++ b/packages/ai-tools/src/providers/types.mts
+@@ -1,47 +1,47 @@
+ import type { AzureOpenAIProvider as OriginalAzureOpenAIProvider } from '@ai-sdk/azure';
+-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider';
++import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4 } from '@ai-sdk/provider';
+ import type { AzureChatModels, AzureEmbeddingModels, AzureImageModels } from '@chainfuse/types/ai-tools/azure';
+ 
+ export interface AzureOpenAIProvider extends OriginalAzureOpenAIProvider {
+-	(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV3;
++	(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI chat model for text generation.
+ 	 */
+-	languageModel(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV3;
++	languageModel(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI chat model for text generation.
+ 	 */
+-	chat(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV3;
++	chat(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI responses API model for text generation.
+ 	 */
+-	responses(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV3;
++	responses(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI completion model for text generation.
+ 	 */
+-	completion(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV3;
++	completion(deploymentId: (typeof AzureChatModels)[number]): LanguageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI model for text embeddings.
+ 	 */
+-	embedding(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV3;
++	embedding(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI model for text embeddings.
+ 	 */
+-	embeddingModel(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV3;
++	embeddingModel(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV4;
+ 	/**
+ 	 * @deprecated Use `embedding` instead.
+ 	 */
+-	textEmbedding(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV3;
++	textEmbedding(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV4;
+ 	/**
+ 	 * @deprecated Use `embeddingModel` instead.
+ 	 */
+-	textEmbeddingModel(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV3;
++	textEmbeddingModel(deploymentId: (typeof AzureEmbeddingModels)[number]): EmbeddingModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI DALL-E model for image generation.
+ 	 */
+-	image(deploymentId: (typeof AzureImageModels)[number]): ImageModelV3;
++	image(deploymentId: (typeof AzureImageModels)[number]): ImageModelV4;
+ 	/**
+ 	 * Creates an Azure OpenAI DALL-E model for image generation.
+ 	 */
+-	imageModel(deploymentId: (typeof AzureImageModels)[number]): ImageModelV3;
++	imageModel(deploymentId: (typeof AzureImageModels)[number]): ImageModelV4;
+ }

@@ -210,6 +210,12 @@ export async function prStatusText(
     }
     const pr = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.num}`);
     const reviews: any[] = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.num}/reviews`);
+    // Bots (changeset-bot, socket-security, Copilot) and the PR author don't count as replies.
+    const author = pr.user?.login;
+    const human = (u: any) => !!u && u.type !== "Bot" && !/\[bot\]$/.test(u.login ?? "") && u.login !== author;
+    const issueComments: any[] = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/issues/${ref.num}/comments?per_page=100`);
+    const humanComments = issueComments.filter((c) => human(c.user)).length;
+    const humanReviews = reviews.filter((r) => human(r.user)).length;
     const state: PrStatus["state"] = pr.merged ? "merged" : pr.state === "open" ? "open" : "closed";
     const ts = (r: any) => {
       const t = Date.parse(r?.submitted_at ?? "");
@@ -220,14 +226,14 @@ export async function prStatusText(
       repo: repoName,
       state,
       mergedAt: pr.merged ? pr.merged_at ?? "" : null,
-      comments: pr.comments ?? 0,
+      comments: humanComments,
       review: latest && ["approved", "changes_requested", "dismissed"].includes(latest.state) ? (latest.state as PrStatus["review"]) : "none",
       daysOpen: -1,
     };
     opened++;
     if (state === "merged") merged++;
     else if (state === "closed") closedUnmerged++;
-    if (entry.comments > 0) maintainerReplies++;
+    if (humanComments + humanReviews > 0) maintainerReplies++;
 
     const openedAt = row.cells[cOpened]?.trim() ?? (pr.created_at ?? "").slice(0, 10);
     const endDay = state === "merged" && entry.mergedAt ? dayStart(entry.mergedAt) : today0;

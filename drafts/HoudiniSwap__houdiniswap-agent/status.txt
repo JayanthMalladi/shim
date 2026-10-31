@@ -1,0 +1,10 @@
+not-ready
+gates regressed: build, typecheck packages/ai-tools
+head: HEAD: b64bbcf
+
+Diagnosis (2026-10-28, no agent spend): genuine upgrade break, caused by a Shim bug. Not an environment problem and not caused by the package-typecheck gate change.
+- Both failures are TS2742 ("inferred type of createTools/createHoudiniTools cannot be named without a reference to ai/node_modules/@ai-sdk/provider").
+- Cause: the monorepo ROOT package.json (private, no `ai` dependency) has devDependency @ai-sdk/anthropic ^3.0.69. Shim's bumpAiSdk (src/bump.ts) only edits package.json files that depend on `ai` (findAiPackages), so the root one was left on v3. That keeps @ai-sdk/provider@3 hoisted at the top and npm nests the provider@4 that ai@7 needs under node_modules/ai/node_modules, which tsc cannot name in the emitted .d.ts.
+- Not the gate change: baseline already passed `build` and `typecheck packages/ai-tools` (that package has no typecheck script, so the gate was already `tsc --noEmit -p tsconfig.json`), and both fail only after the bump.
+- Verified: on a fresh clone at b64bbcf, bumping ai to ^7.0.0 in packages/ai-tools AND root @ai-sdk/anthropic to ^4.0.0 makes `npm run build`, `tsc --noEmit` in packages/ai-tools and ai-tools tests (25) all pass; no nested @ai-sdk/provider appears. The fixer agent (3 candidates, $3.34) correctly diagnosed this but is not allowed to bump deps, so it left the tree unchanged.
+- Shim bug to report: bumpAiSdk should also bump @ai-sdk/* ranges in workspace-root/other package.json files in the same repo (not only packages that depend on `ai`). With that fix this repo should become a normal deps-plus-example PR. `test .` (root) already failed at baseline.

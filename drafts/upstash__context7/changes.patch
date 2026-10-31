@@ -1,0 +1,332 @@
+diff --git a/.changeset/upgrade-ai-sdk-7.md b/.changeset/upgrade-ai-sdk-7.md
+new file mode 100644
+index 0000000..b4b31b6
+--- /dev/null
++++ b/.changeset/upgrade-ai-sdk-7.md
+@@ -0,0 +1,5 @@
++---
++"@upstash/context7-tools-ai-sdk": major
++---
++
++Upgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.
+diff --git a/packages/tools-ai-sdk/package.json b/packages/tools-ai-sdk/package.json
+index 94faa04..6c68664 100644
+--- a/packages/tools-ai-sdk/package.json
++++ b/packages/tools-ai-sdk/package.json
+@@ -35,7 +35,7 @@
+   },
+   "devDependencies": {
+     "@upstash/context7-sdk": "workspace:*",
+-    "ai": "^6.0.5",
++    "ai": "^7.0.0",
+     "zod": "^4.6.5",
+     "@openrouter/ai-sdk-provider": "^2.10.0",
+     "@types/node": "catalog:",
+diff --git a/packages/tools-ai-sdk/src/agents/context7.ts b/packages/tools-ai-sdk/src/agents/context7.ts
+index 0f3fb1d..46c56e9 100644
+--- a/packages/tools-ai-sdk/src/agents/context7.ts
++++ b/packages/tools-ai-sdk/src/agents/context7.ts
+@@ -1,4 +1,4 @@
+-import { ToolLoopAgent, type ToolLoopAgentSettings, type ToolSet, stepCountIs } from "ai";
++import { ToolLoopAgent, type ToolLoopAgentSettings, type ToolSet, isStepCount } from "ai";
+ import { resolveLibraryId, queryDocs } from "@tools";
+ import { AGENT_PROMPT } from "@prompts";
+ 
+@@ -39,7 +39,7 @@ export class Context7Agent extends ToolLoopAgent<never, ToolSet> {
+   constructor(config: Context7AgentConfig) {
+     const {
+       model,
+-      stopWhen = stepCountIs(5),
++      stopWhen = isStepCount(5),
+       instructions,
+       apiKey,
+ 
+diff --git a/packages/tools-ai-sdk/src/index.test.ts b/packages/tools-ai-sdk/src/index.test.ts
+index 5901e28..f5724df 100644
+--- a/packages/tools-ai-sdk/src/index.test.ts
++++ b/packages/tools-ai-sdk/src/index.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, test, expect } from "vitest";
+-import { generateText, stepCountIs, tool } from "ai";
++import { generateText, isStepCount, tool } from "ai";
+ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+ import { z } from "zod";
+ import {
+@@ -48,14 +48,14 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+           resolveLibraryId: resolveLibraryId(),
+         },
+         toolChoice: { type: "tool", toolName: "resolveLibraryId" },
+-        stopWhen: stepCountIs(2),
++        stopWhen: isStepCount(2),
+         prompt: "Search for 'react' library",
+       });
+ 
+-      expect(result.toolCalls.length).toBeGreaterThan(0);
+-      expect(result.toolCalls[0].toolName).toBe("resolveLibraryId");
+-      expect(result.toolResults.length).toBeGreaterThan(0);
+-      const toolResult = result.toolResults[0] as unknown as { output: string };
++      expect(result.finalStep.toolCalls.length).toBeGreaterThan(0);
++      expect(result.finalStep.toolCalls[0].toolName).toBe("resolveLibraryId");
++      expect(result.finalStep.toolResults.length).toBeGreaterThan(0);
++      const toolResult = result.finalStep.toolResults[0] as unknown as { output: string };
+       expect(typeof toolResult.output).toBe("string");
+       expect(toolResult.output).toContain("Context7-compatible library ID");
+     }, 30000);
+@@ -67,14 +67,14 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+           queryDocs: queryDocs(),
+         },
+         toolChoice: { type: "tool", toolName: "queryDocs" },
+-        stopWhen: stepCountIs(2),
++        stopWhen: isStepCount(2),
+         prompt: "Fetch documentation for library ID '/facebook/react' about hooks",
+       });
+ 
+-      expect(result.toolCalls.length).toBeGreaterThan(0);
+-      expect(result.toolCalls[0].toolName).toBe("queryDocs");
+-      expect(result.toolResults.length).toBeGreaterThan(0);
+-      const toolResult = result.toolResults[0] as unknown as { output: string };
++      expect(result.finalStep.toolCalls.length).toBeGreaterThan(0);
++      expect(result.finalStep.toolCalls[0].toolName).toBe("queryDocs");
++      expect(result.finalStep.toolResults.length).toBeGreaterThan(0);
++      const toolResult = result.finalStep.toolResults[0] as unknown as { output: string };
+       expect(typeof toolResult.output).toBe("string");
+       expect(toolResult.output.length).toBeGreaterThan(0);
+     }, 30000);
+@@ -86,7 +86,7 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+           resolveLibraryId: resolveLibraryId(),
+           queryDocs: queryDocs(),
+         },
+-        stopWhen: stepCountIs(5),
++        stopWhen: isStepCount(5),
+         prompt:
+           "First use resolveLibraryId to find the Next.js library, then use queryDocs to get documentation about routing",
+       });
+@@ -125,7 +125,7 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+     test("should include Context7 tools in generate result", async () => {
+       const agent = new Context7Agent({
+         model,
+-        stopWhen: stepCountIs(5),
++        stopWhen: isStepCount(5),
+       });
+ 
+       const result = await agent.generate({
+diff --git a/packages/tools-ai-sdk/src/tools/query-docs.ts b/packages/tools-ai-sdk/src/tools/query-docs.ts
+index e00383a..6425816 100644
+--- a/packages/tools-ai-sdk/src/tools/query-docs.ts
++++ b/packages/tools-ai-sdk/src/tools/query-docs.ts
+@@ -1,4 +1,4 @@
+-import { tool } from "ai";
++import { tool, type Tool } from "ai";
+ import { z } from "zod";
+ import { Context7 } from "@upstash/context7-sdk";
+ import type { Context7ToolsConfig } from "./types";
+@@ -30,7 +30,9 @@ import { QUERY_DOCS_DESCRIPTION } from "@prompts";
+  * });
+  * ```
+  */
+-export function queryDocs(config: Context7ToolsConfig = {}) {
++export function queryDocs(
++  config: Context7ToolsConfig = {}
++): Tool<{ libraryId: string; query: string }, string> {
+   const { apiKey } = config;
+   const getClient = () => new Context7({ apiKey });
+ 
+diff --git a/packages/tools-ai-sdk/src/tools/resolve-library-id.ts b/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
+index a33c6c1..ad3cce2 100644
+--- a/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
++++ b/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
+@@ -1,4 +1,4 @@
+-import { tool } from "ai";
++import { tool, type Tool } from "ai";
+ import { z } from "zod";
+ import { Context7 } from "@upstash/context7-sdk";
+ import { RESOLVE_LIBRARY_ID_DESCRIPTION } from "@prompts";
+@@ -30,7 +30,9 @@ import type { Context7ToolsConfig } from "./types";
+  * });
+  * ```
+  */
+-export function resolveLibraryId(config: Context7ToolsConfig = {}) {
++export function resolveLibraryId(
++  config: Context7ToolsConfig = {}
++): Tool<{ query: string; libraryName: string }, string> {
+   const { apiKey } = config;
+   const getClient = () => new Context7({ apiKey });
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index fe2cdc3..f353702 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -302,7 +302,7 @@ importers:
+     devDependencies:
+       '@openrouter/ai-sdk-provider':
+         specifier: ^2.10.0
+-        version: 2.10.0(ai@6.0.23(zod@4.6.5))(zod@4.6.5)
++        version: 2.10.0(ai@7.0.148(zod@4.6.5))(zod@4.6.5)
+       '@types/node':
+         specifier: 'catalog:'
+         version: 25.9.8
+@@ -310,8 +310,8 @@ importers:
+         specifier: workspace:*
+         version: link:../sdk
+       ai:
+-        specifier: ^6.0.5
+-        version: 6.0.23(zod@4.6.5)
++        specifier: ^7.0.0
++        version: 7.0.148(zod@4.6.5)
+       dotenv:
+         specifier: 'catalog:'
+         version: 17.4.2
+@@ -330,26 +330,26 @@ importers:
+ 
+ packages:
+ 
+-  '@ai-sdk/gateway@3.0.10':
+-    resolution: {integrity: sha512-sRlPMKd38+fdp2y11USW44c0o8tsIsT6T/pgyY04VXC3URjIRnkxugxd9AkU2ogfpPDMz50cBAGPnMxj+6663Q==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/gateway@4.0.121':
++    resolution: {integrity: sha512-cPNXvQ4B5OkmVAm98Dxe1fHdMthyqqqAG0HJx3D92NUa9FpcvkNxdAqiuZdeAhNAodFb9lBrslzzzEwxuVS53A==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/provider-utils@4.0.4':
+-    resolution: {integrity: sha512-VxhX0B/dWGbpNHxrKCWUAJKXIXV015J4e7qYjdIU9lLWeptk0KMLGcqkB4wFxff5Njqur8dt8wRi1MN9lZtDqg==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/provider-utils@5.0.65':
++    resolution: {integrity: sha512-LCugcsP8oWmdeI3BASf4Fuo1wiC6Qx0YrefFssl7n12s+LV4DNi5RdwWQrtrB4oek3GGNQRN/h/NSwVZM2eHKw==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/provider@3.0.2':
+-    resolution: {integrity: sha512-HrEmNt/BH/hkQ7zpi2o6N3k1ZR1QTb7z85WYhYygiTxOQuaml4CMtHCWRbric5WPU+RNsYI7r1EpyVQMKO1pYw==}
+-    engines: {node: '>=18'}
+-
+   '@ai-sdk/provider@3.0.8':
+     resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
+     engines: {node: '>=18'}
+ 
++  '@ai-sdk/provider@4.0.31':
++    resolution: {integrity: sha512-3wJnwVTFg8SwOyoZCv+ov7Re2GB+7IQnU5a5MYJACrtiWDDUHgqTBeeesq2MB2ddgojzL8hgWleltwpAgtUqfg==}
++    engines: {node: '>=22'}
++
+   '@anthropic-ai/sdk@0.91.1':
+     resolution: {integrity: sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw==}
+     hasBin: true
+@@ -2137,8 +2137,8 @@ packages:
+     resolution: {integrity: sha512-8eQ9R218XORK+KLosnf4bu/QsUXvUyVwTbArg7/0NMB1Pu87OJKvj4nhFblkYE8gQV73mW1dx1ptlPCkwRGa7A==}
+     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+ 
+-  '@vercel/oidc@3.1.0':
+-    resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
++  '@vercel/oidc@3.2.0':
++    resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
+     engines: {node: '>= 20'}
+ 
+   '@vitest/mocker@5.0.3':
+@@ -2155,6 +2155,9 @@ packages:
+   '@vitest/spy@5.0.3':
+     resolution: {integrity: sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg==}
+ 
++  '@workflow/serde@4.1.0':
++    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
++
+   abbrev@4.0.0:
+     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
+     engines: {node: ^20.17.0 || >=22.9.0}
+@@ -2177,9 +2180,9 @@ packages:
+     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
+     engines: {node: '>= 14'}
+ 
+-  ai@6.0.23:
+-    resolution: {integrity: sha512-IV8hqp6sQvZ0XVlu8bCnFlwG7+2d40ff26RZ1k4yw/zVuk2F6SXlONURtTo9vwPOPYeF7auXvyPA+dMDoepWxg==}
+-    engines: {node: '>=18'}
++  ai@7.0.148:
++    resolution: {integrity: sha512-FPgfIAhz/FrlzcvqTN7pGGibahR5rD19NXZWX9WQ1tskTic+CN+jxvubpreyq8uN1maIEHPwvZmil/3IYN8FIw==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+@@ -3946,25 +3949,27 @@ packages:
+ 
+ snapshots:
+ 
+-  '@ai-sdk/gateway@3.0.10(zod@4.6.5)':
++  '@ai-sdk/gateway@4.0.121(zod@4.6.5)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.2
+-      '@ai-sdk/provider-utils': 4.0.4(zod@4.6.5)
+-      '@vercel/oidc': 3.1.0
++      '@ai-sdk/provider': 4.0.31
++      '@ai-sdk/provider-utils': 5.0.65(zod@4.6.5)
++      '@vercel/oidc': 3.2.0
+       zod: 4.6.5
+ 
+-  '@ai-sdk/provider-utils@4.0.4(zod@4.6.5)':
++  '@ai-sdk/provider-utils@5.0.65(zod@4.6.5)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.2
++      '@ai-sdk/provider': 4.0.31
+       '@standard-schema/spec': 1.1.0
++      '@workflow/serde': 4.1.0
+       eventsource-parser: 3.1.1
++      undici: 7.30.0
+       zod: 4.6.5
+ 
+-  '@ai-sdk/provider@3.0.2':
++  '@ai-sdk/provider@3.0.8':
+     dependencies:
+       json-schema: 0.4.0
+ 
+-  '@ai-sdk/provider@3.0.8':
++  '@ai-sdk/provider@4.0.31':
+     dependencies:
+       json-schema: 0.4.0
+ 
+@@ -5272,9 +5277,9 @@ snapshots:
+       - supports-color
+       - utf-8-validate
+ 
+-  '@openrouter/ai-sdk-provider@2.10.0(ai@6.0.23(zod@4.6.5))(zod@4.6.5)':
++  '@openrouter/ai-sdk-provider@2.10.0(ai@7.0.148(zod@4.6.5))(zod@4.6.5)':
+     dependencies:
+-      ai: 6.0.23(zod@4.6.5)
++      ai: 7.0.148(zod@4.6.5)
+       zod: 4.6.5
+ 
+   '@opentelemetry/api-logs@0.219.0':
+@@ -5814,7 +5819,7 @@ snapshots:
+       '@typescript-eslint/types': 8.71.0
+       eslint-visitor-keys: 5.0.1
+ 
+-  '@vercel/oidc@3.1.0': {}
++  '@vercel/oidc@3.2.0': {}
+ 
+   '@vitest/mocker@5.0.3(vite@7.2.4(@types/node@25.9.8)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
+     dependencies:
+@@ -5827,6 +5832,8 @@ snapshots:
+ 
+   '@vitest/spy@5.0.3': {}
+ 
++  '@workflow/serde@4.1.0': {}
++
+   abbrev@4.0.0: {}
+ 
+   accepts@2.0.0:
+@@ -5842,12 +5849,11 @@ snapshots:
+ 
+   agent-base@7.1.4: {}
+ 
+-  ai@6.0.23(zod@4.6.5):
++  ai@7.0.148(zod@4.6.5):
+     dependencies:
+-      '@ai-sdk/gateway': 3.0.10(zod@4.6.5)
+-      '@ai-sdk/provider': 3.0.2
+-      '@ai-sdk/provider-utils': 4.0.4(zod@4.6.5)
+-      '@opentelemetry/api': 1.9.0
++      '@ai-sdk/gateway': 4.0.121(zod@4.6.5)
++      '@ai-sdk/provider': 4.0.31
++      '@ai-sdk/provider-utils': 5.0.65(zod@4.6.5)
+       zod: 4.6.5
+ 
+   ajv-formats@3.0.1(ajv@8.20.0):

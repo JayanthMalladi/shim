@@ -1,0 +1,5 @@
+not-ready
+gates regressed: build, typecheck .
+head: HEAD: 245da59
+
+Vs last night: the old reason (an `as unknown as` cast hiding a type mismatch) is gone because the fixer now refuses to cast and leaves the tree unchanged. STILL NOT READY, new reason: gates regressed (build, typecheck .) with TS2352 at src/venice-provider.ts:113. @ai-sdk/openai-compatible ^3 returns v4 spec models while VeniceProvider/VeniceChatLanguageModel are written against ProviderV3/LanguageModelV3. Genuine break that needs a human: migrate the provider to the v4 spec (breaking public API) or keep openai-compatible on ^2. Judge not run (only runs on open-pr).

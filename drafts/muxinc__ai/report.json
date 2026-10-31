@@ -1,0 +1,142 @@
+{
+  "repo": "muxinc/ai",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/anthropic: ^3.0.16 -> ^4.0.0",
+    "@ai-sdk/google: ^3.0.10 -> ^4.0.0",
+    "@ai-sdk/openai: ^3.0.124 -> ^4.0.0",
+    "@ai-sdk/openai-compatible: ^2.0.51 -> ^3.0.0",
+    "ai: ^6.0.42 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 3,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=21.0.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "scripts/post-evalite-results.ts",
+      "line": 1014,
+      "snippet": "{ role: \"system\", content: systemPrompt }",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "scripts/verify-vision-models.ts",
+      "line": 80,
+      "snippet": "{",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "telemetry-needs-otel",
+      "severity": "silent",
+      "fix": "manual",
+      "file": "src/workflows/ask-questions.ts",
+      "line": 727,
+      "snippet": "telemetry: { isEnabled: true }",
+      "message": "OpenTelemetry moved to @ai-sdk/otel. Without `registerTelemetry(new OpenTelemetry())` at startup, traces stop being emitted with no error. Install @ai-sdk/otel and register it once."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "src/workflows/generate-text.ts",
+      "line": 829,
+      "snippet": "messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json                              | 162 ++++++++++---------------\n package.json                                   |  10 +-\n scripts/post-evalite-results.ts                |   1 +\n scripts/verify-vision-models.ts                |   7 +-\n src/lib/providers.ts                           |  14 +--\n src/lib/text-repair-model.ts                   |   4 +-\n src/workflows/ask-questions.ts                 |  14 ++-\n src/workflows/burned-in-captions.ts            |  14 ++-\n src/workflows/chapters.ts                      |   6 +-\n src/workflows/edit-captions.ts                 |   6 +-\n src/workflows/engagement-insights.ts           |   8 +-\n src/workflows/generate-text.ts                 |   5 +-\n src/workflows/summarization.ts                 |  18 +--\n src/workflows/translate-captions.ts            |  12 +-\n tests/eval/ask-questions.eval.ts               |   2 +-\n tests/eval/burned-in-captions.eval.ts          |   2 +-\n tests/eval/chapters-translation.eval.ts        |   2 +-\n tests/eval/chapters.eval.ts                    |   2 +-\n tests/eval/summarization-translation.eval.ts   |   2 +-\n tests/eval/summarization.eval.ts               |   2 +-\n tests/eval/translate-captions.eval.ts          |   4 +-\n tests/unit/chapters-scope.test.ts              |   4 +-\n tests/unit/generate-text.test.ts               |  38 ++++--\n tests/unit/summarization-scene-context.test.ts |  23 ++--\n tests/unit/translate-captions.test.ts          |   4 +-\n 25 files changed, 186 insertions(+), 180 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json",
+    "scripts/post-evalite-results.ts",
+    "scripts/verify-vision-models.ts",
+    "src/lib/providers.ts",
+    "src/lib/text-repair-model.ts",
+    "src/workflows/ask-questions.ts",
+    "src/workflows/burned-in-captions.ts",
+    "src/workflows/chapters.ts",
+    "src/workflows/edit-captions.ts",
+    "src/workflows/engagement-insights.ts",
+    "src/workflows/generate-text.ts",
+    "src/workflows/summarization.ts",
+    "src/workflows/translate-captions.ts",
+    "tests/eval/ask-questions.eval.ts",
+    "tests/eval/burned-in-captions.eval.ts",
+    "tests/eval/chapters-translation.eval.ts",
+    "tests/eval/chapters.eval.ts",
+    "tests/eval/summarization-translation.eval.ts",
+    "tests/eval/summarization.eval.ts",
+    "tests/eval/translate-captions.eval.ts",
+    "tests/unit/chapters-scope.test.ts",
+    "tests/unit/generate-text.test.ts",
+    "tests/unit/summarization-scene-context.test.ts",
+    "tests/unit/translate-captions.test.ts"
+  ],
+  "repairedChecks": [
+    "build",
+    "typecheck ."
+  ],
+  "agentRuns": [
+    "I reverted the codemod's edits in `src/lib/token-usage.ts` and `src/lib/content-policy-error.ts`. Both files are now identical to before the codemod ran. `npx --no-install tsc --noEmit -p tsconfig.json` now passes with no errors. I didn't re-run the `build` check, but its type-declaration step failed on the same `token-usage.ts` errors, which are gone now.\n\n**What was wrong:** the codemod meant to rewrite the AI SDK's own usage fields: `usage.reasoningTokens` became `usage.outputTokenDetails.reasoningTokens`, and `usage.cachedInputTokens` became `usage.inputTokenDetails.cacheReadTokens`. In these two files it also rewrote values of the repo's own `TokenUsage` type (`extracted` and `combined`). That type still has flat `reasoningTokens` and `cachedInputTokens` fields, so the new paths didn't exist.\n\nIn `token-usage.ts` it also turned `(source.outputTokenDetails as …)?.reasoningTokens` into `(…).outputTokenDetails.reasoningTokens`. That reads the details object one level too deep and removes the `?.`, so it would crash whenever the details are missing.\n\nThe reads from the raw SDK usage object (`source.outputTokenDetails`, `source.inputTokenDetails`, `usage?.inputTokenDetails`) were already in the v7 nested shape before the codemod, so v6 behaviour is unchanged.\n\nI made no other changes. No type casts or error suppressions were added, and no sites were left unfixed."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 1.4586519999999998,
+  "fixMs": 303693
+}

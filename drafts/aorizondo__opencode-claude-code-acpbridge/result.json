@@ -1,0 +1,15 @@
+{
+  "repo": "aorizondo/opencode-claude-code-acpbridge",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.32594580000000006
+  },
+  "cost": 0.2617216,
+  "fixMs": 38518,
+  "candidates": [],
+  "diffStat": " 8 files changed, 165 insertions(+), 37 deletions(-)"
+}

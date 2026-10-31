@@ -13,11 +13,18 @@ function fixture() {
   const d = { open10: daysAgo(10), merged5: daysAgo(5), fast1: daysAgo(1), closed8: daysAgo(8) };
   const prs = {
     "requestyai/ai-sdk-requesty:66": {
-      body: { state: "open", merged: false, merge_commit_sha: null, comments: 4 },
-      reviews: [{ state: "changes_requested", submitted_at: new Date(Date.now() - 3_600_000).toISOString() }],
+      body: { state: "open", merged: false, merge_commit_sha: null, comments: 6, user: { login: "JayanthMalladi", type: "User" } },
+      reviews: [{ state: "changes_requested", user: { login: "maint", type: "User" }, submitted_at: new Date(Date.now() - 3_600_000).toISOString() }],
+      // 4 maintainer comments; the author's own reply and a bot don't count.
+      comments: [
+        ...Array.from({ length: 4 }, () => ({ user: { login: "maint", type: "User" } })),
+        { user: { login: "JayanthMalladi", type: "User" } },
+        { user: { login: "changeset-bot[bot]", type: "Bot" } },
+      ],
     },
     "vercel-ai/quick:10": {
       body: { state: "closed", merged: true, merge_commit_sha: "abc123", comments: 2, merged_at: `${d.merged5}T00:00:00Z` },
+      comments: [{ user: { login: "a", type: "User" } }, { user: { login: "b", type: "User" } }],
       reviews: [{ state: "approved", submitted_at: `${d.merged5}T00:00:00Z` }],
     },
     "vercel-ai/quick:7": {
@@ -25,15 +32,17 @@ function fixture() {
       reviews: [],
     },
     "someorg/stalled:3": {
-      body: { state: "closed", merged: false, merge_commit_sha: null, comments: 0 },
-      reviews: [{ state: "approved", submitted_at: `${d.closed8}T00:00:00Z` }],
+      body: { state: "closed", merged: false, merge_commit_sha: null, comments: 3 },
+      reviews: [{ state: "approved", user: { login: "Copilot", type: "Bot" }, submitted_at: `${d.closed8}T00:00:00Z` }],
+      // Only bots commented (as on ChainFuse#1136): not a maintainer reply.
+      comments: [{ user: { login: "socket-security[bot]", type: "Bot" } }, { user: { login: "changeset-bot[bot]", type: "Bot" } }, { user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" } }],
     },
   };
   const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
-    const m = url.match(/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)(\/reviews)?$/)!;
-    const fixture1 = prs[`${m[1]}/${m[2]}:${m[3]}`];
+    const m = url.match(/repos\/([^/]+)\/([^/]+)\/(pulls|issues)\/(\d+)(\/reviews|\/comments)?(\?.*)?$/)!;
+    const fixture1 = (prs as Record<string, any>)[`${m[1]}/${m[2]}:${m[4]}`];
     if (!fixture1) throw new Error(`unexpected url ${url}`);
-    const body = m[4] ? fixture1.reviews : fixture1.body;
+    const body = m[5] === "/reviews" ? fixture1.reviews : m[5] === "/comments" ? fixture1.comments ?? [] : fixture1.body;
     return { ok: true, status: 200, json: async () => body, _init: init } as unknown as Response;
   });
   const csv = [
@@ -59,7 +68,7 @@ describe("prStatusText", () => {
     expect(report.table[0]).toMatchObject({ repo: "requestyai/ai-sdk-requesty", state: "open", comments: 4, review: "changes_requested" });
     expect(report.table[1]).toMatchObject({ repo: "vercel-ai/quick", state: "merged", review: "approved" });
     // An approval never counts as a merge: the closed PR with an approved review is closed-unmerged.
-    expect(report.table[3]).toMatchObject({ repo: "someorg/stalled", state: "closed", review: "approved" });
+    expect(report.table[3]).toMatchObject({ repo: "someorg/stalled", state: "closed", review: "approved", comments: 0 });
     expect(report.table[4]).toMatchObject({ repo: "local/none", daysOpen: -1 });
   });
 
@@ -138,7 +147,7 @@ describe("auth", () => {
     process.env.GITHUB_TOKEN = "shim-test-token";
     await prStatusText(csv, { fetchFn });
     const withAuth = fetchFn.mock.calls as unknown as Array<[string, RequestInit?]>;
-    expect(withAuth.length).toBe(8);
+    expect(withAuth.length).toBe(12);
     expect(withAuth.every(([, init]) => (init?.headers as Record<string, string>)?.authorization === "Bearer shim-test-token")).toBe(true);
 
     delete process.env.GITHUB_TOKEN;

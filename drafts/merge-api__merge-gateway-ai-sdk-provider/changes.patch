@@ -1,0 +1,222 @@
+diff --git a/package-lock.json b/package-lock.json
+index b9d9254..d1db09d 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,20 +1,20 @@
+ {
+   "name": "merge-gateway-ai-sdk-provider",
+-  "version": "0.2.0",
++  "version": "0.3.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "merge-gateway-ai-sdk-provider",
+-      "version": "0.2.0",
++      "version": "0.3.0",
+       "license": "MIT",
+       "dependencies": {
+-        "@ai-sdk/provider-utils": "^4.0.23"
++        "@ai-sdk/provider-utils": "^5.0.0"
+       },
+       "devDependencies": {
+-        "@ai-sdk/provider": "3.0.8",
+-        "@ai-sdk/provider-utils": "4.0.23",
+-        "ai": "6.0.157",
++        "@ai-sdk/provider": "^4.0.0",
++        "@ai-sdk/provider-utils": "^5.0.0",
++        "ai": "^7.0.0",
+         "tsup": "8.5.1",
+         "typescript": "~5.7.0",
+         "vitest": "3.0.0",
+@@ -28,49 +28,51 @@
+       }
+     },
+     "node_modules/@ai-sdk/gateway": {
+-      "version": "3.0.95",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.95.tgz",
+-      "integrity": "sha512-ZmUNNbZl3V42xwQzPaNUi+s8eqR2lnrxf0bvB6YbLXpLjHYv0k2Y78t12cNOfY0bxGeuVVTLyk856uLuQIuXEQ==",
++      "version": "4.0.128",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-4.0.128.tgz",
++      "integrity": "sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.8",
+-        "@ai-sdk/provider-utils": "4.0.23",
+-        "@vercel/oidc": "3.1.0"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70",
++        "@vercel/oidc": "3.2.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/provider": {
+-      "version": "3.0.8",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.8.tgz",
+-      "integrity": "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==",
++      "version": "4.0.34",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++      "integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+         "json-schema": "^0.4.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       }
+     },
+     "node_modules/@ai-sdk/provider-utils": {
+-      "version": "4.0.23",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.23.tgz",
+-      "integrity": "sha512-z8GlDaCmRSDlqkMF2f4/RFgWxdarvIbyuk+m6WXT1LYgsnGiXRJGTD2Z1+SDl3LqtFuRtGX1aghYvQLoHL/9pg==",
++      "version": "5.0.70",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++      "integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.8",
++        "@ai-sdk/provider": "4.0.34",
+         "@standard-schema/spec": "^1.1.0",
+-        "eventsource-parser": "^3.0.6"
++        "@workflow/serde": "4.1.0",
++        "eventsource-parser": "^3.0.8",
++        "undici": "^7.29.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+@@ -557,16 +559,6 @@
+         "@jridgewell/sourcemap-codec": "^1.4.14"
+       }
+     },
+-    "node_modules/@opentelemetry/api": {
+-      "version": "1.9.0",
+-      "resolved": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.0.tgz",
+-      "integrity": "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==",
+-      "dev": true,
+-      "license": "Apache-2.0",
+-      "engines": {
+-        "node": ">=8.0.0"
+-      }
+-    },
+     "node_modules/@rollup/rollup-android-arm-eabi": {
+       "version": "4.60.1",
+       "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.60.1.tgz",
+@@ -932,9 +924,9 @@
+       "license": "MIT"
+     },
+     "node_modules/@vercel/oidc": {
+-      "version": "3.1.0",
+-      "resolved": "https://registry.npmjs.org/@vercel/oidc/-/oidc-3.1.0.tgz",
+-      "integrity": "sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==",
++      "version": "3.2.0",
++      "resolved": "https://registry.npmjs.org/@vercel/oidc/-/oidc-3.2.0.tgz",
++      "integrity": "sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "engines": {
+@@ -1080,6 +1072,13 @@
+         "url": "https://opencollective.com/vitest"
+       }
+     },
++    "node_modules/@workflow/serde": {
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/@workflow/serde/-/serde-4.1.0.tgz",
++      "integrity": "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==",
++      "dev": true,
++      "license": "Apache-2.0"
++    },
+     "node_modules/acorn": {
+       "version": "8.16.0",
+       "resolved": "https://registry.npmjs.org/acorn/-/acorn-8.16.0.tgz",
+@@ -1094,19 +1093,18 @@
+       }
+     },
+     "node_modules/ai": {
+-      "version": "6.0.157",
+-      "resolved": "https://registry.npmjs.org/ai/-/ai-6.0.157.tgz",
+-      "integrity": "sha512-NvGOPIkaMGlaHhu7xXjCdDtILeNN0Yws6JiZLYaq4cGBf8JUFfGcOPCt4LdV5z5qwEbvp1jiH3yzgoqFl0BeSQ==",
++      "version": "7.0.155",
++      "resolved": "https://registry.npmjs.org/ai/-/ai-7.0.155.tgz",
++      "integrity": "sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/gateway": "3.0.95",
+-        "@ai-sdk/provider": "3.0.8",
+-        "@ai-sdk/provider-utils": "4.0.23",
+-        "@opentelemetry/api": "1.9.0"
++        "@ai-sdk/gateway": "4.0.128",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+@@ -1313,9 +1311,9 @@
+       }
+     },
+     "node_modules/eventsource-parser": {
+-      "version": "3.0.6",
+-      "resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.0.6.tgz",
+-      "integrity": "sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==",
++      "version": "3.1.1",
++      "resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.1.1.tgz",
++      "integrity": "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==",
+       "dev": true,
+       "license": "MIT",
+       "engines": {
+@@ -1941,6 +1939,16 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/undici": {
++      "version": "7.30.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=20.18.1"
++      }
++    },
+     "node_modules/vite": {
+       "version": "6.4.2",
+       "resolved": "https://registry.npmjs.org/vite/-/vite-6.4.2.tgz",
+diff --git a/package.json b/package.json
+index 6cdd85b..6775831 100644
+--- a/package.json
++++ b/package.json
+@@ -68,12 +68,12 @@
+     "@ai-sdk/provider": ">=2.0.0"
+   },
+   "dependencies": {
+-    "@ai-sdk/provider-utils": "^4.0.23"
++    "@ai-sdk/provider-utils": "^5.0.0"
+   },
+   "devDependencies": {
+-    "@ai-sdk/provider": "3.0.8",
+-    "@ai-sdk/provider-utils": "4.0.23",
+-    "ai": "6.0.157",
++    "@ai-sdk/provider": "^4.0.0",
++    "@ai-sdk/provider-utils": "^5.0.0",
++    "ai": "^7.0.0",
+     "typescript": "~5.7.0",
+     "vitest": "3.0.0",
+     "tsup": "8.5.1",

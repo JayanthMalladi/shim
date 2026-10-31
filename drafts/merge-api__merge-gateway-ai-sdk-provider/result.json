@@ -1,0 +1,15 @@
+{
+  "repo": "merge-api/merge-gateway-ai-sdk-provider",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.3230804
+  },
+  "cost": 0.1383602,
+  "fixMs": 22683,
+  "candidates": [],
+  "diffStat": " 2 files changed, 59 insertions(+), 51 deletions(-)"
+}

@@ -1,0 +1,55 @@
+{
+  "repo": "merge-api/merge-gateway-ai-sdk-provider",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/provider-utils: ^4.0.23 -> ^5.0.0",
+    "@ai-sdk/provider: 3.0.8 -> ^4.0.0",
+    "@ai-sdk/provider-utils: 4.0.23 -> ^5.0.0",
+    "ai: 6.0.157 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=18\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json | 102 +++++++++++++++++++++++++++++-------------------------\n package.json      |   8 ++---\n 2 files changed, 59 insertions(+), 51 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 0.1383602,
+  "fixMs": 22683
+}

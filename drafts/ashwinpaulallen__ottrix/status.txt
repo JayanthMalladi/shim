@@ -1,0 +1,5 @@
+not-ready
+gates regressed: typecheck ., typecheck packages/vercel-ai
+head: HEAD: f9a8455
+
+Vs last night: the old problem (package `typecheck` script `tsc && tsc -p tsconfig.test.json` never gated) is now gone: `typecheck packages/vercel-ai` and `typecheck .` are gated and passed at baseline. STILL NOT READY, new reason: both regress after the upgrade on one test file, packages/vercel-ai/tests/vercel-ai.test.ts:159 (`{ toolCallId, messages }` lacks the now-required `context` in ToolExecutionOptions). The upgrade really breaks it; the fixer correctly added `context: undefined` in src/tools.ts but its rules forbid editing tests, so all 3 candidates failed. A one-line test edit (`context: undefined`) would likely fix it. Also seen: the codemod wrongly renamed `system` to `instructions` in packages/core/src/providers/anthropic.ts (raw Anthropic HTTP body); the fixer reverted it.

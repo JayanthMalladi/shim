@@ -1,0 +1,37 @@
+{
+  "repo": "neurophic/neurophic-sdk-js",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.5415272
+  },
+  "cost": 4.1648078,
+  "fixMs": 274905,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 20,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 13,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 18,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "diffStat": " 3 files changed, 55 insertions(+), 42 deletions(-)"
+}
