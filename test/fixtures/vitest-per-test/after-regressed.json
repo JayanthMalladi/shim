@@ -1,0 +1,16 @@
+{
+  "numTotalTests": 3,
+  "numPassedTests": 1,
+  "numFailedTests": 2,
+  "success": false,
+  "testResults": [
+    {
+      "name": "D:/repo/test/a.test.ts",
+      "assertionResults": [
+        { "ancestorTitles": ["billing"], "fullName": "billing sums", "title": "sums", "status": "failed" },
+        { "ancestorTitles": ["billing"], "fullName": "billing renders", "title": "renders", "status": "failed" },
+        { "ancestorTitles": ["billing"], "fullName": "billing refunds", "title": "refunds", "status": "failed" }
+      ]
+    }
+  ]
+}

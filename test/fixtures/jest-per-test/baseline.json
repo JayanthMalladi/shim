@@ -1,0 +1,16 @@
+{
+  "numTotalTests": 3,
+  "numPassedTests": 2,
+  "numFailedTests": 1,
+  "success": false,
+  "testResults": [
+    {
+      "testFilePath": "D:/repo/test/c.test.js",
+      "assertionResults": [
+        { "ancestorTitles": ["auth"], "fullName": "auth login", "title": "login", "status": "passed" },
+        { "ancestorTitles": ["auth"], "fullName": "auth logout", "title": "logout", "status": "passed" },
+        { "ancestorTitles": ["auth"], "fullName": "auth token", "title": "token", "status": "failed" }
+      ]
+    }
+  ]
+}

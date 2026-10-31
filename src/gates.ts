@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { run, type ExecResult } from "./exec.js";
 
@@ -6,6 +7,9 @@ export type PackageManager = "pnpm" | "yarn" | "bun" | "npm";
 /** "install", "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
 export type GateName = string;
 export type GateResults = Record<GateName, ExecResult>;
+
+/** Per-test outcome for a test gate: id (relative file + full test name) -> passed. */
+export type PerTest = Record<string, boolean>;
 
 export function detectPackageManager(dir: string): PackageManager {
   if (fs.existsSync(path.join(dir, "pnpm-lock.yaml"))) return "pnpm";
@@ -53,7 +57,7 @@ export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDi
     }
     const testScript = readPkg(pkgDir)?.scripts?.test;
     if (typeof testScript === "string" && !testScript.includes("no test specified")) {
-      results[`test ${rel}`] = run(pm, ["run", "test"], pkgDir);
+      results[`test ${rel}`] = capturePerTest(run(pm, ["run", "test"], pkgDir), pkgDir, readPkg(pkgDir));
     }
   }
   return results;
@@ -63,6 +67,80 @@ const MAX_GATED_PACKAGES = 12;
 
 export function hasTypecheckScript(pkgDir: string): boolean {
   return typeof readPkg(pkgDir)?.scripts?.typecheck === "string";
+}
+
+type TestRunner = "vitest" | "jest";
+
+/**
+ * Which test runner the package's `test` script uses, when it is one of the two we can capture
+ * per-test JSON from: the script text is checked first, then `devDependencies`.
+ */
+export function detectTestRunner(script: string | undefined, pkg: any): TestRunner | undefined {
+  if (typeof script === "string") {
+    if (/vitest/.test(script) && !/jest/.test(script)) return "vitest";
+    if (/jest/.test(script) && !/vitest/.test(script)) return "jest";
+  }
+  const devDeps = (pkg?.devDependencies ?? {}) as Record<string, unknown>;
+  if ("vitest" in devDeps) return "vitest";
+  if ("jest" in devDeps) return "jest";
+  return undefined;
+}
+
+/**
+ * Re-run the `test` gate with a JSON reporter and store the per-test outcome on `entry`. CI=1 in the
+ * target environment keeps vitest out of watch mode. If the runner can't be detected, or the JSON can't
+ * be written/parsed, `entry` is returned unchanged and the gate-level comparison still applies.
+ */
+export function capturePerTest(entry: ExecResult, pkgDir: string, pkg: any): ExecResult {
+  const script = typeof pkg?.scripts?.test === "string" ? pkg.scripts.test : undefined;
+  const runner = detectTestRunner(script, pkg);
+  if (!runner) return entry;
+  const jsonFile = path.join(os.tmpdir(), `shim-${runner}-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
+  const args = runner === "vitest"
+    ? ["--no-install", "vitest", "run", "--reporter=json", `--outputFile=${jsonFile}`]
+    : ["--no-install", "jest", "--json", `--outputFile=${jsonFile}`];
+  run("npx", args, pkgDir);
+  const perTest = runner === "vitest" ? parseVitestJson(jsonFile, pkgDir) : parseJestJson(jsonFile, pkgDir);
+  try { fs.unlinkSync(jsonFile); } catch {}
+  if (perTest) entry.perTest = perTest;
+  return entry;
+}
+
+/** vitest JSON: `testResults[].name` holds the file, `assertionResults[].fullName` the full test name. */
+export function parseVitestJson(file: string, cwd: string): PerTest | undefined {
+  let j: any;
+  try { j = JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; }
+  const out: PerTest = {};
+  for (const suite of Array.isArray(j?.testResults) ? j.testResults : []) {
+    const rel = slash(path.relative(cwd, suite.name ?? ""));
+    for (const a of Array.isArray(suite.assertionResults) ? suite.assertionResults : []) {
+      const name = typeof a?.fullName === "string" && a.fullName ? a.fullName : a?.title;
+      if (typeof name !== "string" || !name) continue;
+      out[`${rel}/${name}`] = a.status === "passed";
+    }
+  }
+  return out;
+}
+
+/** jest JSON: `testResults[].testFilePath` holds the file, `testResults[].assertionResults[]` the tests. */
+export function parseJestJson(file: string, cwd: string): PerTest | undefined {
+  let j: any;
+  try { j = JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; }
+  const out: PerTest = {};
+  for (const suite of Array.isArray(j?.testResults) ? j.testResults : []) {
+    const rel = slash(path.relative(cwd, suite.testFilePath ?? suite.name ?? ""));
+    for (const a of Array.isArray(suite.assertionResults) ? suite.assertionResults : []) {
+      const name = typeof a?.fullName === "string" && a.fullName ? a.fullName : a?.title;
+      if (typeof name !== "string" || !name) continue;
+      out[`${rel}/${name}`] = a.status === "passed";
+    }
+  }
+  return out;
+}
+
+/** Forward-slash form of a relative path: a stable test id across Windows and POSIX. */
+function slash(rel: string): string {
+  return rel.split(path.sep).join("/");
 }
 
 /**
@@ -84,9 +162,20 @@ export function hasValidation(baseline: GateResults): boolean {
   return Object.entries(baseline).some(([name, r]) => /^(typecheck|test) /.test(name) && r.ok);
 }
 
-/** A gate counts only if it passed before we touched anything: we can't be blamed for, or fix, a red baseline. */
+/**
+ * A gate counts only if it passed before we touched anything: we can't be blamed for, or fix, a red
+ * baseline. For vitest/jest gates we compare per-test instead of pass/fail-per-gate: a test that
+ * passed at baseline now failing or going missing is a regression even when the gate was already
+ * red at baseline (the old gate-level comparison would have hidden that breakage).
+ */
 export function regressions(baseline: GateResults, after: GateResults): GateName[] {
-  return Object.keys(baseline).filter((g) => baseline[g]?.ok && !after[g]?.ok);
+  return Object.keys(baseline).filter((g) => {
+    const gateRegressed = baseline[g]?.ok && !after[g]?.ok;
+    const b = baseline[g]?.perTest;
+    const a = after[g]?.perTest;
+    const lostTest = !!(b && a) && Object.keys(b).some((id) => b[id] && a[id] !== true);
+    return gateRegressed || lostTest;
+  });
 }
 
 export function readPkg(dir: string): any {

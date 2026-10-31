@@ -49,6 +49,13 @@ export interface ExecResult {
   /** For `claude -p --output-format json`: the run's cost and its final text. */
   cost?: number;
   text?: string;
+  /**
+   * Per-test outcome for vitest/jest test gates: test id (relative file + full test name) -> passed?.
+   * Only present when the gate's runner could be detected and its JSON report parsed; lets
+   * regressions() catch a test that passed at baseline now failing or going missing even when
+   * the gate as a whole was already red.
+   */
+  perTest?: Record<string, boolean>;
 }
 
 /**
