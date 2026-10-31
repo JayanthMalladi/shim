@@ -20,8 +20,9 @@ interface RepoResult {
   repo: string;
   verdict: string;
   reason: string;
-  judge?: { approve: boolean; issues: string[]; cost?: number };
-  cost?: number;
+  judge?: { approve: boolean; issues: string[]; cost?: number | null };
+  /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
+  cost?: number | null;
   fixMs?: number;
   candidates?: unknown[];
   diffStat?: string;
@@ -73,14 +74,14 @@ function spentSoFar(entries: ArchiveEntry[], inFlightArchId?: string): number {
     }
   if (inFlightArchId) {
     const root = path.join(out, "runs", inFlightArchId);
-    const files: { mtimeMs: number; cost: number; judgeCost?: number }[] = [];
+    const files: { mtimeMs: number; cost: number; judgeCost?: number | null }[] = [];
     if (fs.existsSync(root))
       for (const repo of fs.readdirSync(root)) {
         const rj = path.join(root, repo, "result.json");
         if (!fs.existsSync(rj)) continue;
         try {
           const r: RepoResult = JSON.parse(fs.readFileSync(rj, "utf8"));
-          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost });
+          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost ?? undefined });
         } catch { /* no partial result yet */ }
       }
     spent += inFlightCost(entries, inFlightArchId, files);
@@ -237,7 +238,9 @@ less money. Change what the evidence points to; small targeted edits to the rule
 to one repo's file names: the rules must work on any repo.
 
 Reply with a short hypothesis paragraph, then the child genome as a single \`\`\`json block with all fields.`;
-  const res = await runClaude(["-p", prompt, "--model", "claude-opus-5-5", "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
+  // The mutator model comes from SHIM_MUTATOR_MODEL when set, falling back to the hard-coded opus.
+  const mutatorModel = process.env.SHIM_MUTATOR_MODEL?.trim() || "claude-opus-5-5";
+  const res = await runClaude(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
     out,
     20 * 60_000,
   );
