@@ -69,12 +69,23 @@ export const REVIEWER_RULES = `Reject it if any of these is true:
   field in an options literal).
 - A function's signature changes (sync to async, parameters, return type).`;
 
+/**
+ * Model ids come from the environment when set, falling back to the hard-coded seeds. The
+ * environment overrides let the same genome run on a third-party provider without editing code:
+ *   SHIM_FIXER_MODEL    – the fixer's model
+ *   SHIM_REVIEWER_MODEL – the internal reviewer's model
+ * (the judge's model is read from SHIM_JUDGE_MODEL in agent.ts; the mutator's from
+ *  SHIM_MUTATOR_MODEL in evolve.ts).
+ */
+const FIXER_MODEL = process.env.SHIM_FIXER_MODEL?.trim() || "claude-opus-5-5";
+const REVIEWER_MODEL = process.env.SHIM_REVIEWER_MODEL?.trim() || "claude-opus-5-5";
+
 /** Fixer v1, the pipeline before parallel candidates: one fixer, retried, no reviewer. */
 export const V1: Architecture = {
   id: "v1-single-retry",
   notes: "Baseline: the first pipeline. One fixer, up to 3 attempts on failing checks, no reviewer.",
-  candidates: 1, attempts: 3, fixerModel: "claude-opus-5-5", fixerMaxTurns: 40, fixerRules: FIXER_RULES,
-  audit: false, review: false, reviewerModel: "claude-opus-5-5", reviewerRules: REVIEWER_RULES, reviewRounds: 0,
+  candidates: 1, attempts: 3, fixerModel: FIXER_MODEL, fixerMaxTurns: 40, fixerRules: FIXER_RULES,
+  audit: false, review: false, reviewerModel: REVIEWER_MODEL, reviewerRules: REVIEWER_RULES, reviewRounds: 0,
   selection: "first",
 };
 

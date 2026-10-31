@@ -125,6 +125,21 @@ describe("sanitizeModels", () => {
   });
 });
 
+describe("Fable/Mythos ban (SHIM_EXTRA_MODELS cannot override it)", () => {
+  it("Fable/Mythos ids in SHIM_EXTRA_MODELS are dropped from ALLOWED_MODELS", () => {
+    // ALLOWED_MODELS is computed at module load; if the env var had been set to include a
+    // Fable or Mythos model, it would have been filtered out by FORBIDDEN_MODEL_RE.
+    for (const m of ALLOWED_MODELS)
+      expect(/fable|mythos/i.test(m)).toBe(false);
+  });
+  it("sanitizeModels clamps a Fable/Mythos id even when it looks allowlisted", () => {
+    // Belt-and-braces: even if a Fable id somehow reached sanitizeModels, it is not in
+    // ALLOWED_MODELS, so it is clamped back to the default.
+    expect(sanitizeModels({ fixerModel: "claude-FABLE-1", reviewerModel: "mythos-x" }, D))
+      .toEqual({ fixerModel: D.fixerModel, reviewerModel: D.reviewerModel, clamped: ["fixerModel", "reviewerModel"] });
+  });
+});
+
 describe("bound", () => {
   it("clamps out-of-range values to the range edges", () => {
     expect(bound(99, GENOME_BOUNDS.candidates, 3)).toBe(4);
