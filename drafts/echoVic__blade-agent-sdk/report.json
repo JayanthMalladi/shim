@@ -1,0 +1,100 @@
+{
+  "repo": "echoVic/blade-agent-sdk",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/openai: ^3.0.112 -> ^4.0.0",
+    "@ai-sdk/openai-compatible: ^2.0.75 -> ^3.0.0",
+    "ai: ^6.0.282 -> ^7.0.0",
+    "@ai-sdk/anthropic: ^3.0.71 -> ^4.0.0",
+    "@ai-sdk/azure: ^3.0.54 -> ^4.0.0",
+    "@ai-sdk/deepseek: ^2.0.29 -> ^3.0.0",
+    "@ai-sdk/google: ^3.0.64 -> ^4.0.0",
+    "@ai-sdk/anthropic: ^3.0.71 -> ^4.0.0",
+    "@ai-sdk/azure: ^3.0.54 -> ^4.0.0",
+    "@ai-sdk/deepseek: ^2.0.29 -> ^3.0.0",
+    "@ai-sdk/google: ^3.0.64 -> ^4.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [
+    {
+      "ruleId": "maybe-system-in-messages",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/services/VercelAIModelService.ts",
+      "line": 171,
+      "snippet": "generateText({",
+      "message": "This call's options are built elsewhere. If `messages`/`prompt` can hold a system message, AI SDK 7 rejects it at runtime: set `allowSystemInMessages: true` in the options (keeps the v6 behavior), or move it to `instructions`."
+    },
+    {
+      "ruleId": "maybe-system-in-messages",
+      "severity": "silent",
+      "fix": "agent",
+      "file": "src/services/VercelAIModelService.ts",
+      "line": 204,
+      "snippet": "streamText({",
+      "message": "This call's options are built elsewhere. If `messages`/`prompt` can hold a system message, AI SDK 7 rejects it at runtime: set `allowSystemInMessages: true` in the options (keeps the v6 behavior), or move it to `instructions`."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "regressions": [],
+  "diffStat": "package.json                         |  22 ++---\n pnpm-lock.yaml                       | 166 +++++++++++++++++------------------\n src/services/VercelAIModelService.ts |  11 +--\n src/services/modelProvider.ts        |   4 +-\n 4 files changed, 102 insertions(+), 101 deletions(-)",
+  "changedFiles": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "src/services/VercelAIModelService.ts",
+    "src/services/modelProvider.ts"
+  ],
+  "repairedChecks": [
+    "build",
+    "typecheck ."
+  ],
+  "agentRuns": [
+    "All 11 errors are fixed and `npx --no-install tsc --noEmit -p tsconfig.json` now passes cleanly. I haven't run the test suite.\n\n**The two findings** (`src/services/VercelAIModelService.ts:171` and `:204`)\n- **System messages:** this repo's own message type includes a `role: 'system'` message, and the adapter passes it through as `messages`. AI SDK 7 would reject that at runtime. I added `allowSystemInMessages: true` to `requestOptions()`, which both `generateText` and `streamText` use, to keep the v6 behavior.\n- **Tools cast:** the existing `tools: request.coreTools as never` made v7 require a `toolsContext` argument that can never be supplied. I changed the existing cast to `as ToolSet` (imported as a type from `ai`). It doesn't change runtime behavior or hide an error.\n\n**Codemod edits I reverted** (each restored to its pre-codemod version)\n- **`src/model/usage.ts` and `src/session/events/DurableRecorderPayload.ts`:** the codemod rewrote `usage.reasoningTokens` to `usage.outputTokenDetails.reasoningTokens`. These are the repo's own `ModelUsage` type, not the SDK's usage type, and that type still has `reasoningTokens`.\n- **`src/services/deepseek.ts`:** same problem on the repo's local `AIUsage` type. The codemod also produced broken code like `usage.outputTokenDetails.outputTokenDetails.reasoningTokens`. The original code already reads the v7 fields first (`inputTokenDetails?.cacheReadTokens`, `outputTokenDetails?.reasoningTokens`) and falls back to the old ones, so it works as before.\n- **`src/services/modelAdapter.ts` and `src/services/__tests__/modelAdapter.images.test.ts`:** the codemod switched image parts from `type: 'image'` to `type: 'file'` and added a duplicate `mediaType: 'image'` that overwrote the real media type. The repo's own message type still requires `image`, and v7 only deprecates image parts (it doesn't remove them). Because this test was itself a codemod edit, reverting it is allowed.\n- **`src/tools/builtin/__tests__/groups.test.ts`:** the codemod renamed a tool-group key from `system` to `instructions`. That key is this repo's tool-group name, not an SDK option.\n\nI kept the other codemod edits because they're correct for v7: `experimental_output` → `output`, `fullStream` → `stream`, and `createGoogleGenerativeAI` → `createGoogle`. There were no sites I had to leave unfixed."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 2.9399982000000002,
+  "fixMs": 630634
+}

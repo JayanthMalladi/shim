@@ -1,0 +1,503 @@
+diff --git a/package-lock.json b/package-lock.json
+index 25957b3..479d2ca 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,19 +9,19 @@
+       "version": "0.7.6",
+       "license": "MIT",
+       "dependencies": {
+-        "@ai-sdk/anthropic": "^3.0.64",
+-        "@ai-sdk/cohere": "^3.0.27",
+-        "@ai-sdk/deepseek": "^2.0.26",
+-        "@ai-sdk/google": "^3.0.54",
+-        "@ai-sdk/groq": "^3.0.31",
+-        "@ai-sdk/mistral": "^3.0.27",
+-        "@ai-sdk/openai": "^3.0.48",
+-        "@ai-sdk/openai-compatible": "^2.0.37",
+-        "@ai-sdk/perplexity": "^3.0.26",
+-        "@ai-sdk/togetherai": "^2.0.41",
+-        "@ai-sdk/xai": "^3.0.74",
++        "@ai-sdk/anthropic": "^4.0.0",
++        "@ai-sdk/cohere": "^4.0.0",
++        "@ai-sdk/deepseek": "^3.0.0",
++        "@ai-sdk/google": "^4.0.0",
++        "@ai-sdk/groq": "^4.0.0",
++        "@ai-sdk/mistral": "^4.0.0",
++        "@ai-sdk/openai": "^4.0.0",
++        "@ai-sdk/openai-compatible": "^3.0.0",
++        "@ai-sdk/perplexity": "^5.0.0",
++        "@ai-sdk/togetherai": "^3.0.0",
++        "@ai-sdk/xai": "^5.0.0",
+         "@openrouter/ai-sdk-provider": "^2.3.3",
+-        "ai": "^6.0.141"
++        "ai": "^7.0.0"
+       },
+       "devDependencies": {
+         "@eslint/js": "^10.0.1",
+@@ -39,225 +39,225 @@
+       }
+     },
+     "node_modules/@ai-sdk/anthropic": {
+-      "version": "3.0.135",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/anthropic/-/anthropic-3.0.135.tgz",
+-      "integrity": "sha512-lOMoKXRbQ0gQ9ctOBo8aOqqQQ8nZEEf9INT8PpAXLSuwIsZl26Jg0vDqkhUsBWBuS9oPtEx3VFqGt3AuAvkjgg==",
++      "version": "4.0.90",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/anthropic/-/anthropic-4.0.90.tgz",
++      "integrity": "sha512-J0UD9KKy9yVC7rEMUB6MV7D5XyAv09FT57yGJXr4VuhvJVima4DWnF5IGNYqfspttT4tgF5nBAX2YewsA0DtxQ==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/cohere": {
+-      "version": "3.0.73",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/cohere/-/cohere-3.0.73.tgz",
+-      "integrity": "sha512-TP4krloM1/6TE3lYb5+uYhGkmYkJQ0fqYkoP5jh90cnVYfT4PIaTxDsw7tUEo6FqdKB419CrmjAH782LT4cSXw==",
++      "version": "4.0.71",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/cohere/-/cohere-4.0.71.tgz",
++      "integrity": "sha512-BPbanEXKVWQr+bt73acuaJ0KAreIkLtUpdqA+Wvgf2BZDC4X2PYe8VtNnD2E6Q7Nnk0NMAMkA76gbKkyHKltsQ==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/deepseek": {
+-      "version": "2.0.77",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/deepseek/-/deepseek-2.0.77.tgz",
+-      "integrity": "sha512-Gpxzo8OEVMzT20/ZcQ9w7Se1eLDkzKBuF2ePoJs+O6Wlk+Jy+NXtoMuBEhTidswoMc77WgV34Ndawl+Z1D6d7Q==",
++      "version": "3.0.75",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/deepseek/-/deepseek-3.0.75.tgz",
++      "integrity": "sha512-cWhJomtEUP4ksJf8a93pDJ7CShU481LAaVHtaa15aH2TDqjy/dmpGKJP55SLyKuzleQKDpBhy9RXEeeI0DC99w==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/gateway": {
+-      "version": "3.0.221",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.221.tgz",
+-      "integrity": "sha512-21M3q5NuAuItmHmU2rlcK3OBb9zvcvctcyzQUu/O6YkAjVNqQjyhJ9XnYlUupdrZhNR0sn0QNmSh3zKtesqY8w==",
++      "version": "4.0.128",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-4.0.128.tgz",
++      "integrity": "sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70",
+         "@vercel/oidc": "3.2.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/google": {
+-      "version": "3.0.138",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/google/-/google-3.0.138.tgz",
+-      "integrity": "sha512-pP0lEQ6u4aZ4gEydU2RLQrhrjI7uXi0PLHab9Lzm3TlOW7eQOYc4eMHvvJ2OR0XCPXTRE9x/detXTH2LG/L0iA==",
++      "version": "4.0.107",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/google/-/google-4.0.107.tgz",
++      "integrity": "sha512-BB3a85erZ8VN3aUzHawFfArKjCeqARRiC5xiNB3vc7Sw7Wshvv2LA+41VF2EJbnz5gCjZUmqdmOPFZ4Oz0MmQQ==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/groq": {
+-      "version": "3.0.79",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/groq/-/groq-3.0.79.tgz",
+-      "integrity": "sha512-dB9Od/4ZFFMSaRrPYSbBkBRrvIapDCGMT5rbwywOQ25BHlUBQxa+W4zmgfxxFCCkcePJFT7TCeS77/ZO6CYsUg==",
++      "version": "4.0.72",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/groq/-/groq-4.0.72.tgz",
++      "integrity": "sha512-s2P8vK22UDL0iWnzg34DAR5hKvr9t6jA7vz7TrFgXX5JzIwqHie6ODq5sSbE1t9X5jkB9tbPCVmfcMyAUuLYvw==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/mistral": {
+-      "version": "3.0.76",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/mistral/-/mistral-3.0.76.tgz",
+-      "integrity": "sha512-q4CyP1ARVZQBDsoR+xECoDisUJYCMTLyOxJyq5qTD7haWcb3MLvtjAC/ooNgdpepaTpT93Zuwz07ZEm38t6cIQ==",
++      "version": "4.0.74",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/mistral/-/mistral-4.0.74.tgz",
++      "integrity": "sha512-Vih9ydJvkSYmSCdlt3u7xjFZcfQhk+h3buC+uEe0EArIBqPE2aVM1r4Vf+bP0qi4P469SsIAAI/dZF+LJXvXqg==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/openai": {
+-      "version": "3.0.131",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-3.0.131.tgz",
+-      "integrity": "sha512-aiyMcWBF//Z73wCWn2oGsxGMxykioZZL5ACXQEzpkRmwcjVKOSg4/7tbxwvM/MdRkZI9TrqTUuDHu3+aXU2XXg==",
++      "version": "4.0.104",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-4.0.104.tgz",
++      "integrity": "sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/openai-compatible": {
+-      "version": "2.0.87",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-2.0.87.tgz",
+-      "integrity": "sha512-tge19iHFcU4r6QxlFmwIRU/ytd6RFjsXfMpEc9sLiS5+NnkUYLeh2mm4RzemdqrQS6uO0h0t4RD04CpbgjWXqw==",
++      "version": "3.0.80",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-3.0.80.tgz",
++      "integrity": "sha512-FoFoYodwufDyuOlPrFBnGD6HNA8nIB5a6HofyTJoPUJn9NBtDmloWudbNDyf4hYV8YTPOyR5iPfn1ufK2XD2Zg==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/perplexity": {
+-      "version": "3.1.8",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/perplexity/-/perplexity-3.1.8.tgz",
+-      "integrity": "sha512-Be6vYgBAECS8yl8PpnXNGsH8io+WwP/xQkiEWeVrwlZy2inrBHBGxD0QbmEkM4fAofuQLJXXqbZqOGwa+DhDCQ==",
++      "version": "5.0.22",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/perplexity/-/perplexity-5.0.22.tgz",
++      "integrity": "sha512-TTG2rEqflhiKh0+TLXIeFuFxKSDeu4lunKR33vhPuTVGMoyaiF1JVFojncZgOb+/dcSDfG0DeykmKle9UmstHg==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/provider": {
+-      "version": "3.0.19",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.19.tgz",
+-      "integrity": "sha512-5lWq7zSfRaU5ylDESn3sDQjgGl2AI1vjZKO/6JY3aFW70ct4zcP1kN+ZUYOuTXr28fVsYbyu2YFhddLdIgQFZQ==",
++      "version": "4.0.34",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++      "integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
+       "license": "Apache-2.0",
+       "dependencies": {
+         "json-schema": "^0.4.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       }
+     },
+     "node_modules/@ai-sdk/provider-utils": {
+-      "version": "4.0.62",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.62.tgz",
+-      "integrity": "sha512-+FXkZ2e169zASBHP5HAakP0Iai3Eoa8zgh7bnuZExsek3N9HgGt/c7l1Oibdxb79vvsn5Mrg2Sjam80mR6bL8A==",
++      "version": "5.0.70",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++      "integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.19",
++        "@ai-sdk/provider": "4.0.34",
+         "@standard-schema/spec": "^1.1.0",
++        "@workflow/serde": "4.1.0",
+         "eventsource-parser": "^3.0.8",
+-        "undici": "^6.28.0"
++        "undici": "^7.29.0"
+       },
+       "engines": {
+-        "node": ">=18.17"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/togetherai": {
+-      "version": "2.0.93",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/togetherai/-/togetherai-2.0.93.tgz",
+-      "integrity": "sha512-KJI9nKgvYhFR5Jxw94HhFtSkAdx9/wP3caYbZwkXNoLS9cruEbdCm2aBufHp0CbgmZAXg+/Ll0DdtzeE3T5EiQ==",
++      "version": "3.0.81",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/togetherai/-/togetherai-3.0.81.tgz",
++      "integrity": "sha512-NMOicrAPrXiPQyV7ooCFAj6u6X0LgIkIXAjvlCewA7iVIwZkqu4j/eDz3jbDsSacvygcdOI9LvuCK9Jb+enIJw==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/openai-compatible": "2.0.87",
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/openai-compatible": "3.0.80",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/xai": {
+-      "version": "3.0.145",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/xai/-/xai-3.0.145.tgz",
+-      "integrity": "sha512-epqA4345+j4IQwb4BweBCPCkSesOg+CM9TvLOPtyrHgI8qHA5Gqgmx0lpMNfNV5GEOlulR/AZtXfG9WO7Xt+Mw==",
++      "version": "5.0.32",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/xai/-/xai-5.0.32.tgz",
++      "integrity": "sha512-Owy8r7viLY+XQ5LIrqIz6G1z67b+4jT6KWk9L7ppSU0r1OeVoLT3dorJOrZH0ZC9GkZ6nEmbnayHs+AZEZv1Tw==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/openai-compatible": "2.0.87",
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62"
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+@@ -1080,7 +1080,10 @@
+       "version": "1.9.1",
+       "resolved": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.1.tgz",
+       "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==",
++      "dev": true,
+       "license": "Apache-2.0",
++      "optional": true,
++      "peer": true,
+       "engines": {
+         "node": ">=8.0.0"
+       }
+@@ -2134,6 +2137,12 @@
+         "url": "https://opencollective.com/vitest"
+       }
+     },
++    "node_modules/@workflow/serde": {
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/@workflow/serde/-/serde-4.1.0.tgz",
++      "integrity": "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==",
++      "license": "Apache-2.0"
++    },
+     "node_modules/acorn": {
+       "version": "8.19.0",
+       "resolved": "https://registry.npmjs.org/acorn/-/acorn-8.19.0.tgz",
+@@ -2158,18 +2167,17 @@
+       }
+     },
+     "node_modules/ai": {
+-      "version": "6.0.315",
+-      "resolved": "https://registry.npmjs.org/ai/-/ai-6.0.315.tgz",
+-      "integrity": "sha512-uel8Yc0e58rLUcMfUaL6fzCe9zV7Rk3JfV4RJzs81AUBSvQ8NRkGsTgdtZizaEmAsYsFoGlDy88DYYu5rH/+2w==",
++      "version": "7.0.155",
++      "resolved": "https://registry.npmjs.org/ai/-/ai-7.0.155.tgz",
++      "integrity": "sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/gateway": "3.0.221",
+-        "@ai-sdk/provider": "3.0.19",
+-        "@ai-sdk/provider-utils": "4.0.62",
+-        "@opentelemetry/api": "^1.9.0"
++        "@ai-sdk/gateway": "4.0.128",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+@@ -4007,12 +4015,12 @@
+       "license": "MIT"
+     },
+     "node_modules/undici": {
+-      "version": "6.29.1",
+-      "resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+-      "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
++      "version": "7.30.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
+       "license": "MIT",
+       "engines": {
+-        "node": ">=18.17"
++        "node": ">=20.18.1"
+       }
+     },
+     "node_modules/undici-types": {
+diff --git a/package.json b/package.json
+index 7589864..4f47f3f 100644
+--- a/package.json
++++ b/package.json
+@@ -77,19 +77,19 @@
+     "url": "https://github.com/yadimon/prio-llm-router/issues"
+   },
+   "dependencies": {
+-    "@ai-sdk/anthropic": "^3.0.64",
+-    "@ai-sdk/cohere": "^3.0.27",
+-    "@ai-sdk/deepseek": "^2.0.26",
+-    "@ai-sdk/google": "^3.0.54",
+-    "@ai-sdk/groq": "^3.0.31",
+-    "@ai-sdk/mistral": "^3.0.27",
+-    "@ai-sdk/openai": "^3.0.48",
+-    "@ai-sdk/openai-compatible": "^2.0.37",
+-    "@ai-sdk/perplexity": "^3.0.26",
+-    "@ai-sdk/togetherai": "^2.0.41",
+-    "@ai-sdk/xai": "^3.0.74",
++    "@ai-sdk/anthropic": "^4.0.0",
++    "@ai-sdk/cohere": "^4.0.0",
++    "@ai-sdk/deepseek": "^3.0.0",
++    "@ai-sdk/google": "^4.0.0",
++    "@ai-sdk/groq": "^4.0.0",
++    "@ai-sdk/mistral": "^4.0.0",
++    "@ai-sdk/openai": "^4.0.0",
++    "@ai-sdk/openai-compatible": "^3.0.0",
++    "@ai-sdk/perplexity": "^5.0.0",
++    "@ai-sdk/togetherai": "^3.0.0",
++    "@ai-sdk/xai": "^5.0.0",
+     "@openrouter/ai-sdk-provider": "^2.3.3",
+-    "ai": "^6.0.141"
++    "ai": "^7.0.0"
+   },
+   "devDependencies": {
+     "@eslint/js": "^10.0.1",
+diff --git a/src/provider-factory.ts b/src/provider-factory.ts
+index 23ec7be..a05bb91 100644
+--- a/src/provider-factory.ts
++++ b/src/provider-factory.ts
+@@ -1,7 +1,7 @@
+ import { createAnthropic } from '@ai-sdk/anthropic';
+ import { createCohere } from '@ai-sdk/cohere';
+ import { createDeepSeek } from '@ai-sdk/deepseek';
+-import { createGoogleGenerativeAI } from '@ai-sdk/google';
++import { createGoogle } from '@ai-sdk/google';
+ import { createGroq } from '@ai-sdk/groq';
+ import { createMistral } from '@ai-sdk/mistral';
+ import { createOpenAI } from '@ai-sdk/openai';
+@@ -155,7 +155,8 @@ function buildBaseTextCallOptions({
+ }): Record<string, unknown> {
+   const call: AiSdkGenerateTextOptions = {
+     model: languageModel,
+-    system: request.system,
++    instructions: request.system,
++    allowSystemInMessages: true,
+     temperature: request.temperature,
+     topP: request.topP,
+     maxRetries: request.providerMaxRetries ?? defaultProviderMaxRetries,
+@@ -239,7 +240,7 @@ function createProviderHandle(provider: ProviderConfig): ProviderHandle {
+     }
+ 
+     case 'google': {
+-      const options: Parameters<typeof createGoogleGenerativeAI>[0] = {
++      const options: Parameters<typeof createGoogle>[0] = {
+         apiKey,
+       };
+       if (provider.baseURL) {
+@@ -248,7 +249,7 @@ function createProviderHandle(provider: ProviderConfig): ProviderHandle {
+       if (provider.headers) {
+         options.headers = provider.headers;
+       }
+-      return createGoogleGenerativeAI(options);
++      return createGoogle(options);
+     }
+ 
+     case 'groq': {
+diff --git a/tests/provider-factory.test.ts b/tests/provider-factory.test.ts
+index 9dd829d..08eb9e9 100644
+--- a/tests/provider-factory.test.ts
++++ b/tests/provider-factory.test.ts
+@@ -44,7 +44,7 @@ vi.mock('ai', () => ({
+ }));
+ 
+ vi.mock('@ai-sdk/google', () => ({
+-  createGoogleGenerativeAI: mocks.googleFactory,
++  createGoogle: mocks.googleFactory,
+ }));
+ 
+ vi.mock('@ai-sdk/openai-compatible', () => ({

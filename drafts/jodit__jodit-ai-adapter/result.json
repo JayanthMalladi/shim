@@ -1,0 +1,37 @@
+{
+  "repo": "jodit/jodit-ai-adapter",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.231178
+  },
+  "cost": 1.4446144,
+  "fixMs": 219065,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    },
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "diffStat": " 3 files changed, 58 insertions(+), 57 deletions(-)"
+}

@@ -1,0 +1,422 @@
+diff --git a/package.json b/package.json
+index 744e57c..d5c1c44 100644
+--- a/package.json
++++ b/package.json
+@@ -120,10 +120,10 @@
+     }
+   },
+   "peerDependencies": {
+-    "@ai-sdk/anthropic": "^3.0.71",
+-    "@ai-sdk/azure": "^3.0.54",
+-    "@ai-sdk/deepseek": "^2.0.29",
+-    "@ai-sdk/google": "^3.0.64",
++    "@ai-sdk/anthropic": "^4.0.0",
++    "@ai-sdk/azure": "^4.0.0",
++    "@ai-sdk/deepseek": "^3.0.0",
++    "@ai-sdk/google": "^4.0.0",
+     "@vscode/ripgrep": "^1.17.0",
+     "fs-native-extensions": "1.5.0",
+     "pg": "8.23.0"
+@@ -152,10 +152,10 @@
+     }
+   },
+   "dependencies": {
+-    "@ai-sdk/openai": "^3.0.112",
+-    "@ai-sdk/openai-compatible": "^2.0.75",
++    "@ai-sdk/openai": "^4.0.0",
++    "@ai-sdk/openai-compatible": "^3.0.0",
+     "@modelcontextprotocol/sdk": "^1.32.1",
+-    "ai": "^6.0.282",
++    "ai": "^7.0.0",
+     "async-mutex": "^0.5.0",
+     "diff": "^9.0.0",
+     "js-tiktoken": "^1.0.21",
+@@ -171,10 +171,10 @@
+     "zod": "^3.25.2"
+   },
+   "devDependencies": {
+-    "@ai-sdk/anthropic": "^3.0.71",
+-    "@ai-sdk/azure": "^3.0.54",
+-    "@ai-sdk/deepseek": "^2.0.29",
+-    "@ai-sdk/google": "^3.0.64",
++    "@ai-sdk/anthropic": "^4.0.0",
++    "@ai-sdk/azure": "^4.0.0",
++    "@ai-sdk/deepseek": "^3.0.0",
++    "@ai-sdk/google": "^4.0.0",
+     "@biomejs/biome": "^2.4.12",
+     "@types/json-schema": "^7.0.15",
+     "@types/node": "^22.15.0",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 738cde4..7631f7f 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -21,17 +21,17 @@ importers:
+   .:
+     dependencies:
+       '@ai-sdk/openai':
+-        specifier: ^3.0.112
+-        version: 3.0.112(zod@3.25.76)
++        specifier: ^4.0.0
++        version: 4.0.104(zod@3.25.76)
+       '@ai-sdk/openai-compatible':
+-        specifier: ^2.0.75
+-        version: 2.0.75(zod@3.25.76)
++        specifier: ^3.0.0
++        version: 3.0.80(zod@3.25.76)
+       '@modelcontextprotocol/sdk':
+         specifier: ^1.32.1
+         version: 1.32.1(zod@3.25.76)
+       ai:
+-        specifier: ^6.0.282
+-        version: 6.0.282(zod@3.25.76)
++        specifier: ^7.0.0
++        version: 7.0.155(zod@3.25.76)
+       async-mutex:
+         specifier: ^0.5.0
+         version: 0.5.0
+@@ -73,17 +73,17 @@ importers:
+         version: 3.25.76
+     devDependencies:
+       '@ai-sdk/anthropic':
+-        specifier: ^3.0.71
+-        version: 3.0.118(zod@3.25.76)
++        specifier: ^4.0.0
++        version: 4.0.90(zod@3.25.76)
+       '@ai-sdk/azure':
+-        specifier: ^3.0.54
+-        version: 3.0.120(zod@3.25.76)
++        specifier: ^4.0.0
++        version: 4.0.112(zod@3.25.76)
+       '@ai-sdk/deepseek':
+-        specifier: ^2.0.29
+-        version: 2.0.64(zod@3.25.76)
++        specifier: ^3.0.0
++        version: 3.0.75(zod@3.25.76)
+       '@ai-sdk/google':
+-        specifier: ^3.0.64
+-        version: 3.0.122(zod@3.25.76)
++        specifier: ^4.0.0
++        version: 4.0.107(zod@3.25.76)
+       '@biomejs/biome':
+         specifier: ^2.4.12
+         version: 2.4.12
+@@ -135,57 +135,57 @@ importers:
+ 
+ packages:
+ 
+-  '@ai-sdk/anthropic@3.0.118':
+-    resolution: {integrity: sha512-5j8Cc9owORxhhZxFtpznXPTdLxeWm6bPCVbndM0e+NdvGVxe9GDgNqQq1V0KqOV54hZ6hyQVEXHkgTRPyXzcQg==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/anthropic@4.0.90':
++    resolution: {integrity: sha512-J0UD9KKy9yVC7rEMUB6MV7D5XyAv09FT57yGJXr4VuhvJVima4DWnF5IGNYqfspttT4tgF5nBAX2YewsA0DtxQ==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/azure@3.0.120':
+-    resolution: {integrity: sha512-hI9jTWqlLSW0JAFqZRrBwgim2jSkwKJWvHKSngFar5Ra7M4if7UkMgwl1WyEMPw6BRKNheSdRt252B54z6RxGA==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/azure@4.0.112':
++    resolution: {integrity: sha512-59klLCQ5w9ZNjARJ0D0eEp1KerMoDK9NtnWVP3WQach6GbTWWGAbR1/B7O9bX/CnWynzkWrDLuF7d/6OS0BQgA==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/deepseek@2.0.64':
+-    resolution: {integrity: sha512-ck832HxnlN1wIqyimrcJ/EFwziK8xQPp2lBIRsJn5m1N1Gm7a+fXJGs0CoP6S4vbXNBpVw+/jFNzBu/WpRKg/g==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/deepseek@3.0.75':
++    resolution: {integrity: sha512-cWhJomtEUP4ksJf8a93pDJ7CShU481LAaVHtaa15aH2TDqjy/dmpGKJP55SLyKuzleQKDpBhy9RXEeeI0DC99w==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/gateway@3.0.193':
+-    resolution: {integrity: sha512-T2vq1EKPhbFF2Sk2MUFL/RmCg/2mp1LGbCZZSx5vh0M6Sr1EAj3wRr1EnpcwCV3/Imj2q56pT89XLiUFnB+ZgQ==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/gateway@4.0.128':
++    resolution: {integrity: sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/google@3.0.122':
+-    resolution: {integrity: sha512-GntcGIfRviU9ZhORN2yoQcp9Hy5cv0w6iqRLaX0/BNdTogG5JX7g7l/Tv6Uev379iJizcHBd+U0cLB78KDrMxw==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/google@4.0.107':
++    resolution: {integrity: sha512-BB3a85erZ8VN3aUzHawFfArKjCeqARRiC5xiNB3vc7Sw7Wshvv2LA+41VF2EJbnz5gCjZUmqdmOPFZ4Oz0MmQQ==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/openai-compatible@2.0.75':
+-    resolution: {integrity: sha512-W9w3tCoYrevct2Ips2X4EFOow8Kzrg0nqVJi9jm0lHiMlTmTON4nzaCv3Zkzg6eFCJJVH60kd4+t7tHgtOxx9Q==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/openai-compatible@3.0.80':
++    resolution: {integrity: sha512-FoFoYodwufDyuOlPrFBnGD6HNA8nIB5a6HofyTJoPUJn9NBtDmloWudbNDyf4hYV8YTPOyR5iPfn1ufK2XD2Zg==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/openai@3.0.112':
+-    resolution: {integrity: sha512-0ho3a9CJ+3KCcrPdBQx8fX7/gyUxFHsfs1M6++SpunYk8+pgGOPMskr0GVOOxY+94jsJbuGxksKfMuSYhYHcxw==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/openai@4.0.104':
++    resolution: {integrity: sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/provider-utils@4.0.51':
+-    resolution: {integrity: sha512-ukLTs9x1Xm6lxSIwbJIxYQxbZHmVeIczNntARZrBcOa6pjdBhqeZnATNnJMHa7M9dZ8Ji5NJbpKpvz7o5XyBtg==}
+-    engines: {node: '>=18.17'}
++  '@ai-sdk/provider-utils@5.0.70':
++    resolution: {integrity: sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/provider@3.0.16':
+-    resolution: {integrity: sha512-9Av6kg0t/IN/dcYAAmEJ4B9OPhcEJqwSR+GfHEA8olRkindXpUHadc3p3cyvgFUQFTVm1G5thtsmgZ9yVb2w3A==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/provider@4.0.34':
++    resolution: {integrity: sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==}
++    engines: {node: '>=22'}
+ 
+   '@babel/helper-string-parser@7.29.7':
+     resolution: {integrity: sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==}
+@@ -912,6 +912,9 @@ packages:
+     peerDependencies:
+       vue: ^3.5.0
+ 
++  '@workflow/serde@4.1.0':
++    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
++
+   accepts@2.0.0:
+     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
+     engines: {node: '>= 0.6'}
+@@ -929,9 +932,9 @@ packages:
+     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
+     engines: {node: '>= 14'}
+ 
+-  ai@6.0.282:
+-    resolution: {integrity: sha512-fdzEzSppVTYlgyW/Gp6tMAFIU88yv7k86x77m5vAJo7hXV31hDJCsAkq/aIpE3tP3k4LjrrLcUANPHcBZ0YWsw==}
+-    engines: {node: '>=18'}
++  ai@7.0.155:
++    resolution: {integrity: sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+@@ -1934,10 +1937,6 @@ packages:
+   undici-types@6.21.0:
+     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+ 
+-  undici@6.28.1:
+-    resolution: {integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==}
+-    engines: {node: '>=18.17'}
+-
+   undici@7.30.1:
+     resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
+     engines: {node: '>=20.18.1'}
+@@ -2124,60 +2123,61 @@ packages:
+ 
+ snapshots:
+ 
+-  '@ai-sdk/anthropic@3.0.118(zod@3.25.76)':
++  '@ai-sdk/anthropic@4.0.90(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/azure@3.0.120(zod@3.25.76)':
++  '@ai-sdk/azure@4.0.112(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/deepseek': 2.0.64(zod@3.25.76)
+-      '@ai-sdk/openai': 3.0.112(zod@3.25.76)
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/deepseek': 3.0.75(zod@3.25.76)
++      '@ai-sdk/openai': 4.0.104(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/deepseek@2.0.64(zod@3.25.76)':
++  '@ai-sdk/deepseek@3.0.75(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/gateway@3.0.193(zod@3.25.76)':
++  '@ai-sdk/gateway@4.0.128(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       '@vercel/oidc': 3.2.0
+       zod: 3.25.76
+ 
+-  '@ai-sdk/google@3.0.122(zod@3.25.76)':
++  '@ai-sdk/google@4.0.107(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/openai-compatible@2.0.75(zod@3.25.76)':
++  '@ai-sdk/openai-compatible@3.0.80(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/openai@3.0.112(zod@3.25.76)':
++  '@ai-sdk/openai@4.0.104(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+-  '@ai-sdk/provider-utils@4.0.51(zod@3.25.76)':
++  '@ai-sdk/provider-utils@5.0.70(zod@3.25.76)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.16
++      '@ai-sdk/provider': 4.0.34
+       '@standard-schema/spec': 1.1.0
++      '@workflow/serde': 4.1.0
+       eventsource-parser: 3.1.1
+-      undici: 6.28.1
++      undici: 7.30.1
+       zod: 3.25.76
+ 
+-  '@ai-sdk/provider@3.0.16':
++  '@ai-sdk/provider@4.0.34':
+     dependencies:
+       json-schema: 0.4.0
+ 
+@@ -2363,7 +2363,8 @@ snapshots:
+     transitivePeerDependencies:
+       - supports-color
+ 
+-  '@opentelemetry/api@1.9.0': {}
++  '@opentelemetry/api@1.9.0':
++    optional: true
+ 
+   '@oxc-project/types@0.149.0': {}
+ 
+@@ -2721,6 +2722,8 @@ snapshots:
+     dependencies:
+       vue: 3.5.42(typescript@6.0.3)
+ 
++  '@workflow/serde@4.1.0': {}
++
+   accepts@2.0.0:
+     dependencies:
+       mime-types: 3.0.2
+@@ -2737,12 +2740,11 @@ snapshots:
+ 
+   agent-base@7.1.4: {}
+ 
+-  ai@6.0.282(zod@3.25.76):
++  ai@7.0.155(zod@3.25.76):
+     dependencies:
+-      '@ai-sdk/gateway': 3.0.193(zod@3.25.76)
+-      '@ai-sdk/provider': 3.0.16
+-      '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
+-      '@opentelemetry/api': 1.9.0
++      '@ai-sdk/gateway': 4.0.128(zod@3.25.76)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.70(zod@3.25.76)
+       zod: 3.25.76
+ 
+   ajv-formats@3.0.1(ajv@8.18.0):
+@@ -3773,8 +3775,6 @@ snapshots:
+ 
+   undici-types@6.21.0: {}
+ 
+-  undici@6.28.1: {}
+-
+   undici@7.30.1: {}
+ 
+   unist-util-is@6.0.1:
+diff --git a/src/services/VercelAIModelService.ts b/src/services/VercelAIModelService.ts
+index ea8c5d8..f7ae660 100644
+--- a/src/services/VercelAIModelService.ts
++++ b/src/services/VercelAIModelService.ts
+@@ -1,4 +1,4 @@
+-import { generateText, type LanguageModel, streamText } from 'ai';
++import { generateText, type LanguageModel, streamText, type ToolSet } from 'ai';
+ import { ModelStreamError } from '../errors/ModelStreamError.js';
+ import { type InternalLogger, LogCategory, NOOP_LOGGER } from '../logging/Logger.js';
+ import type { ModelServiceConfig } from '../model/config.js';
+@@ -170,7 +170,7 @@ export class VercelAIModelService implements ModelService {
+   ): Promise<RawModelResult> {
+     return generateText({
+       ...this.requestOptions(request, context, signal, overrides),
+-      tools: request.coreTools as never,
++      tools: request.coreTools as ToolSet,
+     }) as Promise<RawModelResult>;
+   }
+ 
+@@ -183,6 +183,7 @@ export class VercelAIModelService implements ModelService {
+     return {
+       model: this.model,
+       messages: request.coreMessages as never,
++      allowSystemInMessages: true,
+       maxOutputTokens:
+         context.maxTokensOverride ?? overrides.maxOutputTokens ?? this.config.maxOutputTokens,
+       temperature: samplingTemperature(
+@@ -190,7 +191,7 @@ export class VercelAIModelService implements ModelService {
+         overrides.temperature ?? this.config.temperature ?? 0,
+       ),
+       abortSignal: signal,
+-      experimental_output: request.experimentalOutput,
++      output: request.experimentalOutput,
+       providerOptions: providerOptions(this.config),
+       maxRetries: 0,
+     };
+@@ -203,9 +204,9 @@ export class VercelAIModelService implements ModelService {
+   ): Promise<StreamAttempt> {
+     const result = streamText({
+       ...this.requestOptions(request, context, signal),
+-      tools: request.coreTools as never,
++      tools: request.coreTools as ToolSet,
+     });
+-    const parts = result.fullStream[Symbol.asyncIterator]() as AsyncIterator<StreamPart>;
++    const parts = result.stream[Symbol.asyncIterator]() as AsyncIterator<StreamPart>;
+     try {
+       while (true) {
+         const first = await parts.next();
+diff --git a/src/services/modelProvider.ts b/src/services/modelProvider.ts
+index b121788..64d08a6 100644
+--- a/src/services/modelProvider.ts
++++ b/src/services/modelProvider.ts
+@@ -62,12 +62,12 @@ const gemini: ProviderFactory = async (config) => {
+   ) {
+     return compatible(config, 'gemini');
+   }
+-  const { createGoogleGenerativeAI } = await loadOptional(
++  const { createGoogle } = await loadOptional(
+     config.provider,
+     '@ai-sdk/google',
+     () => import('@ai-sdk/google'),
+   );
+-  return createGoogleGenerativeAI({
++  return createGoogle({
+     apiKey: config.apiKey,
+     baseURL: config.baseUrl || undefined,
+   })(config.model);

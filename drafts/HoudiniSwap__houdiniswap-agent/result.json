@@ -1,0 +1,38 @@
+{
+  "repo": "HoudiniSwap/houdiniswap-agent",
+  "arch": "v2-parallel-review",
+  "verdict": "open-issue",
+  "reason": "gates regressed: build, typecheck packages/ai-tools",
+  "cost": 3.3416029999999997,
+  "fixMs": 284044,
+  "candidates": [
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    }
+  ],
+  "diffStat": " 3 files changed, 84 insertions(+), 40 deletions(-)"
+}

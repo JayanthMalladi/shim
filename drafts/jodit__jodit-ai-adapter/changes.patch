@@ -1,0 +1,255 @@
+diff --git a/package-lock.json b/package-lock.json
+index 46af7c8..866108e 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,9 +9,9 @@
+ 			"version": "0.2.15",
+ 			"license": "MIT",
+ 			"dependencies": {
+-				"@ai-sdk/openai": "^3.0.26",
++				"@ai-sdk/openai": "^4.0.0",
+ 				"@hapi/boom": "^10.0.1",
+-				"ai": "^6.0.76",
++				"ai": "^7.0.0",
+ 				"deepmerge": "^4.3.1",
+ 				"dotenv": "^17.2.4",
+ 				"express": "^5.2.1",
+@@ -54,62 +54,64 @@
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/gateway": {
+-			"version": "3.0.38",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.38.tgz",
+-			"integrity": "sha512-+Fg9IPI/wxE8mHiwiGrLwpLVsosibAQEzVzux2hAivw3nAFTl0dqLN6sT35WqLXk+wzeAfNmZwJ60lpJ+1sPRg==",
++			"version": "4.0.128",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-4.0.128.tgz",
++			"integrity": "sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/provider": "3.0.8",
+-				"@ai-sdk/provider-utils": "4.0.14",
+-				"@vercel/oidc": "3.1.0"
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70",
++				"@vercel/oidc": "3.2.0"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/openai": {
+-			"version": "3.0.26",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-3.0.26.tgz",
+-			"integrity": "sha512-W/hiwxIfG29IO0Fob1HwWpFssMsNrxWoX8A7DwNGOtKArDBmJNuGzQeU/k0Fnh8WyvZEnfxkjO4oXkSXfVBayg==",
++			"version": "4.0.104",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-4.0.104.tgz",
++			"integrity": "sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/provider": "3.0.8",
+-				"@ai-sdk/provider-utils": "4.0.14"
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/provider": {
+-			"version": "3.0.8",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.8.tgz",
+-			"integrity": "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==",
++			"version": "4.0.34",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++			"integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+ 				"json-schema": "^0.4.0"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			}
+ 		},
+ 		"node_modules/@ai-sdk/provider-utils": {
+-			"version": "4.0.14",
+-			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.14.tgz",
+-			"integrity": "sha512-7bzKd9lgiDeXM7O4U4nQ8iTxguAOkg8LZGD9AfDVZYjO5cKYRwBPwVjboFcVrxncRHu0tYxZtXZtiLKpG4pEng==",
++			"version": "5.0.70",
++			"resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++			"integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/provider": "3.0.8",
++				"@ai-sdk/provider": "4.0.34",
+ 				"@standard-schema/spec": "^1.1.0",
+-				"eventsource-parser": "^3.0.6"
++				"@workflow/serde": "4.1.0",
++				"eventsource-parser": "^3.0.8",
++				"undici": "^7.29.0"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+@@ -2057,15 +2059,6 @@
+ 			"dev": true,
+ 			"license": "MIT"
+ 		},
+-		"node_modules/@opentelemetry/api": {
+-			"version": "1.9.0",
+-			"resolved": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.0.tgz",
+-			"integrity": "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==",
+-			"license": "Apache-2.0",
+-			"engines": {
+-				"node": ">=8.0.0"
+-			}
+-		},
+ 		"node_modules/@paralleldrive/cuid2": {
+ 			"version": "2.3.1",
+ 			"resolved": "https://registry.npmjs.org/@paralleldrive/cuid2/-/cuid2-2.3.1.tgz",
+@@ -3425,14 +3418,20 @@
+ 			]
+ 		},
+ 		"node_modules/@vercel/oidc": {
+-			"version": "3.1.0",
+-			"resolved": "https://registry.npmjs.org/@vercel/oidc/-/oidc-3.1.0.tgz",
+-			"integrity": "sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==",
++			"version": "3.2.0",
++			"resolved": "https://registry.npmjs.org/@vercel/oidc/-/oidc-3.2.0.tgz",
++			"integrity": "sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==",
+ 			"license": "Apache-2.0",
+ 			"engines": {
+ 				"node": ">= 20"
+ 			}
+ 		},
++		"node_modules/@workflow/serde": {
++			"version": "4.1.0",
++			"resolved": "https://registry.npmjs.org/@workflow/serde/-/serde-4.1.0.tgz",
++			"integrity": "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==",
++			"license": "Apache-2.0"
++		},
+ 		"node_modules/abort-controller": {
+ 			"version": "3.0.0",
+ 			"resolved": "https://registry.npmjs.org/abort-controller/-/abort-controller-3.0.0.tgz",
+@@ -3496,18 +3495,17 @@
+ 			}
+ 		},
+ 		"node_modules/ai": {
+-			"version": "6.0.76",
+-			"resolved": "https://registry.npmjs.org/ai/-/ai-6.0.76.tgz",
+-			"integrity": "sha512-UnFM68DYOsKXySyj1kf1+EtqFOjDMs88zYbMZbas27izA+lJXqPkZizZIlLcI8xCrkUo89x6tTAdDd6EgD76og==",
++			"version": "7.0.155",
++			"resolved": "https://registry.npmjs.org/ai/-/ai-7.0.155.tgz",
++			"integrity": "sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==",
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+-				"@ai-sdk/gateway": "3.0.38",
+-				"@ai-sdk/provider": "3.0.8",
+-				"@ai-sdk/provider-utils": "4.0.14",
+-				"@opentelemetry/api": "1.9.0"
++				"@ai-sdk/gateway": "4.0.128",
++				"@ai-sdk/provider": "4.0.34",
++				"@ai-sdk/provider-utils": "5.0.70"
+ 			},
+ 			"engines": {
+-				"node": ">=18"
++				"node": ">=22"
+ 			},
+ 			"peerDependencies": {
+ 				"zod": "^3.25.76 || ^4.1.8"
+@@ -5476,9 +5474,9 @@
+ 			}
+ 		},
+ 		"node_modules/eventsource-parser": {
+-			"version": "3.0.6",
+-			"resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.0.6.tgz",
+-			"integrity": "sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==",
++			"version": "3.1.1",
++			"resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.1.1.tgz",
++			"integrity": "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==",
+ 			"license": "MIT",
+ 			"engines": {
+ 				"node": ">=18.0.0"
+@@ -9905,9 +9903,9 @@
+ 			"license": "MIT"
+ 		},
+ 		"node_modules/undici": {
+-			"version": "7.21.0",
+-			"resolved": "https://registry.npmjs.org/undici/-/undici-7.21.0.tgz",
+-			"integrity": "sha512-Hn2tCQpoDt1wv23a68Ctc8Cr/BHpUSfaPYrkajTXOS9IKpxVRx/X5m1K2YkbK2ipgZgxXSgsUinl3x+2YdSSfg==",
++			"version": "7.30.1",
++			"resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++			"integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
+ 			"license": "MIT",
+ 			"engines": {
+ 				"node": ">=20.18.1"
+diff --git a/package.json b/package.json
+index fdd823b..7a06117 100644
+--- a/package.json
++++ b/package.json
+@@ -64,9 +64,9 @@
+ 	"author": "Chupurnov Valeriy <chupurnov@gmail.com>",
+ 	"license": "MIT",
+ 	"dependencies": {
+-		"@ai-sdk/openai": "^3.0.26",
++		"@ai-sdk/openai": "^4.0.0",
+ 		"@hapi/boom": "^10.0.1",
+-		"ai": "^6.0.76",
++		"ai": "^7.0.0",
+ 		"deepmerge": "^4.3.1",
+ 		"dotenv": "^17.2.4",
+ 		"express": "^5.2.1",
+diff --git a/src/adapters/base-adapter.ts b/src/adapters/base-adapter.ts
+index 337a79e..826313e 100644
+--- a/src/adapters/base-adapter.ts
++++ b/src/adapters/base-adapter.ts
+@@ -141,7 +141,8 @@ export abstract class BaseAdapter {
+ 			onError: ({ error }) => {
+ 				logger.error('streamText error');
+ 				logger.error(error);
+-			}
++			},
++			allowSystemInMessages: true
+ 		});
+ 
+ 		const responseId = this.generateResponseId('stream');
+@@ -164,7 +165,7 @@ export abstract class BaseAdapter {
+ 						}
+ 					};
+ 
+-					for await (const part of result.fullStream) {
++					for await (const part of result.stream) {
+ 						switch (part.type) {
+ 							case 'text-delta': {
+ 								fullText += part.text;
+@@ -257,7 +258,8 @@ export abstract class BaseAdapter {
+ 			abortSignal: params.abortSignal,
+ 			maxOutputTokens: params.maxOutputTokens,
+ 			tools: params.tools,
+-			providerOptions: this.getProviderOptions(context)
++			providerOptions: this.getProviderOptions(context),
++			allowSystemInMessages: true
+ 		});
+ 
+ 		const responseId = result.response.id;
+@@ -377,7 +379,8 @@ export abstract class BaseAdapter {
+ 			schema: z.object({
+ 				suggestions: z.array(z.string()).describe('Array of autocomplete text suggestions')
+ 			}),
+-			abortSignal: signal
++			abortSignal: signal,
++			allowSystemInMessages: true
+ 		});
+ 
+ 		const responseId = result.response?.id || this.generateResponseId('ac');

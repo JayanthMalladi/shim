@@ -1,0 +1,40 @@
+diff --git a/examples/code-review-agent/package.json b/examples/code-review-agent/package.json
+index bfaba96..7de396e 100644
+--- a/examples/code-review-agent/package.json
++++ b/examples/code-review-agent/package.json
+@@ -9,7 +9,7 @@
+     "run:warn": "TOOLROUTE_STRICT=0 tsx run.ts"
+   },
+   "peerDependencies": {
+-    "ai": ">=6.0.0 <7",
++    "ai": "^7.0.0",
+     "zod": ">=3.23.0 <5"
+   }
+ }
+diff --git a/examples/code-review-agent/run.ts b/examples/code-review-agent/run.ts
+index 97eabd7..7e22faf 100644
+--- a/examples/code-review-agent/run.ts
++++ b/examples/code-review-agent/run.ts
+@@ -8,7 +8,7 @@
+  *
+  * No network calls. CI runs this offline.
+  */
+-import { streamText, stepCountIs, simulateReadableStream } from 'ai';
++import { streamText, isStepCount, simulateReadableStream } from 'ai';
+ import { MockLanguageModelV3 } from 'ai/test';
+ import {
+   createRouterFromTools,
+@@ -98,11 +98,11 @@ async function main(): Promise<void> {
+     model,
+     tools: router.tools,
+     prompt: 'Find and ship the fix.',
+-    stopWhen: stepCountIs(3),
++    stopWhen: isStepCount(3),
+   });
+ 
+   try {
+-    for await (const part of result.fullStream) {
++    for await (const part of result.stream) {
+       if (part.type === 'tool-call') {
+         console.log(`[runner] tool-call: ${part.toolName}`);
+       } else if (part.type === 'tool-result') {

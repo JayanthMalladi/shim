@@ -1,0 +1,5 @@
+not-ready
+judge rejected
+head: HEAD: fd42452
+
+Vs last night: last night's rejection reason was not stated in the task, so cannot compare. NOT READY now: judge rejected. src/services/VercelAIModelService.ts:209 renames result.fullStream to result.stream (codemod; fullStream is still a deprecated alias), but the test mocks in src/services/__tests__/VercelAIModelService.test.ts still return only { fullStream }, so the streamChat tests would throw. Gates stayed green but `test .` already failed at baseline, so it could not catch this. The fixer did revert several wrong codemod edits (project-local usage/image/system names).

@@ -1,0 +1,5 @@
+ready
+all baseline gates still pass and no breaking findings remain
+head: HEAD: 648060f
+
+Vs last night: FIXED. Last night's rejection (system messages left in `messages`) is gone: allowSystemInMessages: true is now set on the three scripts that pass system messages; judge approved.

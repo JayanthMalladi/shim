@@ -1,0 +1,5 @@
+needs-review
+all baseline gates still pass and no breaking findings remain
+head: HEAD: 9e74f9d
+
+Needs-review (quality bar, read-only check of changes.patch/pr.md): Fixer hand-wrote an explicit return type on exported createTools (Tool<...> for remember/recall) plus a new RetrieveResponse import in packages/ai-sdk/src/tools.ts; this widens the public type (Tool has optional execute) and pr.md only says 'the codemod's renames covered the code changes'. Check consumer typing before opening.

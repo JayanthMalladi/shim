@@ -1,0 +1,38 @@
+{
+  "repo": "dpuyosa/venice-ai-sdk-provider",
+  "arch": "v2-parallel-review",
+  "verdict": "open-issue",
+  "reason": "gates regressed: build, typecheck .",
+  "cost": 1.9342858,
+  "fixMs": 135949,
+  "candidates": [
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck ."
+      ],
+      "remaining": 0
+    }
+  ],
+  "diffStat": " 2 files changed, 17 insertions(+), 29 deletions(-)"
+}

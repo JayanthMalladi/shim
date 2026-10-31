@@ -1,0 +1,5 @@
+needs-review
+all baseline gates still pass and no breaking findings remain
+head: HEAD: 86e107e
+
+Needs-review (quality bar, read-only check of changes.patch/pr.md): Non-mechanical edits not explained in pr.md: removed explicit generics from 10 tool<...>() calls in agent-node/src/tools.ts (file with no findings), remapped cachedInputTokens to inputTokenDetails.cacheReadTokens without optional chaining in handler.ts, and dropped cachedInputTokens from sumUsage. Review those before opening.

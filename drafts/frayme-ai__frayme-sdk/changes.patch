@@ -1,0 +1,701 @@
+diff --git a/package-lock.json b/package-lock.json
+index 51a6014..dbc1070 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -38,68 +38,91 @@
+       }
+     },
+     "node_modules/@ai-sdk/gateway": {
+-      "version": "3.0.128",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-3.0.128.tgz",
+-      "integrity": "sha512-t9Dyqk5thSmIzsNvVTQtZZiO3xqKGkk1hX3+GNpYmro+GuEdW+E6mKFHihb9Y1vCEt3rEyd4pbGUcin4D57FfQ==",
++      "version": "4.0.128",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/gateway/-/gateway-4.0.128.tgz",
++      "integrity": "sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.10",
+-        "@ai-sdk/provider-utils": "4.0.28",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70",
+         "@vercel/oidc": "3.2.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
++      },
++      "peerDependencies": {
++        "zod": "^3.25.76 || ^4.1.8"
++      }
++    },
++    "node_modules/@ai-sdk/mcp": {
++      "version": "2.0.86",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/mcp/-/mcp-2.0.86.tgz",
++      "integrity": "sha512-LHpJMW2CR0D6sb1nXsl8KZ4vWmGueYc1arvCRHSf+9wEBmL0X3Qc4Jwqta5UcodP1DVQcnr4OJD5LKYb2WsCBw==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70",
++        "cross-spawn": "^7.0.6",
++        "pkce-challenge": "^5.0.1"
++      },
++      "engines": {
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/provider": {
+-      "version": "3.0.10",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-3.0.10.tgz",
+-      "integrity": "sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==",
++      "version": "4.0.34",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-4.0.34.tgz",
++      "integrity": "sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+         "json-schema": "^0.4.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       }
+     },
+     "node_modules/@ai-sdk/provider-utils": {
+-      "version": "4.0.28",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-4.0.28.tgz",
+-      "integrity": "sha512-nCtGJY43Kqwoyk0rYLj80a3eyXxcaWwyu+lYZDHgY+U6JbYYyvRdRTSy+XCDIB91rFH0Ul0eMDHmDr+YMYtrSw==",
++      "version": "5.0.70",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-5.0.70.tgz",
++      "integrity": "sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider": "3.0.10",
++        "@ai-sdk/provider": "4.0.34",
+         "@standard-schema/spec": "^1.1.0",
+-        "eventsource-parser": "^3.0.8"
++        "@workflow/serde": "4.1.0",
++        "eventsource-parser": "^3.0.8",
++        "undici": "^7.29.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
+     "node_modules/@ai-sdk/react": {
+-      "version": "3.0.204",
+-      "resolved": "https://registry.npmjs.org/@ai-sdk/react/-/react-3.0.204.tgz",
+-      "integrity": "sha512-4I5fq9n/YBCEPfbvYEzc5lFNMxoF2hZRXVrUAsjA6NL7LY8AJo3V3PD2TH9rTKIY08uolnyJSnnQc7YuFXXUIA==",
++      "version": "4.0.159",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/react/-/react-4.0.159.tgz",
++      "integrity": "sha512-dk+4cq+ahLexOBJZtw0uR2qltA3bAN9pxmU3yPEnvcRO4bW5C56K1/2YIfobvClZChmKJJEDNAokvBGDQ3pxYQ==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/provider-utils": "4.0.28",
+-        "ai": "6.0.202",
+-        "swr": "^2.2.5",
++        "@ai-sdk/mcp": "2.0.86",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70",
++        "ai": "7.0.155",
++        "swr": "^2.4.1",
+         "throttleit": "2.1.0"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "react": "^18 || ~19.0.1 || ~19.1.2 || ^19.2.1"
+@@ -1411,16 +1434,6 @@
+         "node": ">= 8"
+       }
+     },
+-    "node_modules/@opentelemetry/api": {
+-      "version": "1.9.1",
+-      "resolved": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.1.tgz",
+-      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==",
+-      "dev": true,
+-      "license": "Apache-2.0",
+-      "engines": {
+-        "node": ">=8.0.0"
+-      }
+-    },
+     "node_modules/@oxc-project/types": {
+       "version": "0.135.0",
+       "resolved": "https://registry.npmjs.org/@oxc-project/types/-/types-0.135.0.tgz",
+@@ -1559,9 +1572,6 @@
+         "arm"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1583,9 +1593,6 @@
+         "arm"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1607,9 +1614,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1631,9 +1635,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1655,9 +1656,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1679,9 +1677,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1894,9 +1889,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1914,9 +1906,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1934,9 +1923,6 @@
+         "ppc64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1954,9 +1940,6 @@
+         "s390x"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1974,9 +1957,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1994,9 +1974,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2605,9 +2582,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2625,9 +2599,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2645,9 +2616,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2665,9 +2633,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2976,6 +2941,13 @@
+         "url": "https://opencollective.com/vitest"
+       }
+     },
++    "node_modules/@workflow/serde": {
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/@workflow/serde/-/serde-4.1.0.tgz",
++      "integrity": "sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==",
++      "dev": true,
++      "license": "Apache-2.0"
++    },
+     "node_modules/agent-base": {
+       "version": "7.1.4",
+       "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-7.1.4.tgz",
+@@ -2987,19 +2959,18 @@
+       }
+     },
+     "node_modules/ai": {
+-      "version": "6.0.202",
+-      "resolved": "https://registry.npmjs.org/ai/-/ai-6.0.202.tgz",
+-      "integrity": "sha512-14O7uyHVa5lXyt1RzduRqM1zwOnLBN+EaE+btWiP2R7GLHd5oh+Z9uaebR785V/Y2hXlxvuQGsw2Gj6iHpkxsg==",
++      "version": "7.0.155",
++      "resolved": "https://registry.npmjs.org/ai/-/ai-7.0.155.tgz",
++      "integrity": "sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==",
+       "dev": true,
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@ai-sdk/gateway": "3.0.128",
+-        "@ai-sdk/provider": "3.0.10",
+-        "@ai-sdk/provider-utils": "4.0.28",
+-        "@opentelemetry/api": "^1.9.0"
++        "@ai-sdk/gateway": "4.0.128",
++        "@ai-sdk/provider": "4.0.34",
++        "@ai-sdk/provider-utils": "5.0.70"
+       },
+       "engines": {
+-        "node": ">=18"
++        "node": ">=22"
+       },
+       "peerDependencies": {
+         "zod": "^3.25.76 || ^4.1.8"
+@@ -3784,9 +3755,9 @@
+       }
+     },
+     "node_modules/eventsource-parser": {
+-      "version": "3.1.0",
+-      "resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.1.0.tgz",
+-      "integrity": "sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==",
++      "version": "3.1.1",
++      "resolved": "https://registry.npmjs.org/eventsource-parser/-/eventsource-parser-3.1.1.tgz",
++      "integrity": "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==",
+       "dev": true,
+       "license": "MIT",
+       "engines": {
+@@ -4472,6 +4443,7 @@
+       "os": [
+         "android"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4493,6 +4465,7 @@
+       "os": [
+         "darwin"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4514,6 +4487,7 @@
+       "os": [
+         "darwin"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4535,6 +4509,7 @@
+       "os": [
+         "freebsd"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4556,6 +4531,7 @@
+       "os": [
+         "linux"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4572,14 +4548,12 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+         "linux"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4596,14 +4570,12 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+         "linux"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4620,14 +4592,12 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+         "linux"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4644,14 +4614,12 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+         "linux"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4673,6 +4641,7 @@
+       "os": [
+         "win32"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -4694,6 +4663,7 @@
+       "os": [
+         "win32"
+       ],
++      "peer": true,
+       "engines": {
+         "node": ">= 12.0.0"
+       },
+@@ -5170,6 +5140,16 @@
+         "node": ">=6"
+       }
+     },
++    "node_modules/pkce-challenge": {
++      "version": "5.0.1",
++      "resolved": "https://registry.npmjs.org/pkce-challenge/-/pkce-challenge-5.0.1.tgz",
++      "integrity": "sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=16.20.0"
++      }
++    },
+     "node_modules/postcss": {
+       "version": "8.5.15",
+       "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.15.tgz",
+@@ -6229,6 +6209,16 @@
+       ],
+       "license": "MIT"
+     },
++    "node_modules/undici": {
++      "version": "7.30.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=20.18.1"
++      }
++    },
+     "node_modules/unicode-emoji-modifier-base": {
+       "version": "1.0.0",
+       "resolved": "https://registry.npmjs.org/unicode-emoji-modifier-base/-/unicode-emoji-modifier-base-1.0.0.tgz",
+@@ -6662,7 +6652,7 @@
+       },
+       "devDependencies": {
+         "@json-render/core": "^0.19.0",
+-        "ai": "^6.0.0",
++        "ai": "^7.0.0",
+         "tsdown": "^0.22.2",
+         "typescript": "^5.3.0",
+         "vitest": "^3.2.6",
+@@ -6673,7 +6663,7 @@
+       },
+       "peerDependencies": {
+         "@json-render/core": "^0.19.0",
+-        "ai": "^6.0.0",
++        "ai": "^7.0.0",
+         "zod": "^4.0.0"
+       },
+       "peerDependenciesMeta": {
+@@ -6710,14 +6700,14 @@
+         "@frayme/api": "^0.6.0 || ^0.7.0"
+       },
+       "devDependencies": {
+-        "@ai-sdk/react": "^3.0.0",
++        "@ai-sdk/react": "^4.0.0",
+         "@frayme/catalog": ">=0.4.0 <0.5.0",
+         "@json-render/core": "^0.19.0",
+         "@json-render/react": "^0.19.0",
+         "@tailwindcss/cli": "^4.3.1",
+         "@testing-library/react": "^16.0.0",
+         "@types/react": "^19.0.0",
+-        "ai": "^6.0.0",
++        "ai": "^7.0.0",
+         "class-variance-authority": "^0.7.1",
+         "clsx": "^2.1.1",
+         "jsdom": "^25.0.0",
+@@ -6734,11 +6724,11 @@
+         "node": ">=20.19.0"
+       },
+       "peerDependencies": {
+-        "@ai-sdk/react": "^3.0.0",
++        "@ai-sdk/react": "^4.0.0",
+         "@frayme/catalog": ">=0.4.0 <0.5.0",
+         "@json-render/core": "^0.19.0",
+         "@json-render/react": "^0.19.0",
+-        "ai": "^6.0.0",
++        "ai": "^7.0.0",
+         "react": "^19.0.0",
+         "zod": "^4.0.0"
+       },
+diff --git a/packages/api/package.json b/packages/api/package.json
+index e6d2628..cfb1995 100644
+--- a/packages/api/package.json
++++ b/packages/api/package.json
+@@ -70,7 +70,7 @@
+   "peerDependencies": {
+     "@json-render/core": "^0.19.0",
+     "zod": "^4.0.0",
+-    "ai": "^6.0.0"
++    "ai": "^7.0.0"
+   },
+   "peerDependenciesMeta": {
+     "ai": {
+@@ -79,7 +79,7 @@
+   },
+   "devDependencies": {
+     "@json-render/core": "^0.19.0",
+-    "ai": "^6.0.0",
++    "ai": "^7.0.0",
+     "tsdown": "^0.22.2",
+     "typescript": "^5.3.0",
+     "vitest": "^3.2.6",
+diff --git a/packages/api/src/ai-sdk/index.ts b/packages/api/src/ai-sdk/index.ts
+index 0c02ce4..38ed6a1 100644
+--- a/packages/api/src/ai-sdk/index.ts
++++ b/packages/api/src/ai-sdk/index.ts
+@@ -531,7 +531,7 @@ function asAiTool<I, O>(spec: FraymeToolSpec<I, O>): Tool<I, O> {
+   return {
+     description: spec.description,
+     inputSchema: spec.inputSchema,
+-    execute: (input: I, options: ToolExecutionOptions) => spec.execute(input, { signal: options.abortSignal }),
++    execute: (input: I, options: ToolExecutionOptions<unknown>) => spec.execute(input, { signal: options.abortSignal }),
+   } as unknown as Tool<I, O>;
+ }
+ 
+diff --git a/packages/api/test/ai-sdk-tools.test.ts b/packages/api/test/ai-sdk-tools.test.ts
+index 101f90b..c4a1d4e 100644
+--- a/packages/api/test/ai-sdk-tools.test.ts
++++ b/packages/api/test/ai-sdk-tools.test.ts
+@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
+ import {
+   convertToModelMessages,
+   readUIMessageStream,
+-  stepCountIs,
++  isStepCount,
+   streamText,
+   type ToolExecutionOptions,
+   type UIMessage,
+@@ -54,15 +54,16 @@ function setup(script: ScriptedResponse[], options: Omit<FraymeToolsOptions, 'cl
+   return { tools: fraymeTools({ client, ...options }), calls: mock.calls };
+ }
+ 
+-const callOptions = (over: Partial<ToolExecutionOptions> = {}): ToolExecutionOptions => ({
++const callOptions = (over: Partial<ToolExecutionOptions<unknown>> = {}): ToolExecutionOptions<unknown> => ({
+   toolCallId: 'call_1',
+   messages: [],
++  context: undefined,
+   ...over,
+ });
+ 
+ /** Run a tool the way the AI SDK does and keep every output. */
+ async function outputs(
+-  execute: ((input: never, options: ToolExecutionOptions) => unknown) | undefined,
++  execute: ((input: never, options: ToolExecutionOptions<unknown>) => unknown) | undefined,
+   input: unknown,
+ ): Promise<FraymeComposeOutput[]> {
+   const result = execute?.(input as never, callOptions());
+@@ -979,7 +980,7 @@ describe('fraymeTools in a streamText turn', () => {
+       model,
+       tools,
+       messages: [{ role: 'user', content: 'show me a card' }],
+-      stopWhen: stepCountIs(4),
++      stopWhen: isStepCount(4),
+     });
+ 
+     const chunks: Array<Record<string, unknown>> = [];
+@@ -1002,7 +1003,7 @@ describe('fraymeTools in a streamText turn', () => {
+   it('a saved chat converts back to model messages without the spec', async () => {
+     const { tools } = setup([ok()], { snapshotEveryMs: 0 });
+     const { model } = scriptedModel([toolCallStep('frayme_compose', { prompt: 'A card' }), textStep('Here it is.')]);
+-    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: stepCountIs(4) });
++    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: isStepCount(4) });
+     const assistant = await lastMessage(result.toUIMessageStream() as never);
+     const part = assistant.parts.find((p) => p.type === 'tool-frayme_compose') as Record<string, unknown> | undefined;
+     expect(part?.state).toBe('output-available');
+@@ -1035,7 +1036,8 @@ describe('fraymeTools in a streamText turn', () => {
+       model,
+       tools,
+       messages: await convertToModelMessages(messages as UIMessage[], { tools }),
+-      stopWhen: stepCountIs(4),
++      stopWhen: isStepCount(4),
++      allowSystemInMessages: true,
+     });
+     await result.consumeStream();
+     await result.response;
+@@ -1063,7 +1065,7 @@ describe('fraymeTools in a streamText turn', () => {
+       ],
+       textStep('ok'),
+     ]);
+-    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: stepCountIs(4) });
++    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: isStepCount(4) });
+     const chunks: Array<Record<string, unknown>> = [];
+     for await (const chunk of result.toUIMessageStream()) chunks.push(chunk as Record<string, unknown>);
+     expect(calls).toHaveLength(1);
+@@ -1080,7 +1082,7 @@ describe('fraymeTools in a streamText turn', () => {
+       toolCallStep('frayme_compose', { prompt: 'Another card' }, 'call_2'),
+       textStep('ok'),
+     ]);
+-    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: stepCountIs(5) });
++    const result = streamText({ model, tools, messages: [{ role: 'user', content: 'card' }], stopWhen: isStepCount(5) });
+     await result.consumeStream();
+     await result.response;
+     expect(calls).toHaveLength(1);
+diff --git a/packages/runtime/package.json b/packages/runtime/package.json
+index fd093b6..cdd2fc3 100644
+--- a/packages/runtime/package.json
++++ b/packages/runtime/package.json
+@@ -69,11 +69,11 @@
+     "@frayme/api": "^0.6.0 || ^0.7.0"
+   },
+   "peerDependencies": {
+-    "@ai-sdk/react": "^3.0.0",
++    "@ai-sdk/react": "^4.0.0",
+     "@frayme/catalog": ">=0.4.0 <0.5.0",
+     "@json-render/core": "^0.19.0",
+     "@json-render/react": "^0.19.0",
+-    "ai": "^6.0.0",
++    "ai": "^7.0.0",
+     "react": "^19.0.0",
+     "zod": "^4.0.0"
+   },
+@@ -86,14 +86,14 @@
+     }
+   },
+   "devDependencies": {
+-    "@ai-sdk/react": "^3.0.0",
++    "@ai-sdk/react": "^4.0.0",
+     "@frayme/catalog": ">=0.4.0 <0.5.0",
+     "@json-render/core": "^0.19.0",
+     "@json-render/react": "^0.19.0",
+     "@tailwindcss/cli": "^4.3.1",
+     "@testing-library/react": "^16.0.0",
+     "@types/react": "^19.0.0",
+-    "ai": "^6.0.0",
++    "ai": "^7.0.0",
+     "class-variance-authority": "^0.7.1",
+     "clsx": "^2.1.1",
+     "jsdom": "^25.0.0",

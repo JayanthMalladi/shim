@@ -1,0 +1,37 @@
+{
+  "repo": "upstash/context7",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.4746102
+  },
+  "cost": 2.6892938,
+  "fixMs": 405441,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 12,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 6 files changed, 64 insertions(+), 54 deletions(-)"
+}

@@ -1,0 +1,15 @@
+{
+  "repo": "aws/bedrock-agentcore-sdk-typescript",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.6148982
+  },
+  "cost": 0.49582620000000005,
+  "fixMs": 71725,
+  "candidates": [],
+  "diffStat": " 2 files changed, 87 insertions(+), 103 deletions(-)"
+}

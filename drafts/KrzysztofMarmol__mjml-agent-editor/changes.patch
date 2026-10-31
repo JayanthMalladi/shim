@@ -1,0 +1,544 @@
+diff --git a/packages/agent-node/package.json b/packages/agent-node/package.json
+index 55750ac..27f5784 100644
+--- a/packages/agent-node/package.json
++++ b/packages/agent-node/package.json
+@@ -56,21 +56,21 @@
+     "test:watch": "vitest"
+   },
+   "dependencies": {
+-    "@ai-sdk/anthropic": "^3.0.0",
+-    "@ai-sdk/openai": "^3.0.90",
++    "@ai-sdk/anthropic": "^4.0.0",
++    "@ai-sdk/openai": "^4.0.0",
+     "@mjml-agent-editor/core": "workspace:*",
+     "mjml": "^4.18.0"
+   },
+   "peerDependencies": {
+-    "ai": "^6.0.230"
++    "ai": "^7.0.0"
+   },
+   "devDependencies": {
+-    "@ai-sdk/provider": "^3.0.14",
++    "@ai-sdk/provider": "^4.0.0",
+     "@types/mjml": "^4.7.4",
+     "@types/node": "^22.10.2",
+     "tsup": "^8.3.5",
+     "typescript": "^5.7.2",
+     "vitest": "^2.1.8",
+-    "ai": "^6.0.230"
++    "ai": "^7.0.0"
+   }
+ }
+diff --git a/packages/agent-node/src/handler.ts b/packages/agent-node/src/handler.ts
+index 9fe0753..04ccccb 100644
+--- a/packages/agent-node/src/handler.ts
++++ b/packages/agent-node/src/handler.ts
+@@ -23,7 +23,7 @@ import {
+ import {
+   convertToModelMessages,
+   generateId,
+-  stepCountIs,
++  isStepCount,
+   streamText,
+   type LanguageModel,
+   type LanguageModelUsage,
+@@ -253,7 +253,7 @@ export function createChatHandler(options: ChatHandlerOptions) {
+           // produces zeros rather than NaN in someone's ledger.
+           inputTokens: total.inputTokens ?? 0,
+           outputTokens: total.outputTokens ?? 0,
+-          cachedInputTokens: total.cachedInputTokens ?? 0,
++          cachedInputTokens: total.inputTokenDetails.cacheReadTokens ?? 0,
+           totalTokens: total.totalTokens ?? 0,
+           raw: total,
+           steps: [...stepUsage],
+@@ -268,21 +268,22 @@ export function createChatHandler(options: ChatHandlerOptions) {
+ 
+     const result = streamText({
+       model: options.model,
+-      system,
++      instructions: system,
+       // Async in AI SDK v6 — it may need to fetch file/image parts referenced by URL.
+       messages: await convertToModelMessages(conversation),
+       tools: { ...builtIn, ...hostTools },
+-      stopWhen: stepCountIs(maxSteps),
++      stopWhen: isStepCount(maxSteps),
+       // A one-step turn has nothing to report yet, so it is not asked to.
+       prepareStep: ({ stepNumber, messages }) =>
+         stepNumber > 0 && stepNumber === maxSteps - 1
+           ? { messages: [...messages, { role: "user", content: LAST_STEP_NOTE }] }
+           : undefined,
+       abortSignal: abort.signal,
+-      onStepFinish: ({ usage, toolCalls }) => {
++      onStepEnd: ({ usage, toolCalls }) => {
+         stepUsage.push(usage);
+         lastStepCalledTools = toolCalls.length > 0;
+       },
++      allowSystemInMessages: true,
+     });
+ 
+     const session = options.session;
+@@ -308,7 +309,7 @@ export function createChatHandler(options: ChatHandlerOptions) {
+             // key" and may drop or duplicate messages. Silent, and only visible after a
+             // reload.
+             generateMessageId: generateId,
+-            onFinish: ({ messages }) => session.save(body.docId, messages),
++            onEnd: ({ messages }) => session.save(body.docId, messages),
+           }
+         : {}),
+     });
+@@ -358,7 +359,6 @@ function sumUsage(steps: readonly LanguageModelUsage[]): LanguageModelUsage {
+     inputTokens: add((u) => u.inputTokens),
+     outputTokens: add((u) => u.outputTokens),
+     totalTokens: add((u) => u.totalTokens),
+-    cachedInputTokens: add((u) => u.cachedInputTokens),
+     inputTokenDetails: {
+       noCacheTokens: add((u) => u.inputTokenDetails?.noCacheTokens),
+       cacheReadTokens: add((u) => u.inputTokenDetails?.cacheReadTokens),
+diff --git a/packages/agent-node/src/tools.ts b/packages/agent-node/src/tools.ts
+index e5199f8..65599d7 100644
+--- a/packages/agent-node/src/tools.ts
++++ b/packages/agent-node/src/tools.ts
+@@ -142,7 +142,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+   };
+ 
+   const tools: Record<BaseToolName, AgentTool> = {
+-    get_document: tool<Record<string, never>, string>({
++    get_document: tool({
+       description: TOOLS.get_document.description,
+       inputSchema: schemaOf<Record<string, never>>("get_document"),
+       execute: async () => {
+@@ -155,7 +155,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    get_section: tool<SectionIdInput, string>({
++    get_section: tool({
+       description: TOOLS.get_section.description,
+       inputSchema: schemaOf<SectionIdInput>("get_section"),
+       execute: async ({ section_id }) => {
+@@ -164,7 +164,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    set_document: tool<MjmlInput, string>({
++    set_document: tool({
+       description: TOOLS.set_document.description,
+       inputSchema: schemaOf<MjmlInput>("set_document"),
+       execute: async ({ mjml, confirm_full_rewrite }) => {
+@@ -204,7 +204,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    set_section: tool<SetSectionInput, string>({
++    set_section: tool({
+       description: TOOLS.set_section.description,
+       inputSchema: schemaOf<SetSectionInput>("set_section"),
+       execute: async ({ section_id, mjml }) => {
+@@ -219,7 +219,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    insert_section: tool<InsertSectionInput, string>({
++    insert_section: tool({
+       description: TOOLS.insert_section.description,
+       inputSchema: schemaOf<InsertSectionInput>("insert_section"),
+       execute: async ({ mjml, after_section_id }) => {
+@@ -238,7 +238,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    remove_section: tool<SectionIdInput, string>({
++    remove_section: tool({
+       description: TOOLS.remove_section.description,
+       inputSchema: schemaOf<SectionIdInput>("remove_section"),
+       execute: async ({ section_id }) => {
+@@ -252,7 +252,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    generate_image: tool<GenerateImageInput, string>({
++    generate_image: tool({
+       description: TOOLS.generate_image.description,
+       inputSchema: schemaOf<GenerateImageInput>("generate_image"),
+       execute: async ({ prompt, size }) => {
+@@ -264,7 +264,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    list_open_comments: tool<Record<string, never>, string>({
++    list_open_comments: tool({
+       description: TOOLS.list_open_comments.description,
+       inputSchema: schemaOf<Record<string, never>>("list_open_comments"),
+       execute: async () => {
+@@ -282,7 +282,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+       },
+     }),
+ 
+-    resolve_comment: tool<ResolveCommentInput, string>({
++    resolve_comment: tool({
+       description: TOOLS.resolve_comment.description,
+       inputSchema: schemaOf<ResolveCommentInput>("resolve_comment"),
+       execute: async ({ comment_id }) => {
+@@ -300,7 +300,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
+ 
+   return {
+     ...tools,
+-    inspect_rendered_email: tool<Record<string, never>, string>({
++    inspect_rendered_email: tool({
+       description: TOOLS.inspect_rendered_email.description,
+       inputSchema: schemaOf<Record<string, never>>("inspect_rendered_email"),
+       execute: async () => {
+diff --git a/packages/editor/package.json b/packages/editor/package.json
+index a329400..1ef6c10 100644
+--- a/packages/editor/package.json
++++ b/packages/editor/package.json
+@@ -63,7 +63,7 @@
+     "typecheck": "tsc --noEmit"
+   },
+   "dependencies": {
+-    "@ai-sdk/react": "^3.0.232",
++    "@ai-sdk/react": "^4.0.0",
+     "@grapesjs/react": "^2.0.0",
+     "@mjml-agent-editor/core": "workspace:*",
+     "@shadcn/react": "^0.2.1",
+@@ -80,14 +80,14 @@
+     "tailwind-merge": "^3.6.0"
+   },
+   "peerDependencies": {
+-    "ai": "^6.0.230",
++    "ai": "^7.0.0",
+     "react": "^19",
+     "react-dom": "^19"
+   },
+   "devDependencies": {
+     "@types/react": "^19",
+     "@types/react-dom": "^19",
+-    "ai": "^6.0.230",
++    "ai": "^7.0.0",
+     "jsdom": "^26.1.0",
+     "react": "19.2.4",
+     "react-dom": "19.2.4",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 92aa908..878b30a 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -103,11 +103,11 @@ importers:
+   packages/agent-node:
+     dependencies:
+       '@ai-sdk/anthropic':
+-        specifier: ^3.0.0
+-        version: 3.0.103(zod@4.4.3)
++        specifier: ^4.0.0
++        version: 4.0.89(zod@4.4.3)
+       '@ai-sdk/openai':
+-        specifier: ^3.0.90
+-        version: 3.0.90(zod@4.4.3)
++        specifier: ^4.0.0
++        version: 4.0.103(zod@4.4.3)
+       '@mjml-agent-editor/core':
+         specifier: workspace:*
+         version: link:../agent-core
+@@ -116,8 +116,8 @@ importers:
+         version: 4.18.0
+     devDependencies:
+       '@ai-sdk/provider':
+-        specifier: ^3.0.14
+-        version: 3.0.14
++        specifier: ^4.0.0
++        version: 4.0.34
+       '@types/mjml':
+         specifier: ^4.7.4
+         version: 4.7.4
+@@ -125,8 +125,8 @@ importers:
+         specifier: ^22.10.2
+         version: 22.20.1
+       ai:
+-        specifier: ^6.0.230
+-        version: 6.0.235(zod@4.4.3)
++        specifier: ^7.0.0
++        version: 7.0.154(zod@4.4.3)
+       tsup:
+         specifier: ^8.3.5
+         version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)
+@@ -168,8 +168,8 @@ importers:
+   packages/editor:
+     dependencies:
+       '@ai-sdk/react':
+-        specifier: ^3.0.232
+-        version: 3.0.240(react@19.2.4)(zod@4.4.3)
++        specifier: ^4.0.0
++        version: 4.0.158(react@19.2.4)(zod@4.4.3)
+       '@grapesjs/react':
+         specifier: ^2.0.0
+         version: 2.0.0(grapesjs@0.22.16)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+@@ -220,8 +220,8 @@ importers:
+         specifier: ^19
+         version: 19.2.3(@types/react@19.2.17)
+       ai:
+-        specifier: ^6.0.230
+-        version: 6.0.238(zod@4.4.3)
++        specifier: ^7.0.0
++        version: 7.0.154(zod@4.4.3)
+       jsdom:
+         specifier: ^26.1.0
+         version: 26.1.0
+@@ -265,21 +265,27 @@ packages:
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/gateway@3.0.157':
+-    resolution: {integrity: sha512-jO0LUsIQC+FeJRQI1KFiNcfTGp6a0lXrymekaXfBIvhVEOyt0NUyc9wiVi/dYGHQmWFXUo8QgmghgGAGLOPTAA==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/anthropic@4.0.89':
++    resolution: {integrity: sha512-PCXExlOB4P51rzJ9hGIcZ+6DfHdLpcbs0IzgbtBEubITa6f90+7K/sD38rXfdDzYdVtjFitdtSl3cr4KAY2wQw==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/gateway@3.0.160':
+-    resolution: {integrity: sha512-yL024nICtDX74vFkfFJl8t7uHlA3BXl/5C+Ah92dPunI0U2WPCPhTnmiWu4zEYTjZmmvFOC3pDojniLsHkUFqA==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/gateway@4.0.127':
++    resolution: {integrity: sha512-ENcIQNrZxgFnNSx29X2o/mLKZRzMN91c53Qlp/UrF4RQGVSfaROjFQAq4eeJliRPWwjHvEhJYG42IrOwtWUGOQ==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/openai@3.0.90':
+-    resolution: {integrity: sha512-GIucFshCN7JZwTDur25PsnLEMRUFfAKuLaA9TP9fzGxPC2Zxzl94tvat93ZdZLURkKOrDukU0E4fj73tKDWjTA==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/mcp@2.0.85':
++    resolution: {integrity: sha512-I3l10JGrsjYvAnliCENjZ40UYes/UfQfkJNUzKnusHCihu051aK56WfYGnUddKaz6GEKMD68dgPJzSJV9zoSiQ==}
++    engines: {node: '>=22'}
++    peerDependencies:
++      zod: ^3.25.76 || ^4.1.8
++
++  '@ai-sdk/openai@4.0.103':
++    resolution: {integrity: sha512-ZaMITn2RBzILNzrpXxJDMPRpNHGwZdq77GWqd9UBuz5VAA8EOu9JPy8hTk5OVhPMzDZbNgpb/D/1G+NbeVP22w==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+@@ -289,9 +295,9 @@ packages:
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+-  '@ai-sdk/provider-utils@4.0.41':
+-    resolution: {integrity: sha512-I7hhjfw01yEI8NkuAsT8Mv6xbWFr/lqLXMdaJQ2zWfXEpxog1eT7skDcv1+RY29/+5btzH8wD+vVvy48bk9oNQ==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/provider-utils@5.0.69':
++    resolution: {integrity: sha512-oGCXIoBKLpNrrAzJvltFHdBl20FJMyT+7edD9D4nwxoI8Scbj3y1EgKzjoF2XFhNYkMTcv1oTFDgUzLxdjqSKg==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+@@ -299,9 +305,13 @@ packages:
+     resolution: {integrity: sha512-5X1k57JBJ4H7H1QjX7CnJYAB1I19r/trVZTMcSms7/kLNZ8RaU4Nt2agcwZzv82Hfx6Q7/TOLU7agAKeFfc8cA==}
+     engines: {node: '>=18'}
+ 
+-  '@ai-sdk/react@3.0.240':
+-    resolution: {integrity: sha512-o+XBxxBEE8+eJ3CiUChEk525rOBZ/yeSIhEjs9rzm1u7ITsPEiuuUtFxm7Cj7V4ZATTALwPvsctVFAfgdeaRQg==}
+-    engines: {node: '>=18'}
++  '@ai-sdk/provider@4.0.34':
++    resolution: {integrity: sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==}
++    engines: {node: '>=22'}
++
++  '@ai-sdk/react@4.0.158':
++    resolution: {integrity: sha512-IBlwYNVUPuvzaAY0GUg0yHjqlrtTChTDMhmgafoEAM/ImJNWR//MzD1rhk0tJgAlS0QcMyhs40s7eXPIWguwWw==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       react: ^18 || ~19.0.1 || ~19.1.2 || ^19.2.1
+ 
+@@ -980,10 +990,6 @@ packages:
+     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
+     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+ 
+-  '@fastify/busboy@2.1.1':
+-    resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
+-    engines: {node: '>=14'}
+-
+   '@floating-ui/core@1.8.0':
+     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
+ 
+@@ -2591,6 +2597,9 @@ packages:
+   '@vitest/utils@2.1.9':
+     resolution: {integrity: sha512-v0psaMSkNJ3A2NMrUEHFRzJtDPFn+/VWZ5WxImB21T9fjucJRmS7xCS3ppEnARb9y11OAzaD+P2Ps+b+BGX5iQ==}
+ 
++  '@workflow/serde@4.1.0':
++    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
++
+   abbrev@2.0.0:
+     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
+     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+@@ -2613,15 +2622,9 @@ packages:
+     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
+     engines: {node: '>= 14'}
+ 
+-  ai@6.0.235:
+-    resolution: {integrity: sha512-Uyeuvowo20XChpFC0lUaQq8xf0Kg7OElA56fEjUYoeWMJIzqshDTz4S57KXobcJ4m+iDQxMeJoUj06CIxSLx7A==}
+-    engines: {node: '>=18'}
+-    peerDependencies:
+-      zod: ^3.25.76 || ^4.1.8
+-
+-  ai@6.0.238:
+-    resolution: {integrity: sha512-XBIrxDzOrUAOqf+mkvzpOY67SRJoa5X99iMGAuCIcsey302+QW4AWpAJIyRuE3jJxmslWO4K3ToSeBUl1DeguA==}
+-    engines: {node: '>=18'}
++  ai@7.0.154:
++    resolution: {integrity: sha512-vpvOZoV2Xcu6vWYM/X2XAFJG93T/ELF+qbslXxRnpqqhKZ6dtxfZf1KHFqYBz784uV/XVjXkNjgs9Zc239NY3Q==}
++    engines: {node: '>=22'}
+     peerDependencies:
+       zod: ^3.25.76 || ^4.1.8
+ 
+@@ -5538,10 +5541,6 @@ packages:
+   undici-types@6.21.0:
+     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+ 
+-  undici@5.29.0:
+-    resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
+-    engines: {node: '>=14.0'}
+-
+   undici@7.29.0:
+     resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+     engines: {node: '>=20.18.1'}
+@@ -5853,24 +5852,31 @@ snapshots:
+       '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
+       zod: 4.4.3
+ 
+-  '@ai-sdk/gateway@3.0.157(zod@4.4.3)':
++  '@ai-sdk/anthropic@4.0.89(zod@4.4.3)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.14
+-      '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
+-      '@vercel/oidc': 3.2.0
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
+       zod: 4.4.3
+ 
+-  '@ai-sdk/gateway@3.0.160(zod@4.4.3)':
++  '@ai-sdk/gateway@4.0.127(zod@4.4.3)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.14
+-      '@ai-sdk/provider-utils': 4.0.41(zod@4.4.3)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
+       '@vercel/oidc': 3.2.0
+       zod: 4.4.3
+ 
+-  '@ai-sdk/openai@3.0.90(zod@4.4.3)':
++  '@ai-sdk/mcp@2.0.85(zod@4.4.3)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.14
+-      '@ai-sdk/provider-utils': 4.0.41(zod@4.4.3)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
++      cross-spawn: 7.0.6
++      pkce-challenge: 5.0.1
++      zod: 4.4.3
++
++  '@ai-sdk/openai@4.0.103(zod@4.4.3)':
++    dependencies:
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
+       zod: 4.4.3
+ 
+   '@ai-sdk/provider-utils@4.0.40(zod@4.4.3)':
+@@ -5880,22 +5886,29 @@ snapshots:
+       eventsource-parser: 3.1.0
+       zod: 4.4.3
+ 
+-  '@ai-sdk/provider-utils@4.0.41(zod@4.4.3)':
++  '@ai-sdk/provider-utils@5.0.69(zod@4.4.3)':
+     dependencies:
+-      '@ai-sdk/provider': 3.0.14
++      '@ai-sdk/provider': 4.0.34
+       '@standard-schema/spec': 1.1.0
++      '@workflow/serde': 4.1.0
+       eventsource-parser: 3.1.0
+-      undici: 5.29.0
++      undici: 7.29.0
+       zod: 4.4.3
+ 
+   '@ai-sdk/provider@3.0.14':
+     dependencies:
+       json-schema: 0.4.0
+ 
+-  '@ai-sdk/react@3.0.240(react@19.2.4)(zod@4.4.3)':
++  '@ai-sdk/provider@4.0.34':
++    dependencies:
++      json-schema: 0.4.0
++
++  '@ai-sdk/react@4.0.158(react@19.2.4)(zod@4.4.3)':
+     dependencies:
+-      '@ai-sdk/provider-utils': 4.0.41(zod@4.4.3)
+-      ai: 6.0.238(zod@4.4.3)
++      '@ai-sdk/mcp': 2.0.85(zod@4.4.3)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
++      ai: 7.0.154(zod@4.4.3)
+       react: 19.2.4
+       swr: 2.4.2(react@19.2.4)
+       throttleit: 2.1.0
+@@ -6433,8 +6446,6 @@ snapshots:
+       '@eslint/core': 0.17.0
+       levn: 0.4.1
+ 
+-  '@fastify/busboy@2.1.1': {}
+-
+   '@floating-ui/core@1.8.0':
+     dependencies:
+       '@floating-ui/utils': 0.2.12
+@@ -6680,7 +6691,8 @@ snapshots:
+ 
+   '@one-ini/wasm@0.1.1': {}
+ 
+-  '@opentelemetry/api@1.9.1': {}
++  '@opentelemetry/api@1.9.1':
++    optional: true
+ 
+   '@pkgjs/parseargs@0.11.0':
+     optional: true
+@@ -7916,6 +7928,8 @@ snapshots:
+       loupe: 3.2.1
+       tinyrainbow: 1.2.0
+ 
++  '@workflow/serde@4.1.0': {}
++
+   abbrev@2.0.0: {}
+ 
+   accepts@2.0.0:
+@@ -7931,20 +7945,11 @@ snapshots:
+ 
+   agent-base@7.1.4: {}
+ 
+-  ai@6.0.235(zod@4.4.3):
+-    dependencies:
+-      '@ai-sdk/gateway': 3.0.157(zod@4.4.3)
+-      '@ai-sdk/provider': 3.0.14
+-      '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
+-      '@opentelemetry/api': 1.9.1
+-      zod: 4.4.3
+-
+-  ai@6.0.238(zod@4.4.3):
++  ai@7.0.154(zod@4.4.3):
+     dependencies:
+-      '@ai-sdk/gateway': 3.0.160(zod@4.4.3)
+-      '@ai-sdk/provider': 3.0.14
+-      '@ai-sdk/provider-utils': 4.0.41(zod@4.4.3)
+-      '@opentelemetry/api': 1.9.1
++      '@ai-sdk/gateway': 4.0.127(zod@4.4.3)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.69(zod@4.4.3)
+       zod: 4.4.3
+ 
+   ajv-formats@2.1.1(ajv@8.20.0):
+@@ -11726,10 +11731,6 @@ snapshots:
+ 
+   undici-types@6.21.0: {}
+ 
+-  undici@5.29.0:
+-    dependencies:
+-      '@fastify/busboy': 2.1.1
+-
+   undici@7.29.0: {}
+ 
+   unicorn-magic@0.3.0: {}

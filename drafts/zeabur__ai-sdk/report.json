@@ -1,0 +1,41 @@
+{
+  "repo": "zeabur/ai-sdk",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "ai: ^6.0.0 -> ^7.0.0",
+    "ai: ^5.0.0 || ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json | 89 +++++++++++++++++++++----------------------------------\n package.json      |  4 +--\n 2 files changed, 35 insertions(+), 58 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 0.17925320000000006,
+  "fixMs": 22494
+}

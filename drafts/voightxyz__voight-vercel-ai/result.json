@@ -1,0 +1,15 @@
+{
+  "repo": "voightxyz/voight-vercel-ai",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": true,
+    "issues": [],
+    "cost": 0.1976958
+  },
+  "cost": 0.1414176,
+  "fixMs": 19036,
+  "candidates": [],
+  "diffStat": " 2 files changed, 50 insertions(+), 101 deletions(-)"
+}

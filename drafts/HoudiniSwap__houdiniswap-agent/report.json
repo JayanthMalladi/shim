@@ -1,0 +1,78 @@
+{
+  "repo": "HoudiniSwap/houdiniswap-agent",
+  "verdict": "open-issue",
+  "reason": "gates regressed: build, typecheck packages/ai-tools",
+  "versionChanges": [
+    "ai: ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "test .": false,
+    "typecheck packages/ai-tools": true,
+    "test packages/ai-tools": true
+  },
+  "after": {
+    "install": true,
+    "build": false,
+    "test .": false,
+    "typecheck packages/ai-tools": false,
+    "test packages/ai-tools": true
+  },
+  "regressions": [
+    "build",
+    "typecheck packages/ai-tools"
+  ],
+  "diffStat": "examples/swap-agent.ts         |   4 +-\n package-lock.json              | 118 ++++++++++++++++++++++++++++-------------\n packages/ai-tools/package.json |   2 +-\n 3 files changed, 84 insertions(+), 40 deletions(-)",
+  "changedFiles": [
+    "examples/swap-agent.ts",
+    "package-lock.json",
+    "packages/ai-tools/package.json"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [
+    "I didn't change anything: neither failing site can be fixed safely within your rules, so I left both and the build still fails with the same two errors. There's no root `tsconfig.json`, so the final `tsc` check doesn't apply. Running tsc on `packages/ai-tools` alone gives the same TS2742 errors as before. The working tree is clean, and `git diff` was already empty, so there are no codemod edits to revert.\n\n**The failing sites:**\n- `packages/ai-tools/src/tools.ts:27` (`createTools`)\n- `packages/ai-tools/src/index.ts:27` (`createHoudiniTools`)\n\n**Why the build breaks:**\n1. In v7, `tool({...})` with an `execute` function returns `ExecutableTool<Tool<...>>`. `ai` doesn't export the `ExecutableTool` type, so TypeScript has to spell out the type in full when it writes `createTools`'s declaration file. That full type refers to types from `@ai-sdk/provider`.\n2. The root `package.json` still has `\"@ai-sdk/anthropic\": \"^3.0.69\"`, the v6-era version, and the dependency bump didn't update it. It puts `@ai-sdk/provider@3.0.8` at the top level of `node_modules`. The `@ai-sdk/provider@4.0.34` that `ai@7` needs ends up nested at `node_modules/ai/node_modules/@ai-sdk/provider`. TypeScript can't write a portable reference to that nested path, which is what TS2742 means.\n\n**Why I didn't fix it in code:**\n- Writing out the full return type of `createTools` means typing all 12 tools by hand. That's a refactor, not a small edit.\n- Annotating it more loosely, for example as `ToolSet`, would weaken the package's public types and drop the v7 `ExecutableTool` narrowing.\n- Fixing `createTools` also fixes `createHoudiniTools`, since its type is just `createTools`'s return type.\n\n**Likely fix, which needs your approval:** bump the root dev dependency `@ai-sdk/anthropic` to the major version that works with AI SDK 7 and run `npm install`. That should put a single `@ai-sdk/provider@4.x` at the top level and remove the nested copy. It also matters for `examples/swap-agent.ts`, which pairs `createAnthropic` from the v6 provider with `ai@7`. I couldn't do this myself: the dependency rule rules it out, and the npm registry lookup to find the right version needed approval.",
+    "I didn't change any files, and the build still fails. The 2 TS2742 errors in `packages/ai-tools` (`src/tools.ts:27` and `src/index.ts:27`) are still there. The codemod hadn't edited anything either, so there was nothing to revert. The repo root has no `tsconfig.json`, so I ran `tsc --noEmit` on the ai-tools package instead, and it still shows those 2 errors.\n\n**Why it fails:** the problem is how npm laid out the dependencies, not the code.\n- The repo root still has the v6-era `@ai-sdk/anthropic@^3.0.69` as a dev dependency. It was not bumped with everything else.\n- That package pulls in `@ai-sdk/provider@3.0.8` and gets it placed at the root of `node_modules`.\n- `ai@7.0.155` needs `@ai-sdk/provider@4.0.34`, so npm puts that copy inside `node_modules/ai/node_modules`.\n- When TypeScript writes the `.d.ts` files, it has to name types from that nested copy, and it can't from inside ai-tools.\n- I confirmed this with a throwaway one-line file containing `tool({ inputSchema: z.object({}), execute: async () => 1 })`. It fails the same way, so every `tool()` call is affected, not something specific to this repo's code.\n\n**Why I left it rather than patching it:**\n1. **Type annotations:** adding them would mean hand-writing the full type of all 13 tools in `createTools` and changing the published type definitions. That isn't a small edit. It would also widen the return type to `ai`'s `Tool`, which makes `execute` optional. The existing tests call `tools.getTokens.execute(...)` without a non-null check, so they would break. The type that keeps `execute` required is `ExecutableTool`, and `ai` doesn't export it. Getting it would mean importing `@ai-sdk/provider-utils`, which is a new dependency.\n2. **Dependency bump:** I couldn't do it. Running `npm view` and `npm install` needed approval I don't have here.\n\n**Suggested fix:** change the root `package.json` dev dependency `@ai-sdk/anthropic` to the version made for AI SDK 7, which should be `^4.x` (I couldn't check the exact version from here). Then run `npm install`, so `@ai-sdk/provider@4` moves to the root and the nested copy goes away. That makes the layout match what it was under v6, with no source changes. It should clear both errors. It also brings `examples/swap-agent.ts`, which uses `createAnthropic` with `ToolLoopAgent`, onto a provider version that matches `ai@7`."
+  ],
+  "candidates": [
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 0,
+      "regressions": [
+        "build",
+        "typecheck packages/ai-tools"
+      ],
+      "remaining": 0
+    }
+  ],
+  "failures": {
+    "build": "error TS2742: The inferred type of 'createHoudiniTools' cannot be named without a reference to 'ai/node_modules/@ai-sdk/provider'. This is likely not portable. A type annotation is necessary.\n@houdiniswap/ai-tools:build: src/tools.ts(27,14): error TS2742: The inferred type of 'createTools' cannot be named without a reference to 'ai/node_modules/@ai-sdk/provider'. This is likely not portable. A type annotation is necessary.\n@houdiniswap/ai-tools:build: npm error Lifecycle script `build` failed with error:\n@houdiniswap/ai-tools:build: npm error code 1\n@houdiniswap/ai-tools:build: npm error path /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/HoudiniSwap__houdiniswap-agent.cand0/packages/ai-tools\n@houdiniswap/ai-tools:build: npm error workspace @houdiniswap/ai-tools@0.1.11\n@houdiniswap/ai-tools:build: npm error location /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/HoudiniSwap__houdiniswap-agent.cand0/packages/ai-tools\n@houdiniswap/ai-tools:build: npm error command failed\n@houdiniswap/ai-tools:build: npm error command sh -c tsc\n\n Tasks:    2 successful, 3 total\nCached:    2 cached, 3 total\n  Time:    5.44s \nFailed:    @houdiniswap/ai-tools#build\n\n ERROR  @houdiniswap/ai-tools#build: command (/tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/HoudiniSwap__houdiniswap-agent.cand0/packages/ai-tools) /opt/node22/bin/npm run build exited (1)\n ERROR  run failed: command  exited (1)\n",
+    "typecheck packages/ai-tools": "src/index.ts(27,14): error TS2742: The inferred type of 'createHoudiniTools' cannot be named without a reference to 'ai/node_modules/@ai-sdk/provider'. This is likely not portable. A type annotation is necessary.\nsrc/tools.ts(27,14): error TS2742: The inferred type of 'createTools' cannot be named without a reference to 'ai/node_modules/@ai-sdk/provider'. This is likely not portable. A type annotation is necessary.\n"
+  },
+  "arch": "v2-parallel-review",
+  "cost": 3.3416029999999997,
+  "fixMs": 284044
+}

@@ -1,0 +1,94 @@
+{
+  "repo": "ashwinpaulallen/ottrix",
+  "verdict": "open-issue",
+  "reason": "gates regressed: typecheck ., typecheck packages/vercel-ai",
+  "versionChanges": [
+    "@ai-sdk/provider: 3.0.10 -> ^4.0.0",
+    "ai: ^6.0.191 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 0,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages/vercel-ai/package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": true,
+    "typecheck packages/vercel-ai": true,
+    "test packages/vercel-ai": true
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": false,
+    "test .": true,
+    "typecheck packages/vercel-ai": false,
+    "test packages/vercel-ai": true
+  },
+  "regressions": [
+    "typecheck .",
+    "typecheck packages/vercel-ai"
+  ],
+  "diffStat": "package-lock.json               | 107 ++++++++++++++++++++++++++++++++++++----\n packages/vercel-ai/package.json |   4 +-\n packages/vercel-ai/src/tools.ts |   3 +-\n 3 files changed, 101 insertions(+), 13 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "packages/vercel-ai/package.json",
+    "packages/vercel-ai/src/tools.ts"
+  ],
+  "repairedChecks": [
+    "build",
+    "test ."
+  ],
+  "agentRuns": [
+    "I fixed both failures. `packages/core` now typechecks, but `packages/vercel-ai` still fails typecheck: it needs a rebuilt core, and I wasn't allowed to run the build.\n\n**1. `packages/core/src/providers/anthropic.ts`: undid a wrong codemod edit.**\nThis provider calls Anthropic's HTTP Messages API directly, not the AI SDK. The codemod renamed `system` to `instructions` here, which is wrong. That broke the local `splitMessages` return type (the three TS errors). It would also have sent the system prompt in an `instructions` field the API doesn't use, so the prompt would have been lost. I put back `system` at all four places: the two destructurings, the two `body.system =` assignments and the `splitMessages` return. I also put back `expect(body.system)` in `packages/core/tests/providers/anthropic.test.ts`, which the codemod had changed the same way.\n\n**2. `packages/vercel-ai/src/tools.ts:42`: added `context: undefined` to the `ottrixTool.execute(...)` options.**\nIn v7, `ToolExecutionOptions.context` is required; it replaces v6's optional `experimental_context`. This call never passed a context, so `undefined` keeps the v6 behavior.\n\n**Checks**\n- `packages/core`: `npx --no-install tsc --noEmit` with `tsconfig.json` and with `tsconfig.test.json` both pass with no errors.\n- `packages/vercel-ai`: `tsc --noEmit -p tsconfig.json` no longer shows the `context` error. It still shows 5 TS7016 errors (\"Could not find a declaration file for module 'ottrix'\"). Those come from `packages/core/dist` having no `.d.ts` files, because the earlier core build failed at its type-declaration step on the anthropic errors. With those errors fixed, running `npm run build` in `packages/core` should clear them. I couldn't confirm that, because the build commands (`tsup` and `npm run`) were blocked pending approval.\n\nI couldn't print a final `git diff --stat` either, because it also needed approval.",
+    "I fixed the one error you listed, in `packages/vercel-ai/src/tools.ts`, and `tsc --noEmit -p tsconfig.json` in `packages/vercel-ai` now passes. But the package's `typecheck` script will still fail on a test file, which I left alone (details below).\n\n**The fix (line 33).** In v7 a tool's `description` can be either a string or a function that takes a context. Our `FunctionTool` config only accepts a string. The edit is:\n```ts\ndescription: typeof ottrixTool.description === 'string' ? ottrixTool.description : name,\n```\nEvery tool written for v6 behaves exactly as before: string descriptions pass through, and a missing one falls back to `name`. Tools that use v7's new function-style description also get `name`. I didn't call the function, because there is no real context to pass it.\n\n**Other codemod edits.**\n- The `system` → `instructions` rename in `packages/core/src/providers/anthropic.ts` and its test was wrong: that code builds the raw Anthropic HTTP request, where the field is `system`. That rename was in the HEAD commit, and the working tree had already undone it before I started, so I made no change there. The core typecheck wasn't among the failing checks.\n- `context: undefined` in the `execute` call in `tools.ts` is needed in v7, so I kept it.\n\n**Still failing.** The second step of `typecheck` (`tsc -p tsconfig.test.json --noEmit`) reports one error:\n```\ntests/vercel-ai.test.ts:159 – Property 'context' is missing ... in type 'ToolExecutionOptions<any>'\n```\nThe test calls `execute` with `{ toolCallId: '1', messages: [] }`, and v7 now requires a `context` field. This test failed to compile before too; your output just never showed it because the first `tsc` failed and stopped the script. The codemod didn't make this edit, so your rules don't let me change the test. The fix is to add `context: undefined` at that call, if you're happy to change the test.\n\n**Not run.** There's no `tsconfig.json` at the repo root, so I ran the final `tsc` in `packages/vercel-ai`. `npm run typecheck`, `npm run build` and `npm test` all needed approval, so I didn't run them. Build should now get through, since its DTS step failed on the same `tools.ts` error. Tests are unconfirmed."
+  ],
+  "candidates": [
+    {
+      "ok": false,
+      "size": 18,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 15,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 15,
+      "regressions": [
+        "typecheck .",
+        "typecheck packages/vercel-ai"
+      ],
+      "remaining": 0
+    }
+  ],
+  "failures": {
+    "typecheck .": "\u001b[93m2074\u001b[0m:\u001b[93m3\u001b[0m\n@ottrix/vercel-ai:typecheck:     \u001b[7m2074\u001b[0m   context: CONTEXT;\n@ottrix/vercel-ai:typecheck:     \u001b[7m    \u001b[0m \u001b[96m  ~~~~~~~\u001b[0m\n@ottrix/vercel-ai:typecheck:     'context' is declared here.\n@ottrix/vercel-ai:typecheck: \n@ottrix/vercel-ai:typecheck: \n@ottrix/vercel-ai:typecheck: Found 1 error in tests/vercel-ai.test.ts\u001b[90m:159\u001b[0m\n@ottrix/vercel-ai:typecheck: \n@ottrix/vercel-ai:typecheck: npm error Lifecycle script `typecheck` failed with error:\n@ottrix/vercel-ai:typecheck: npm error code 2\n@ottrix/vercel-ai:typecheck: npm error path /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/ashwinpaulallen__ottrix.cand1/packages/vercel-ai\n@ottrix/vercel-ai:typecheck: npm error workspace @ottrix/vercel-ai@0.2.0\n@ottrix/vercel-ai:typecheck: npm error location /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/ashwinpaulallen__ottrix.cand1/packages/vercel-ai\n@ottrix/vercel-ai:typecheck: npm error command failed\n@ottrix/vercel-ai:typecheck: npm error command sh -c tsc --noEmit && tsc -p tsconfig.test.json --noEmit\n\n Tasks:    20 successful, 22 total\nCached:    20 cached, 22 total\n  Time:    6.519s \nFailed:    @ottrix/vercel-ai#typecheck\n\n@ottrix/vercel-ai#typecheck:  ERROR  command (/tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/ashwinpaulallen__ottrix.cand1/packages/vercel-ai) /opt/node22/bin/npm run typecheck exited (2)\n ERROR  run failed: command  exited (2)\n",
+    "typecheck packages/vercel-ai": "\n> @ottrix/vercel-ai@0.2.0 typecheck\n> tsc --noEmit && tsc -p tsconfig.test.json --noEmit\n\n\u001b[96mtests/vercel-ai.test.ts\u001b[0m:\u001b[93m159\u001b[0m:\u001b[93m7\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2345: \u001b[0mArgument of type '{ toolCallId: string; messages: never[]; }' is not assignable to parameter of type 'ToolExecutionOptions<any>'.\n  Property 'context' is missing in type '{ toolCallId: string; messages: never[]; }' but required in type 'ToolExecutionOptions<any>'.\n\n\u001b[7m159\u001b[0m       { toolCallId: '1', messages: [] },\n\u001b[7m   \u001b[0m \u001b[91m      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\u001b[0m\n\n  \u001b[96mnode_modules/ai/node_modules/@ai-sdk/provider-utils/dist/index.d.ts\u001b[0m:\u001b[93m2074\u001b[0m:\u001b[93m3\u001b[0m\n    \u001b[7m2074\u001b[0m   context: CONTEXT;\n    \u001b[7m    \u001b[0m \u001b[96m  ~~~~~~~\u001b[0m\n    'context' is declared here.\n\n\nFound 1 error in tests/vercel-ai.test.ts\u001b[90m:159\u001b[0m\n\nnpm error Lifecycle script `typecheck` failed with error:\nnpm error code 2\nnpm error path /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/ashwinpaulallen__ottrix.cand1/packages/vercel-ai\nnpm error workspace @ottrix/vercel-ai@0.2.0\nnpm error location /tmp/claude-0/-home-user-shim/19603947-e911-5f98-91c9-de5c2e1b9516/scratchpad/work/ashwinpaulallen__ottrix.cand1/packages/vercel-ai\nnpm error command failed\nnpm error command sh -c tsc --noEmit && tsc -p tsconfig.test.json --noEmit\n"
+  },
+  "arch": "v2-parallel-review",
+  "cost": 3.0236670000000005,
+  "fixMs": 339851
+}

@@ -1,0 +1,39 @@
+{
+  "repo": "echoVic/blade-agent-sdk",
+  "arch": "v2-parallel-review",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "judge": {
+    "approve": false,
+    "issues": [
+      "src/services/VercelAIModelService.ts:209 renames fullStream to stream (not required: fullStream is still a deprecated alias in v7), but the mocks in src/services/__tests__/VercelAIModelService.test.ts (e.g. line 60) still return only { fullStream }, so result.stream is undefined and the streamChat tests throw a TypeError"
+    ],
+    "cost": 0.2689046
+  },
+  "cost": 2.9399982000000002,
+  "fixMs": 630634,
+  "candidates": [
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 36,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "diffStat": " 4 files changed, 102 insertions(+), 101 deletions(-)"
+}

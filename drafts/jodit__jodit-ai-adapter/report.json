@@ -1,0 +1,107 @@
+{
+  "repo": "jodit/jodit-ai-adapter",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/openai: ^3.0.26 -> ^4.0.0",
+    "ai: ^6.0.76 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 3,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=18.0.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "src/adapters/base-adapter.ts",
+      "line": 135,
+      "snippet": "messages: params.messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "src/adapters/base-adapter.ts",
+      "line": 255,
+      "snippet": "messages: params.messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "src/adapters/base-adapter.ts",
+      "line": 375,
+      "snippet": "messages",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": true,
+    "test .": false
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json            | 100 +++++++++++++++++++++----------------------\n package.json                 |   4 +-\n src/adapters/base-adapter.ts |  11 +++--\n 3 files changed, 58 insertions(+), 57 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "package.json",
+    "src/adapters/base-adapter.ts"
+  ],
+  "repairedChecks": [
+    "typecheck ."
+  ],
+  "agentRuns": [
+    "I fixed the one failing check and the typecheck now passes, but there's a billing problem it doesn't catch that I left alone because it wasn't on your list.\n\n**The fix:** in `src/adapters/openai/credit.ts:20`, the codemod had changed `usage.cachedInputTokens` to `usage.inputTokenDetails.cacheReadTokens`. That `usage` is this repo's own `ProviderUsage` type (`src/types/express.ts:19`), which still has `cachedInputTokens` and has no `inputTokenDetails`. So the codemod got it wrong, and I reverted that line to `usage.cachedInputTokens ?? 0`. `npx --no-install tsc --noEmit -p tsconfig.json` now passes.\n\n**The billing problem:** `src/adapters/base-adapter.ts` passes the SDK's usage object straight through as `ProviderUsage` (lines 222, 275 and 398). In v7 the SDK's usage type no longer has `cachedInputTokens`; that value now lives at `inputTokenDetails.cacheReadTokens`, according to the migration guide. TypeScript doesn't complain because every field on `ProviderUsage` is optional. But at runtime `calculateCredits` will see `cachedInputTokens` as missing, count it as 0, and bill cached input tokens at the full input price instead of the cheaper cached price.\n\nThe fix is to map `inputTokenDetails.cacheReadTokens` to `cachedInputTokens` at those three spots in `base-adapter.ts`. I can make that change if you want it."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    },
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 2,
+      "regressions": [],
+      "remaining": 0,
+      "approved": false
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 1.4446144,
+  "fixMs": 219065
+}

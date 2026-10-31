@@ -1,0 +1,154 @@
+{
+  "repo": "ChainFuse/packages",
+  "verdict": "open-pr",
+  "reason": "all baseline gates still pass and no breaking findings remain",
+  "versionChanges": [
+    "@ai-sdk/anthropic: ^3.0.133 -> ^4.0.0",
+    "@ai-sdk/azure: ^3.0.141 -> ^4.0.0",
+    "@ai-sdk/google: ^3.0.136 -> ^4.0.0",
+    "@ai-sdk/openai: ^3.0.10 -> ^4.0.0",
+    "@ai-sdk/openai-compatible: ^2.0.86 -> ^3.0.0",
+    "@ai-sdk/provider: ^3.0.19 -> ^4.0.0",
+    "ai: ^6.0.311 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": true,
+  "autoFixed": 8,
+  "before": [
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mjs",
+      "line": 160,
+      "snippet": "{",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mjs",
+      "line": 206,
+      "snippet": "{",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mjs",
+      "line": 249,
+      "snippet": "new ToolLoopAgent({",
+      "message": "This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mjs",
+      "line": 303,
+      "snippet": "new ToolLoopAgent({",
+      "message": "This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mts",
+      "line": 187,
+      "snippet": "{",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mts",
+      "line": 247,
+      "snippet": "{",
+      "message": "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mts",
+      "line": 306,
+      "snippet": "new ToolLoopAgent({",
+      "message": "This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages/ai-tools/__tests__/ai-tools.test.mts",
+      "line": 376,
+      "snippet": "new ToolLoopAgent({",
+      "message": "This agent may be called with a system message in `messages`/`prompt` (or its calls aren't visible here), which AI SDK 7 rejects by default. Only the constructor accepts the option; `.generate()`/`.stream()` don't. `allowSystemInMessages: true` keeps the v6 behavior."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": true,
+    "typecheck .": false,
+    "test .": false,
+    "typecheck packages/ai-tools": true,
+    "test packages/ai-tools": false
+  },
+  "after": {
+    "install": true,
+    "build": true,
+    "typecheck .": false,
+    "test .": false,
+    "typecheck packages/ai-tools": true,
+    "test packages/ai-tools": false
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json                             | 353 ++++++++++++++++++++++----\n packages/ai-tools/__tests__/ai-tools.test.mts |   4 +\n packages/ai-tools/package.json                |  14 +-\n packages/ai-tools/src/providers/types.mts     |  24 +-\n 4 files changed, 331 insertions(+), 64 deletions(-)",
+  "changedFiles": [
+    "package-lock.json",
+    "packages/ai-tools/__tests__/ai-tools.test.mts",
+    "packages/ai-tools/package.json",
+    "packages/ai-tools/src/providers/types.mts"
+  ],
+  "repairedChecks": [
+    "build",
+    "typecheck packages/ai-tools"
+  ],
+  "agentRuns": [
+    "I fixed all three failing errors with one change: `packages/ai-tools/src/providers/types.mts` now uses the v4 model types. The package typecheck (`npx --no-install tsc --noEmit -p tsconfig.json` in `packages/ai-tools`) now passes. I didn't re-run the lerna `build`, but it runs the same `tsc` and failed on these same errors.\n\n**What was wrong:** the repo's own `AzureOpenAIProvider` interface extends the one from `@ai-sdk/azure`. It still promised v3 models (`LanguageModelV3`, `EmbeddingModelV3`, `ImageModelV3`), but the upgraded `@ai-sdk/azure` returns v4 models. That one mismatch caused all three errors:\n- `types.mts:5`: the interface no longer fit the one it extends.\n- `rawProviders.mts:229`: the `as AzureOpenAIProvider` cast was rejected.\n- `customProviders.mts:44`: the provider was no longer accepted as `fallbackProvider`.\n\n**The fix:** I switched the import and the 11 method return types to `LanguageModelV4`, `EmbeddingModelV4` and `ImageModelV4` from `@ai-sdk/provider`. The package already depends on `@ai-sdk/provider` `^4.0.0`, so no dependency changed. This is a type-only edit, so runtime behavior is unchanged, and I added no casts or error suppressions. The codemod had made no edits, so there was nothing to revert.\n\n**Still failing at the repo root:** `tsc` on the root `tsconfig.json` reports 4 errors, all in `ciScripts/azure-catalog.mts`. Three are because `@azure/arm-cognitiveservices` now names a field `cost` where the script reads `costs`. The fourth is a possibly-`undefined` value passed to `Object.keys` at line 222. None of these involve the AI SDK and none were on your list, so I left them alone."
+  ],
+  "candidates": [
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    },
+    {
+      "ok": true,
+      "size": 24,
+      "regressions": [],
+      "remaining": 0,
+      "approved": true
+    }
+  ],
+  "review": {
+    "approve": true,
+    "issues": []
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 1.658134,
+  "fixMs": 261218
+}
