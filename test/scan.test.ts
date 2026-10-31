@@ -97,6 +97,21 @@ describe("ai-sdk v7 scan", () => {
     expect(ciAt()).not.toContain(".github/workflows/ok.yml:24");
     expect(ciAt()).not.toContain(".github/workflows/publish.yml:11");
   });
+
+  it("flags ToolExecutionOptions literals missing the now-required context, not ones that have it", () => {
+    // Findings are relative to the root; normalize separators so the assertion holds on Windows too.
+    const ctx = () => at("tool-execution-context").map((l) => l.replace(/\\/g, "/"));
+    const findings = result.findings.filter((f) => f.ruleId === "tool-execution-context");
+    expect(ctx()).toEqual([
+      "src/tools.ts:13", // .execute 2nd-arg literal missing context
+      "src/tools.ts:22", // variable typed ToolExecutionOptions, literal missing context
+    ]);
+    // Both are runtime breaks handed to the agent; the minimal edit is a type-only test fix.
+    expect(findings.every((f) => f.severity === "break" && f.fix === "agent")).toBe(true);
+    // Not flagged: the `.execute` literal that already passes context (line 18), and the typed literal that does (line 28).
+    expect(ctx()).not.toContain("src/tools.ts:18");
+    expect(ctx()).not.toContain("src/tools.ts:28");
+  });
 });
 
 describe("auto fixes", () => {

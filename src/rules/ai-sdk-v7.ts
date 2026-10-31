@@ -108,6 +108,7 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
     }
 
     checkTypedResults(ctx, sf, names);
+    checkToolExecutionOptions(ctx, sf, names);
 
     for (const expr of sf.getDescendantsOfKind(SyntaxKind.NewExpression)) {
       const cls = calleeName(expr, names);
@@ -503,6 +504,54 @@ function checkTotalUsage(ctx: RuleContext, { call }: AiCall) {
     add(ctx, access, "total-usage", "deprecated", "auto", "`totalUsage` is deprecated; `usage` now covers all steps.");
     ctx.edits.push({ node: access, text: `${target.getText()}.usage` });
   }
+}
+
+/**
+ * AI SDK 7 added a required `context` field to `ToolExecutionOptions`. Code (mostly tests) that
+ * builds an options literal with `toolCallId`/`messages` but no `context` stopped type-checking.
+ * Flag such literals so the fixer adds the minimal `context` field it is now allowed to make.
+ */
+const TOOL_EXEC_CONTEXT_MSG =
+  "AI SDK 7's `ToolExecutionOptions` now has a required `context` field; this literal is missing it. " +
+  "Add a `context` property matching the tool's `contextSchema` (or `{}` when the tool defines none) " +
+  "so the call type-checks. In a test this is a minimal type-only edit.";
+
+function hasProp(literal: ObjectLiteralExpression, name: string): boolean {
+  return literal.getProperty(name) !== undefined;
+}
+
+function checkToolExecutionOptions(ctx: RuleContext, sf: SourceFile, names: Map<string, string>) {
+  // Route 1: an object literal passed as the 2nd arg to a tool's `.execute(...)`.
+  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const callee = call.getExpression();
+    if (!(Node.isPropertyAccessExpression(callee) && callee.getName() === "execute")) continue;
+    const literal = call.getArguments()[1];
+    if (!literal || !Node.isObjectLiteralExpression(literal)) continue;
+    // The `toolCallId` marker keeps this precise: a ToolExecutionOptions literal missing `context`.
+    if (hasProp(literal, "toolCallId") && !hasProp(literal, "context")) {
+      add(ctx, literal, "tool-execution-context", "break", "agent", TOOL_EXEC_CONTEXT_MSG);
+    }
+  }
+  // Route 2: a variable explicitly annotated as ToolExecutionOptions, initialized with a literal.
+  for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    const type = decl.getTypeNode();
+    if (!type || !namesToolExecOptions(type, names)) continue;
+    const init = decl.getInitializer();
+    if (!init || !Node.isObjectLiteralExpression(init)) continue;
+    if (!hasProp(init, "context")) {
+      add(ctx, init, "tool-execution-context", "break", "agent", TOOL_EXEC_CONTEXT_MSG);
+    }
+  }
+}
+
+/** `ToolExecutionOptions`, `ToolExecutionOptions<...>`, and `ns.ToolExecutionOptions`, with `ai` as the source. */
+function namesToolExecOptions(type: TypeNode, names: Map<string, string>): boolean {
+  if (!Node.isTypeReference(type)) return false;
+  const ai = (text: string) => {
+    const dot = text.lastIndexOf(".");
+    return names.get(text) ?? (dot > 0 && names.has(`${text.slice(0, dot)}.*`) ? text.slice(dot + 1) : undefined);
+  };
+  return ai(type.getTypeName().getText()) === "ToolExecutionOptions";
 }
 
 function add(ctx: RuleContext, node: Node, ruleId: string, severity: Severity, fix: FixKind, message: string) {
