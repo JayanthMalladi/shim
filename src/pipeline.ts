@@ -5,7 +5,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
-import { run, runCapture } from "./exec.js";
+import { costUnpriced, run, runCapture } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
@@ -50,7 +50,8 @@ export interface MigrationReport {
   repairedChecks: GateName[];
   /** Architecture id, agent spend in USD, and wall time of the fix stage. */
   arch?: string;
-  cost?: number;
+  /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
+  cost?: number | null;
   fixMs?: number;
 }
 
@@ -137,7 +138,8 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   const agentRuns: string[] = [];
   let candidates: MigrationReport["candidates"] = [];
   let review: MigrationReport["review"];
-  let cost = 0;
+  const unpriced = costUnpriced();
+  let cost: number | null = unpriced ? null : 0;
 
   const needsFix = remaining.length > 0 || brokenByUpgrade.length > 0 || arch.audit;
   if (opts.agent && needsFix) {
@@ -158,7 +160,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
         return `cd ${rel} && ${pm} run test`;
       }),
     });
-    cost += cands.reduce((s, c) => s + c.cost, 0);
+    cost = unpriced ? null : (cost ?? 0) + cands.reduce((s, c) => s + (c.cost ?? 0), 0);
     candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));
     const chosen = rank(cands, baseline, arch.selection)[0]!;
     await adopt(dir, chosen, cands);
@@ -169,7 +171,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   } else if (opts.agent && arch.review && !brokenByUpgrade.length) {
     log("reviewing diff");
     const r = await runReviewer(dir, arch.reviewerRules, arch.reviewerModel);
-    cost += r.cost;
+    if (!unpriced) cost = (cost ?? 0) + (r.cost ?? 0);
     review = { approve: r.approve, issues: r.issues };
   }
   formatChanged(dir);

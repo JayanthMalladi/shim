@@ -9,6 +9,11 @@ import crossSpawn from "cross-spawn";
  * authentication keeps working).
  */
 const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
+/**
+ * Open-source providers that ship models via an OpenAI-compatible endpoint usually use
+ * OPENAI_API_KEY (or OPENROUTER_API_KEY, etc.) — add that prefix here so target commands
+ * never see it. Extendable at runtime via SHIM_SECRET_PREFIXES.
+ */
 const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
@@ -63,6 +68,44 @@ export interface ExecResult {
    * the gate as a whole was already red.
    */
   perTest?: Record<string, boolean>;
+}
+
+/**
+ * The configured agent backend: `claude-cli` (default, today's runClaude) or `dsh`
+ * (runs `dsh --profile headless "<prompt>"`; requires SHIM_SANDBOX=1).
+ */
+export type AgentBackend = "claude-cli" | "dsh";
+
+export function agentBackend(): AgentBackend {
+  const b = (process.env.SHIM_AGENT_BACKEND ?? "claude-cli").toLowerCase();
+  if (b !== "claude-cli" && b !== "dsh")
+    throw new Error(`unknown SHIM_AGENT_BACKEND: ${b}; expected "claude-cli" or "dsh"`);
+  return b;
+}
+
+/**
+ * True when cost is not a meaningful number: the `dsh` backend (no per-run cost report) or an
+ * `ANTHROPIC_BASE_URL`-routed provider (its pricing is on the provider's dashboard, not in the
+ * CLI's `total_cost_usd`). Callers should record cost as `null` ("unpriced") instead.
+ */
+export function costUnpriced(): boolean {
+  return agentBackend() === "dsh" || process.env.ANTHROPIC_BASE_URL !== undefined;
+}
+
+/**
+ * The `dsh` backend: runs `dsh --profile headless "<prompt>"` in the repo dir and takes stdout as
+ * the final text. Because dsh has no per-command allowlist or turn cap, it must only be used inside
+ * a throwaway container or VM with no credentials in the environment: the call refuses to start
+ * unless `SHIM_SANDBOX=1` is set. The timeout is enforced via `runAsync`.
+ */
+export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Promise<ExecResult> {
+  if (process.env.SHIM_SANDBOX !== "1")
+    throw new Error(
+      "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
+      "so it may only run inside a throwaway container or VM with no credentials in the environment",
+    );
+  const res = await runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
+  return { ...res, text: res.output };
 }
 
 /**

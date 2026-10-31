@@ -22,6 +22,39 @@ Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 - Never use a Fable or Mythos model in the pipeline or the evolution. The allowlist is in `src/evolve-guard.ts`.
 - This repo is public. Never commit secrets. `src/exec.ts` strips API keys from target-repo commands; keep it that way.
 
+## Agent backend
+
+Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime. No model id is hard-coded in the result.
+
+### Environment variables
+
+| Variable | Purpose | Fallback |
+|---|---|---|
+| `SHIM_AGENT_BACKEND` | `claude-cli` (default) or `dsh` | `claude-cli` |
+| `SHIM_FIXER_MODEL` | Model id for the fixer agent | the seed in `arch.ts` |
+| `SHIM_REVIEWER_MODEL` | Model id for the internal reviewer | the seed in `arch.ts` |
+| `SHIM_JUDGE_MODEL` | Model id for the fixed judge (strict, never mutated) | the fallback in `agent.ts` |
+| `SHIM_MUTATOR_MODEL` | Model id for the LLM mutator in the evolve loop | the fallback in `evolve.ts` |
+| `SHIM_EXTRA_MODELS` | Comma-separated extra model ids to add to the allowlist | (none; built-in ids always present) |
+| `SHIM_SECRET_PREFIXES` | Comma-separated extra env-var key prefixes to strip from target commands | (none; `ANTHROPIC_*`, `CLAUDE_*`, `AWS_*`, `GH_*`, `GITHUB_*`, `OPENAI_*` are always stripped) |
+| `SHIM_SANDBOX` | Set to `1` to allow the `dsh` backend (throwaway container, no credentials) | unset (dsh refuses) |
+| `ANTHROPIC_BASE_URL` | Route `claude-cli` through an Anthropic-compatible endpoint; cost becomes `null` (unpriced) | unset |
+
+### Backends
+
+- **`claude-cli`** (default): spawns the `claude` CLI. Works with any Anthropic-compatible endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
+- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment.
+
+Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract is unchanged.
+
+### Cost semantics
+
+`--max-budget-usd` and the `cost` field in reports are meaningful only on the `claude-cli` backend with Anthropic's own pricing. When `ANTHROPIC_BASE_URL` is set or the backend is `dsh`, cost is recorded as `null` ("unpriced"); actual spend comes from the provider's dashboard.
+
+### Model overrides
+
+Set `<model id>` (e.g. the provider's model string) in the `SHIM_*_MODEL` variables. The built-in seed defaults in `arch.ts` are used only when the env var is unset. The Fable/Mythos ban is absolute: any model id containing `fable` or `mythos` (case-insensitive) is rejected by `sanitizeModels`, even when it appears in `SHIM_EXTRA_MODELS`.
+
 ---
 
 # Handoff (written 2026-10-30)

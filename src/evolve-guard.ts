@@ -35,7 +35,7 @@ export function totalSpent(entries: ArchiveEntry[]): number {
 export function inFlightCost(
   entries: ArchiveEntry[],
   archId: string,
-  resultFiles: { mtimeMs: number; cost: number; judgeCost?: number }[],
+  resultFiles: { mtimeMs: number; cost: number; judgeCost?: number | null }[],
 ): number {
   const own = entries.filter((e) => e.id === archId).map((e) => Date.parse(e.at)).filter((t) => !Number.isNaN(t));
   const newest = own.length ? Math.max(...own) : undefined;
@@ -78,8 +78,21 @@ export function wouldExceedBudget({ spent, estimate, budgetUsd }: { spent: numbe
  * they are more capable than the fixed judge, so a child could out-score its own judge by reaching
  * for a stronger model, which would corrupt the whole comparison. The mutator itself stays on
  * claude-opus-5-5.
+ *
+ * Extensible via SHIM_EXTRA_MODELS (comma-separated). Any extra model id that contains "fable" or
+ * "mythos" (case-insensitive) is dropped: the Fable/Mythos ban is absolute and cannot be overridden
+ * by the environment.
  */
-export const ALLOWED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+const DEFAULT_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+/** Fable and Mythos are banned absolutely: the env cannot override this. Exported for tests. */
+export const FORBIDDEN_MODEL_RE = /fable|mythos/i;
+
+function extraModels(): string[] {
+  const raw = process.env.SHIM_EXTRA_MODELS ?? "";
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).filter((m) => !FORBIDDEN_MODEL_RE.test(m));
+}
+
+export const ALLOWED_MODELS: string[] = [...DEFAULT_MODELS, ...extraModels()];
 
 /** Numeric bounds on the genome knobs: one bad mutation must not be able to spend the whole budget. */
 export const GENOME_BOUNDS: Record<"candidates" | "attempts" | "fixerMaxTurns" | "reviewRounds", readonly [number, number]> = {
@@ -101,13 +114,16 @@ export function bound(v: unknown, [lo, hi]: readonly [number, number], d: number
 
 /**
  * Replace any fixer/reviewer model off the allowlist with the default. This is how a child that
- * names a Fable or Mythos id (or any other unknown model) gets clamped back to a safe one. Returns
- * the fields that changed so the caller can note it in the child's record.
+ * names a Fable or Mythos id (or any other unknown model) gets clamped back to a safe one. Fable
+ * and Mythos ids are rejected explicitly (belt-and-braces), so the ban holds even if a Fable/Mythos
+ * id were somehow added to ALLOWED_MODELS. Returns the fields that changed so the caller can note
+ * it in the child's record.
  */
 export function sanitizeModels(a: { fixerModel?: string; reviewerModel?: string }, defaults: { fixerModel: string; reviewerModel: string }): { fixerModel: string; reviewerModel: string; clamped: string[] } {
   const clamped: string[] = [];
   const one = (v: string | undefined, d: string, field: string) => {
     if (v == null) return d;
+    if (FORBIDDEN_MODEL_RE.test(v)) { clamped.push(field); return d; }
     if (ALLOWED_MODELS.includes(v)) return v;
     clamped.push(field);
     return d;
