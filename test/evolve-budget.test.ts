@@ -63,6 +63,31 @@ describe("evolve.ts: --max-evals hard cap", () => {
   });
 });
 
+describe("evolve.ts: --max-evals validation", () => {
+  it("rejects NaN (--max-evals with no value)", () => {
+    // `Number(args[...])` with the flag present but no value is NaN, which would silently
+    // disable the cap (`evalsDone >= NaN` is always false). Validate before use.
+    const arg: string | undefined = undefined; // --max-evals with no following value
+    const maxEvalsRaw = Number(arg);
+    const invalid = !Number.isInteger(maxEvalsRaw) || maxEvalsRaw < 1;
+    expect(invalid).toBe(true);
+  });
+
+  it("rejects non-integer values", () => {
+    for (const arg of ["1.5", "abc", "0", "-3"]) {
+      const maxEvalsRaw = Number(arg);
+      expect(!Number.isInteger(maxEvalsRaw) || maxEvalsRaw < 1).toBe(true);
+    }
+  });
+
+  it("accepts positive integers", () => {
+    for (const arg of ["1", "5", "100"]) {
+      const maxEvalsRaw = Number(arg);
+      expect(!Number.isInteger(maxEvalsRaw) || maxEvalsRaw < 1).toBe(false);
+    }
+  });
+});
+
 describe("costUnpriced() (exec.ts)", () => {
   let savedUrl: string | undefined;
   let savedBackend: string | undefined;

@@ -92,6 +92,11 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   // candidate diff the judge then scores.
   const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
   const statusBefore = run("git", ["status", "--porcelain"], dir, 60_000).output;
+  // Snapshot the pre-review tree (including the fixer's uncommitted edits and new files) so the
+  // restore can reset the tree to exactly that state without wiping the fixer's work. `git
+  // add -A` stages everything so the write-tree includes the untracked files; restore un-stages.
+  run("git", ["add", "-A"], dir, 60_000);
+  const treeBefore = run("git", ["write-tree"], dir, 60_000).output.trim();
   const prompt = [
     "Review the uncommitted diff in this repository (`git diff`, plus untracked files from `git status`).",
     "It upgrades the project from AI SDK 6 to 7. A maintainer will merge it only if it is a pure upgrade.",
@@ -126,19 +131,28 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
       const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
       const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
       if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
-        run("git", ["checkout", "--", "."], dir, 60_000);
-        run("git", ["clean", "-fd"], dir, 60_000);
+        // Restore the tree to the pre-review snapshot (the fixer's uncommitted work): read-tree
+        // brings the snapshot tree into the index, clean -fd removes untracked files not in the
+        // snapshot (the reviewer's), checkout -- . rewrites tracked files to the snapshot, and
+        // reset -q un-stages everything so the tree matches the pre-review diff/status exactly.
+        run("git", ["read-tree", treeBefore], dir, 60_000);
+        run("git", ["clean", "-q", "-fd"], dir, 60_000);
+        run("git", ["checkout", "-q", "--", "."], dir, 60_000);
+        run("git", ["reset", "-q"], dir, 60_000);
         return { approve: false, issues: ["reviewer modified files; result discarded"], output: last.slice(-2000), cost };
       }
       return { ...verdict, output: last, cost };
     }
   }
-  // No verdict on either attempt: restore the tree too, in case a partial run left edits behind.
+  // No verdict on either attempt: restore the tree to the pre-review snapshot too, in case a
+  // partial run left edits behind.
   const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
   const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
   if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
-    run("git", ["checkout", "--", "."], dir, 60_000);
-    run("git", ["clean", "-fd"], dir, 60_000);
+    run("git", ["read-tree", treeBefore], dir, 60_000);
+    run("git", ["clean", "-q", "-fd"], dir, 60_000);
+    run("git", ["checkout", "-q", "--", "."], dir, 60_000);
+    run("git", ["reset", "-q"], dir, 60_000);
   }
   return { approve: false, issues: [NO_VERDICT], output: last.slice(-2000), cost };
 }

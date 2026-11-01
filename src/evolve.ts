@@ -58,7 +58,10 @@ const only = flag("--only"); // evaluate one archived arch id on this set, then 
 const mirror = flag("--mirror"); // a second folder to copy the logs into
 const budgetUsd = flag("--budget-usd") ? Number(flag("--budget-usd")) : undefined;
 /** Hard cap on the number of evaluations this run may start. Unset when the flag is absent. */
-const maxEvals = args.includes("--max-evals") ? Number(args[args.indexOf("--max-evals") + 1]) : undefined;
+const maxEvalsRaw = args.includes("--max-evals") ? Number(args[args.indexOf("--max-evals") + 1]) : undefined;
+if (maxEvalsRaw !== undefined && (!Number.isInteger(maxEvalsRaw) || maxEvalsRaw < 1))
+  throw new Error(`--max-evals must be a positive integer, got ${args[args.indexOf("--max-evals") + 1]}`);
+const maxEvals = maxEvalsRaw;
 
 /**
  * What the run has spent so far: completed evaluations in the archive (every set), the mutator's
@@ -242,25 +245,41 @@ to one repo's file names: the rules must work on any repo.
 Reply with a short hypothesis paragraph, then the child genome as a single \`\`\`json block with all fields.`;
   // The mutator model comes from SHIM_MUTATOR_MODEL when set, falling back to the hard-coded opus.
   const mutatorModel = resolveModel("mutator", "claude-opus-5-5");
-  const res = await runAgentBackend(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
-    out,
-    20 * 60_000,
-    prompt,
-  );
-  fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
-  const text = res.text ?? res.output;
-  const json = text.match(/```json\s*([\s\S]*?)```/)?.[1];
-  const hypothesis = text.split("```")[0]!.trim().replace(/\s+/g, " ").slice(0, 600);
-  let child: Partial<Architecture> = {};
+  // On the dsh backend the agent has full write access in its cwd (it ignores the --allowedTools
+  // arg — dsh takes only the prompt), and out/ holds archive.jsonl + runs/*/result.json (the
+  // scores it is reasoning about). Running it in out/ would let the mutator rewrite the archive
+  // or the run results. Instead give it a scratch dir with copies of the read-only data it needs;
+  // on claude-cli the Read/Glob/Grep allowlist already prevents writes, so the scratch dir is
+  // the dsh-specific guard.
+  const scratch = fs.mkdtempSync(path.join(out, ".mutator-"));
   try {
-    child = JSON.parse(json ?? "{}");
-  } catch {
-    log("mutator returned no parsable genome; using parent with feedback rounds toggled");
-    child = { ...genome, reviewRounds: genome.reviewRounds ? 0 : 1 };
+    if (fs.existsSync(ARCHIVE)) fs.copyFileSync(ARCHIVE, path.join(scratch, "archive.jsonl"));
+    if (fs.existsSync(MUTATOR)) fs.copyFileSync(MUTATOR, path.join(scratch, "mutator.jsonl"));
+    const runsDir = path.join(out, "runs");
+    if (fs.existsSync(runsDir)) fs.cpSync(runsDir, path.join(scratch, "runs"), { recursive: true });
+    const res = await runAgentBackend(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
+      scratch,
+      20 * 60_000,
+      prompt,
+    );
+    fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
+    const text = res.text ?? res.output;
+    const json = text.match(/```json\s*([\s\S]*?)```/)?.[1];
+    const hypothesis = text.split("```")[0]!.trim().replace(/\s+/g, " ").slice(0, 600);
+    let child: Partial<Architecture> = {};
+    try {
+      child = JSON.parse(json ?? "{}");
+    } catch {
+      log("mutator returned no parsable genome; using parent with feedback rounds toggled");
+      child = { ...genome, reviewRounds: genome.reviewRounds ? 0 : 1 };
+    }
+    const id = `g${gen}-${parent.arch.id.split("-")[0]}-${Math.random().toString(36).slice(2, 6)}`;
+    fs.writeFileSync(path.join(out, `mutation-${id}.txt`), `${prompt}\n\n=== RESPONSE ===\n${text}`);
+    return { arch: clamp(child, id, `child of ${parent.arch.id}. ${hypothesis}`), parent: parent.arch.id };
+  } finally {
+    // Remove the scratch dir but keep the mutation log (written to out/ above) for the archive.
+    fs.rmSync(scratch, { recursive: true, force: true });
   }
-  const id = `g${gen}-${parent.arch.id.split("-")[0]}-${Math.random().toString(36).slice(2, 6)}`;
-  fs.writeFileSync(path.join(out, `mutation-${id}.txt`), `${prompt}\n\n=== RESPONSE ===\n${text}`);
-  return { arch: clamp(child, id, `child of ${parent.arch.id}. ${hypothesis}`), parent: parent.arch.id };
 }
 
 function writeLog(archive: Evaluation[]) {
