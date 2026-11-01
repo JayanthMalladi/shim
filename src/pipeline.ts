@@ -256,11 +256,31 @@ function cleanBeforeEdit(dir: string, file: string, check: (committed: string) =
   return !original.ok || check(original.stdout);
 }
 
-/** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
-function addChangeset(dir: string, pkgDirs: string[]) {
+/**
+ * A `name` that would produce a changeset entry for a package that doesn't exist:
+ * the scaffold's placeholder (`@fake-scope/fake-pkg`), a literal `placeholder`, or a
+ * private/`.`-scoped name. A real published name always passes this check.
+ */
+function isPlaceholderName(n: string): boolean {
+  return /fake|placeholder/i.test(n) || /^\.+/.test(n) || /__test/i.test(n);
+}
+
+/**
+ * Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each
+ * published package. Only real publishable names make a changeset entry — a private package
+ * (no change needed) or a placeholder name (the scaffold's `@fake-scope/fake-pkg`) must not
+ * appear, or the PR ships a changeset for a package that doesn't exist. Falls back to the
+ * root package's published name when the per-dir names are all unusable.
+ */
+export function addChangeset(dir: string, pkgDirs: string[]) {
   if (!fs.existsSync(path.join(dir, ".changeset", "config.json"))) return;
-  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private).map((p) => p.name as string))];
-  if (!names.length) return;
+  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private && !isPlaceholderName(p.name)).map((p) => p.name as string))];
+  if (!names.length) {
+    const rootPkg = readPkg(dir);
+    const root = rootPkg?.name;
+    if (root && !rootPkg.private && !isPlaceholderName(root)) names.push(root);
+    else { log("addChangeset: no published package name found, skipping"); return; }
+  }
   const header = names.map((n) => `"${n}": major`).join("\n");
   fs.writeFileSync(path.join(dir, ".changeset", "upgrade-ai-sdk-7.md"), `---\n${header}\n---\n\nUpgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.\n`);
 }
