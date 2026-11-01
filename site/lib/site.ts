@@ -12,7 +12,7 @@ export const links = {
 
 export const placeholders = {
   price: "[PRICE]",
-  founder: "[Founder name]",
+  founder: "Jayanth Malladi",
 } as const;
 
 export const scanCommand = "npx shim scan .";
