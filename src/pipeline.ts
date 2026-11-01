@@ -256,11 +256,46 @@ function cleanBeforeEdit(dir: string, file: string, check: (committed: string) =
   return !original.ok || check(original.stdout);
 }
 
-/** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
-function addChangeset(dir: string, pkgDirs: string[]) {
+/**
+ * A `name` that would produce a changeset entry for a package that doesn't exist. Matches the
+ * scaffold's placeholder scopes exactly (`@fake-scope/*`, `fake-pkg`, the literal `placeholder`)
+ * plus dot-leading / `__test` names. A real published name — including `@faker-js/faker`,
+ * `fakeredis`, `fake-indexeddb` — is never filtered.
+ */
+function isPlaceholderName(n: string): boolean {
+  return (
+    /^@fake-scope\//.test(n) ||
+    n === "fake-pkg" ||
+    n === "placeholder" ||
+    /^\.+/i.test(n) ||
+    /^__test/i.test(n)
+  );
+}
+
+/**
+ * Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each
+ * published package the PR actually changed. Only real publishable names in `pkgDirs` make a
+ * changeset entry — a private package (no change needed) or a placeholder name must not appear,
+ * or the PR ships a changeset for a package that doesn't exist. If every changed package is
+ * private or placeholder, no changeset is written: we do NOT fall back to the root package's
+ * name, because the root may be an unchanged container (e.g. a monorepo root) and a major for
+ * it would be wrong.
+ */
+export function addChangeset(dir: string, pkgDirs: string[]) {
   if (!fs.existsSync(path.join(dir, ".changeset", "config.json"))) return;
-  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private).map((p) => p.name as string))];
-  if (!names.length) return;
+  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private && !isPlaceholderName(p.name)).map((p) => p.name as string))];
+  if (!names.length) {
+    // All changed packages are private/placeholder. If the root dir itself is in pkgDirs and
+    // has a publishable name, use it; otherwise no changeset is needed.
+    const rootPkg = readPkg(dir);
+    const rootInDirs = pkgDirs.some((d) => path.resolve(d) === path.resolve(dir));
+    if (rootInDirs && rootPkg?.name && !rootPkg.private && !isPlaceholderName(rootPkg.name)) {
+      names.push(rootPkg.name);
+    } else {
+      log("addChangeset: no changed package has a publishable name, skipping");
+      return;
+    }
+  }
   const header = names.map((n) => `"${n}": major`).join("\n");
   fs.writeFileSync(path.join(dir, ".changeset", "upgrade-ai-sdk-7.md"), `---\n${header}\n---\n\nUpgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.\n`);
 }
