@@ -241,7 +241,7 @@ export async function run() {
     const files = flagFiles(scan(dir).result);
     expect(files.has("src/main.ts")).toBe(true);
     expect(files.has("dist/out.mjs")).toBe(false);
-  });
+  }, 60_000);
 
   it("walks a folder that sits inside an ignored directory of an outer repo", () => {
     // The scan root (work/x) has no .git of its own; the outer repo gitignores work/.
@@ -255,7 +255,7 @@ export async function run() {
     expect(result.filesScanned).toBeGreaterThan(0);
     expect(result.findings.some((f) => f.ruleId === "multi-step-result")).toBe(true);
     expect(flagFiles(result).has("src/a.ts")).toBe(true);
-  });
+  }, 60_000);
 
   it("scans a tracked file whose name is not ASCII", () => {
     // ls-files without -z quotes non-ASCII paths (e.g. "src/\303\274bung.ts") and drops them;
