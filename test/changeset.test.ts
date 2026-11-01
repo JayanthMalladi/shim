@@ -25,13 +25,11 @@ describe("addChangeset", () => {
     expect(fs.readFileSync(cs, "utf8")).not.toContain('"@acme/b"');
   });
 
-  it("skips a placeholder name and falls back to the root package name", () => {
+  it("root dir in pkgDirs with a publishable name → changeset written", () => {
     const { root, pkg, cs } = newRoot();
     pkg("package.json", '{ "name": "@acme/app", "dependencies": { "ai": "^6.0.0" } }');
-    pkg("packages/a/package.json", '{ "name": "@fake-scope/fake-pkg", "dependencies": { "ai": "^6.0.0" } }');
-    addChangeset(root, [path.join(root, "packages/a")]);
+    addChangeset(root, [root]);
     expect(fs.readFileSync(cs, "utf8")).toContain('"@acme/app": major');
-    expect(fs.readFileSync(cs, "utf8")).not.toContain("fake");
   });
 
   it("does not strip a real package that contains the substring 'fake' (e.g. faker)", () => {
@@ -56,6 +54,15 @@ describe("addChangeset", () => {
     // The literal "placeholder" is stripped; "placeholder-x" is a real package name and kept.
     expect(text).not.toContain('"placeholder": major');
     expect(text).toContain('"placeholder-x": major');
+  });
+
+  it("no changeset when only placeholder packages changed and root is not in pkgDirs", () => {
+    const { root, pkg, cs } = newRoot();
+    pkg("package.json", '{ "name": "@acme/app", "dependencies": { "ai": "^6.0.0" } }');
+    pkg("packages/a/package.json", '{ "name": "@fake-scope/fake-pkg", "dependencies": { "ai": "^6.0.0" } }');
+    addChangeset(root, [path.join(root, "packages/a")]);
+    // Root is NOT in pkgDirs → no changeset (we do not ship a major for an unchanged container).
+    expect(fs.existsSync(cs)).toBe(false);
   });
 
   it("writes nothing when no published name is available", () => {
