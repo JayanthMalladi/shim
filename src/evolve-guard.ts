@@ -87,6 +87,25 @@ const DEFAULT_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-
 /** Fable and Mythos are banned absolutely: the env cannot override this. Exported for tests. */
 export const FORBIDDEN_MODEL_RE = /fable|mythos/i;
 
+/**
+ * Resolve the model for one of the four agent roles from the environment, with a hard-coded fallback
+ * when the variable is unset. The Fable/Mythos ban is applied uniformly to all four role variables,
+ * so no role can be pointed at a forbidden model even when the env var is set explicitly.
+ *
+ * @param role  which role's env var to read ("fixer" | "reviewer" | "judge" | "mutator")
+ * @param fallback the hard-coded model used when the env var is unset (empty values fall back too)
+ * @returns the model id, guaranteed not to contain "fable" or "mythos"
+ * @throws if the resolved (or env-supplied) model id matches FORBIDDEN_MODEL_RE
+ */
+export function resolveModel(role: "fixer" | "reviewer" | "judge" | "mutator", fallback: string): string {
+  const envVar = `SHIM_${role.toUpperCase()}_MODEL`;
+  const raw = process.env[envVar];
+  const m = raw !== undefined && raw.trim() !== "" ? raw.trim() : fallback;
+  if (FORBIDDEN_MODEL_RE.test(m))
+    throw new Error(`${envVar} is set to "${m}", which contains a forbidden model name (fable/mythos); these are banned absolutely`);
+  return m;
+}
+
 function extraModels(): string[] {
   const raw = process.env.SHIM_EXTRA_MODELS ?? "";
   return raw.split(",").map((s) => s.trim()).filter(Boolean).filter((m) => !FORBIDDEN_MODEL_RE.test(m));

@@ -83,9 +83,9 @@ describe("judgeModel()", () => {
       expect(judgeModel()).toBe("custom-model-id");
     });
   });
-  it("throws when SHIM_JUDGE_MODEL is set but empty", () => {
+  it("falls back to the hard-coded opus when SHIM_JUDGE_MODEL is set but empty", () => {
     return withEnv("SHIM_JUDGE_MODEL", "", () => {
-      expect(() => judgeModel()).toThrowError(/SHIM_JUDGE_MODEL is set but empty/);
+      expect(judgeModel()).toBe("claude-opus-5-5");
     });
   });
 });

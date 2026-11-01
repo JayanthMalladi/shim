@@ -9,11 +9,6 @@ import crossSpawn from "cross-spawn";
  * authentication keeps working).
  */
 const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
-/**
- * Open-source providers that ship models via an OpenAI-compatible endpoint usually use
- * OPENAI_API_KEY (or OPENROUTER_API_KEY, etc.) — add that prefix here so target commands
- * never see it. Extendable at runtime via SHIM_SECRET_PREFIXES.
- */
 const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
@@ -67,7 +62,7 @@ export interface ExecResult {
    * regressions() catch a test that passed at baseline now failing or going missing even when
    * the gate as a whole was already red.
    */
-  perTest?: Record<string, boolean>;
+     perTest?: Record<string, boolean>;
 }
 
 /**
@@ -98,14 +93,10 @@ export function costUnpriced(): boolean {
  * a throwaway container or VM with no credentials in the environment: the call refuses to start
  * unless `SHIM_SANDBOX=1` is set. The timeout is enforced via `runAsync`.
  */
-export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Promise<ExecResult> {
+export function runDsh(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {
   if (process.env.SHIM_SANDBOX !== "1")
-    throw new Error(
-      "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
-      "so it may only run inside a throwaway container or VM with no credentials in the environment",
-    );
-  const res = await runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
-  return { ...res, text: res.output };
+    throw new Error("SHIM_AGENT_BACKEND=dsh requires SHIM_SANDBOX=1 (throwaway container, no credentials)");
+  return runAsync("dsh", ["--profile", "headless", ...args], cwd, timeoutMs, agentEnv());
 }
 
 /**
@@ -169,7 +160,7 @@ function parseAgentJson(output: string): { total_cost_usd?: number; result?: str
 const LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit reached|rate_limit_error|overloaded_error/i;
 
 /**
- * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit ·
+ * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit Ã‚Â·
  * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again.
  */
 export async function runClaude(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {

@@ -13,8 +13,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
-import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, type ArchiveEntry } from "./evolve-guard.js";
+import { costUnpriced, run, runAsync, runClaude, runAgentBackend } from "./exec.js";
+import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, resolveModel, type ArchiveEntry } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
@@ -57,6 +57,8 @@ const concurrency = Number(flag("--concurrency", "2"));
 const only = flag("--only"); // evaluate one archived arch id on this set, then exit
 const mirror = flag("--mirror"); // a second folder to copy the logs into
 const budgetUsd = flag("--budget-usd") ? Number(flag("--budget-usd")) : undefined;
+/** Hard cap on the number of evaluations this run may start. Unset when the flag is absent. */
+const maxEvals = args.includes("--max-evals") ? Number(args[args.indexOf("--max-evals") + 1]) : undefined;
 
 /**
  * What the run has spent so far: completed evaluations in the archive (every set), the mutator's
@@ -239,10 +241,11 @@ to one repo's file names: the rules must work on any repo.
 
 Reply with a short hypothesis paragraph, then the child genome as a single \`\`\`json block with all fields.`;
   // The mutator model comes from SHIM_MUTATOR_MODEL when set, falling back to the hard-coded opus.
-  const mutatorModel = process.env.SHIM_MUTATOR_MODEL?.trim() || "claude-opus-5-5";
-  const res = await runClaude(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
+  const mutatorModel = resolveModel("mutator", "claude-opus-5-5");
+  const res = await runAgentBackend(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
     out,
     20 * 60_000,
+    prompt,
   );
   fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
   const text = res.text ?? res.output;
@@ -320,6 +323,18 @@ function withinBudget(entries: ArchiveEntry[], archId: string, parent: string | 
 }
 
 async function main() {
+  // When the backend is unpriced (dsh or ANTHROPIC_BASE_URL), --budget-usd is meaningless: cost is
+  // recorded as null, so totalSpent would stay 0 forever and the budget check would never fire.
+  // Refuse to start with a clear message pointing at --max-evals, which does work in this mode.
+  if (budgetUsd !== undefined && costUnpriced()) {
+    console.error(
+      `[evolve] refusing to start: --budget-usd ${budgetUsd} is meaningless when cost is unpriced ` +
+      `(the dsh backend or ANTHROPIC_BASE_URL routes cost to the provider's dashboard, not total_cost_usd). ` +
+      `Use --max-evals N to bound the number of evaluations instead.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   if (only) {
     const arch = readArchive().find((e) => e.arch.id === only)?.arch ?? SEEDS.find((a) => a.id === only);
     if (!arch) throw new Error(`no arch ${only}`);
@@ -330,7 +345,12 @@ async function main() {
     return;
   }
   let gen = readArchive().length;
+  let evalsDone = 0;
   while (Date.now() < deadline) {
+    if (maxEvals !== undefined && evalsDone >= maxEvals) {
+      log(`--max-evals ${maxEvals} reached; stopping`);
+      break;
+    }
     const archive = readArchive();
     const entries = toEntries(archive);
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
@@ -363,6 +383,7 @@ async function main() {
     fs.rmSync(PENDING, { force: true });
     writeLog(readArchive());
     log(`${arch.id}: shipped ${ev.shipped}/${ev.results.length}, gate-pass ${ev.gatePass}, $${ev.cost.toFixed(2)}, ${ev.minutes} min${ev.invalid ? `, INVALID ${ev.invalid}` : ""}`);
+    evalsDone++;
     if (ev.invalid) {
       log("pausing 20 minutes for rate limits");
       await new Promise((r) => setTimeout(r, 20 * 60_000));

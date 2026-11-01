@@ -1,15 +1,7 @@
 import { DEFAULT_ARCH, REVIEWER_RULES, type Architecture } from "./arch.js";
-import { agentBackend, costUnpriced, runClaude, runDsh, type ExecResult } from "./exec.js";
+import { costUnpriced, run, runAgentBackend, type ExecResult } from "./exec.js";
+import { resolveModel } from "./evolve-guard.js";
 import type { Finding } from "./types.js";
-
-/**
- * Run the prompt on the configured agent backend, returning the same ExecResult shape either way.
- * The claude-cli backend keeps its model/turn/tools flags; dsh just takes the prompt.
- */
-async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
-  if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
-  return runClaude(args, dir, timeoutMs);
-}
 
 /**
  * Resolve the judge model from the environment. The hard-coded value in agent.ts (around line 131)
@@ -17,12 +9,7 @@ async function runAgentBackend(args: string[], dir: string, timeoutMs: number, p
  * string the call fails with a clear error, because an empty model id would reach the CLI silently.
  */
 export function judgeModel(): string {
-  const m = process.env.SHIM_JUDGE_MODEL;
-  if (m === undefined) return "claude-opus-5-5";
-  const trimmed = m.trim();
-  if (!trimmed)
-    throw new Error("SHIM_JUDGE_MODEL is set but empty; provide a model id or unset the variable to use the fallback");
-  return trimmed;
+  return resolveModel("judge", "claude-opus-5-5");
 }
 
 export interface FixBrief {
@@ -98,7 +85,13 @@ export interface Review {
  * It looks for what the gates can't see: changed behavior, edits outside the migration, weakened tests.
  */
 export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: string): Promise<Review> {
-  const resolvedModel = model ?? (process.env.SHIM_REVIEWER_MODEL?.trim() || DEFAULT_ARCH.reviewerModel);
+  const resolvedModel = model ?? resolveModel("reviewer", DEFAULT_ARCH.reviewerModel);
+  // Snapshot the tree before the agent runs: the reviewer is read-only, so if its run ends with a
+  // modified tree (a prompt-injection or a tool that slipped past the allowlist) we restore the
+  // original state and discard the verdict rather than let a reviewer's edits become part of the
+  // candidate diff the judge then scores.
+  const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
+  const statusBefore = run("git", ["status", "--porcelain"], dir, 60_000).output;
   const prompt = [
     "Review the uncommitted diff in this repository (`git diff`, plus untracked files from `git status`).",
     "It upgrades the project from AI SDK 6 to 7. A maintainer will merge it only if it is a pure upgrade.",
@@ -127,7 +120,25 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
     if (!unpriced) cost = (cost ?? 0) + (res.cost ?? 0);
     last = res.text ?? res.output;
     const verdict = parseReview(last);
-    if (verdict.issues[0] !== NO_VERDICT) return { ...verdict, output: last, cost };
+    if (verdict.issues[0] !== NO_VERDICT) {
+      // Restore the tree if the reviewer modified anything: its job is read-only, and a diff it
+      // left behind would otherwise flow into the candidate's result and into the judge's score.
+      const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
+      const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
+      if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
+        run("git", ["checkout", "--", "."], dir, 60_000);
+        run("git", ["clean", "-fd"], dir, 60_000);
+        return { approve: false, issues: ["reviewer modified files; result discarded"], output: last.slice(-2000), cost };
+      }
+      return { ...verdict, output: last, cost };
+    }
+  }
+  // No verdict on either attempt: restore the tree too, in case a partial run left edits behind.
+  const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
+  const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
+  if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
+    run("git", ["checkout", "--", "."], dir, 60_000);
+    run("git", ["clean", "-fd"], dir, 60_000);
   }
   return { approve: false, issues: [NO_VERDICT], output: last.slice(-2000), cost };
 }

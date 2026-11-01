@@ -75,10 +75,11 @@ export const REVIEWER_RULES = `Reject it if any of these is true:
  *   SHIM_FIXER_MODEL    – the fixer's model
  *   SHIM_REVIEWER_MODEL – the internal reviewer's model
  * (the judge's model is read from SHIM_JUDGE_MODEL in agent.ts; the mutator's from
- *  SHIM_MUTATOR_MODEL in evolve.ts).
+ *  SHIM_MUTATOR_MODEL in evolve.ts). resolveModel() enforces the Fable/Mythos ban on every role.
  */
-const FIXER_MODEL = process.env.SHIM_FIXER_MODEL?.trim() || "claude-opus-5-5";
-const REVIEWER_MODEL = process.env.SHIM_REVIEWER_MODEL?.trim() || "claude-opus-5-5";
+import { resolveModel } from "./evolve-guard.js";
+const FIXER_MODEL = resolveModel("fixer", "claude-opus-5-5");
+const REVIEWER_MODEL = resolveModel("reviewer", "claude-opus-5-5");
 
 /** Fixer v1, the pipeline before parallel candidates: one fixer, retried, no reviewer. */
 export const V1: Architecture = {
