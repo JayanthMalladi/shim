@@ -43,7 +43,7 @@ Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime.
 ### Backends
 
 - **`claude-cli`** (default): spawns the `claude` CLI. Works with any Anthropic-compatible endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
-- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment.
+- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard — set it only in a context with no credentials in the environment.
 
 Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract is unchanged.
 

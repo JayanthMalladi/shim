@@ -20,7 +20,6 @@ const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_", "OPE
  * SECRET_PREFIXES at targetEnv() time.
  */
 const EXTENDED_SECRET_PREFIXES = (process.env.SHIM_SECRET_PREFIXES ?? "").split(",").map((p) => p.trim()).filter(Boolean);
-const secretPrefixes = [...SECRET_PREFIXES, ...EXTENDED_SECRET_PREFIXES];
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
  * Environment essentials that survive the secret strip. Matched case-insensitively, so the
@@ -89,7 +88,7 @@ export function agentBackend(): AgentBackend {
  * CLI's `total_cost_usd`). Callers should record cost as `null` ("unpriced") instead.
  */
 export function costUnpriced(): boolean {
-  return agentBackend() === "dsh" || process.env.ANTHROPIC_BASE_URL !== undefined;
+  return agentBackend() === "dsh" || !!process.env.ANTHROPIC_BASE_URL;
 }
 
 /**
@@ -102,7 +101,8 @@ export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Pr
   if (process.env.SHIM_SANDBOX !== "1")
     throw new Error(
       "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
-      "so it may only run inside a throwaway container or VM with no credentials in the environment",
+      "so it may only run inside a throwaway container or VM with no credentials in the environment " +
+      "(SHIM_SANDBOX=1 is the only guard — set it in that context, not on a host machine)",
     );
   const res = await runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
   return { ...res, text: res.output };
@@ -195,4 +195,14 @@ export function msUntilReset(text: string, now = new Date()): number | undefined
   reset.setUTCHours(hour, Number(m[2] ?? 0), 0, 0);
   if (reset.getTime() <= now.getTime()) reset.setUTCDate(reset.getUTCDate() + 1);
   return reset.getTime() - now.getTime() + 2 * 60_000;
+}
+
+/**
+ * Run a prompt on the configured agent backend, returning the same ExecResult shape either way.
+ * The claude-cli backend keeps its model/turn/tools flags (shared by agent.ts and evolve.ts);
+ * the dsh backend just takes the prompt.
+ */
+export async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
+  if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
+  return runClaude(args, dir, timeoutMs);
 }

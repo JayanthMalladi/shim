@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   totalSpent,
   inFlightCost,
@@ -13,6 +13,7 @@ import {
   bound,
   GENOME_BOUNDS,
   syncMirror,
+  resolveModel,
   type ArchiveEntry,
 } from "../src/evolve-guard.js";
 import { run } from "../src/exec.js";
@@ -179,6 +180,56 @@ describe("shouldStopForBudget", () => {
     expect(shouldStopForBudget({ spent: 199.9, budgetUsd: 300 })).toBe(false);
     // No budget flag: never stops.
     expect(shouldStopForBudget({ spent: 1e6, budgetUsd: undefined })).toBe(false);
+  });
+});
+
+describe("resolveModel", () => {
+  const MODEL_VARS = ["SHIM_FIXER_MODEL", "SHIM_REVIEWER_MODEL", "SHIM_JUDGE_MODEL", "SHIM_MUTATOR_MODEL"];
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const v of MODEL_VARS) { saved[v] = process.env[v]; delete process.env[v]; }
+  });
+  afterEach(() => {
+    for (const v of MODEL_VARS) {
+      if (saved[v] === undefined) delete process.env[v];
+      else process.env[v] = saved[v];
+    }
+  });
+
+  it("returns the fallback when the role's env var is unset", () => {
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(resolveModel("fixer", "claude-sonnet-5-5")).toBe("claude-sonnet-5-5");
+    expect(resolveModel("reviewer", "claude-haiku-5-5")).toBe("claude-haiku-5-5");
+    expect(resolveModel("mutator", "claude-opus-5-5")).toBe("claude-opus-5-5");
+  });
+
+  it("uses the env var value when set to a non-empty string", () => {
+    process.env.SHIM_JUDGE_MODEL = "custom-model";
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("custom-model");
+  });
+
+  it("returns the fallback when the env var is set but empty (does NOT throw)", () => {
+    process.env.SHIM_FIXER_MODEL = "";
+    expect(resolveModel("fixer", "claude-opus-5-5")).toBe("claude-opus-5-5");
+  });
+
+  it("throws for every role when the resolved model contains 'fable' (case-insensitive)", () => {
+    for (const role of ["fixer", "reviewer", "judge", "mutator"] as const) {
+      process.env[`SHIM_${role.toUpperCase()}_MODEL`] = "fable-2";
+      expect(() => resolveModel(role, "claude-opus-5-5")).toThrowError(/fable/);
+    }
+  });
+
+  it("throws for every role when the resolved model contains 'mythos' (case-insensitive)", () => {
+    for (const role of ["fixer", "reviewer", "judge", "mutator"] as const) {
+      process.env[`SHIM_${role.toUpperCase()}_MODEL`] = "Mythos-Mini";
+      expect(() => resolveModel(role, "claude-opus-5-5")).toThrowError(/SHIM_[A-Z]+_MODEL/);
+    }
+  });
+
+  it("allows a non-forbidden model id that is not in ALLOWED_MODELS", () => {
+    process.env.SHIM_JUDGE_MODEL = "some-other-model";
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("some-other-model");
   });
 });
 
