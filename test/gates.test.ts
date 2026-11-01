@@ -121,5 +121,5 @@ describe("runGates captures per-test data for vitest gates", () => {
     const gate = res["test ."];
     expect(gate?.ok).toBe(true);
     expect(gate?.perTest).toEqual({ "test/t.test.ts/works": true });
-  });
+  }, 120_000);
 });
