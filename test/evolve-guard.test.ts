@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   totalSpent,
   inFlightCost,
@@ -13,6 +13,7 @@ import {
   bound,
   GENOME_BOUNDS,
   syncMirror,
+  resolveModel,
   type ArchiveEntry,
 } from "../src/evolve-guard.js";
 import { run } from "../src/exec.js";
@@ -125,6 +126,21 @@ describe("sanitizeModels", () => {
   });
 });
 
+describe("Fable/Mythos ban (SHIM_EXTRA_MODELS cannot override it)", () => {
+  it("Fable/Mythos ids in SHIM_EXTRA_MODELS are dropped from ALLOWED_MODELS", () => {
+    // ALLOWED_MODELS is computed at module load; if the env var had been set to include a
+    // Fable or Mythos model, it would have been filtered out by FORBIDDEN_MODEL_RE.
+    for (const m of ALLOWED_MODELS)
+      expect(/fable|mythos/i.test(m)).toBe(false);
+  });
+  it("sanitizeModels clamps a Fable/Mythos id even when it looks allowlisted", () => {
+    // Belt-and-braces: even if a Fable id somehow reached sanitizeModels, it is not in
+    // ALLOWED_MODELS, so it is clamped back to the default.
+    expect(sanitizeModels({ fixerModel: "claude-FABLE-1", reviewerModel: "mythos-x" }, D))
+      .toEqual({ fixerModel: D.fixerModel, reviewerModel: D.reviewerModel, clamped: ["fixerModel", "reviewerModel"] });
+  });
+});
+
 describe("bound", () => {
   it("clamps out-of-range values to the range edges", () => {
     expect(bound(99, GENOME_BOUNDS.candidates, 3)).toBe(4);
@@ -164,6 +180,56 @@ describe("shouldStopForBudget", () => {
     expect(shouldStopForBudget({ spent: 199.9, budgetUsd: 300 })).toBe(false);
     // No budget flag: never stops.
     expect(shouldStopForBudget({ spent: 1e6, budgetUsd: undefined })).toBe(false);
+  });
+});
+
+describe("resolveModel", () => {
+  const MODEL_VARS = ["SHIM_FIXER_MODEL", "SHIM_REVIEWER_MODEL", "SHIM_JUDGE_MODEL", "SHIM_MUTATOR_MODEL"];
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const v of MODEL_VARS) { saved[v] = process.env[v]; delete process.env[v]; }
+  });
+  afterEach(() => {
+    for (const v of MODEL_VARS) {
+      if (saved[v] === undefined) delete process.env[v];
+      else process.env[v] = saved[v];
+    }
+  });
+
+  it("returns the fallback when the role's env var is unset", () => {
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(resolveModel("fixer", "claude-sonnet-5-5")).toBe("claude-sonnet-5-5");
+    expect(resolveModel("reviewer", "claude-haiku-5-5")).toBe("claude-haiku-5-5");
+    expect(resolveModel("mutator", "claude-opus-5-5")).toBe("claude-opus-5-5");
+  });
+
+  it("uses the env var value when set to a non-empty string", () => {
+    process.env.SHIM_JUDGE_MODEL = "custom-model";
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("custom-model");
+  });
+
+  it("returns the fallback when the env var is set but empty (does NOT throw)", () => {
+    process.env.SHIM_FIXER_MODEL = "";
+    expect(resolveModel("fixer", "claude-opus-5-5")).toBe("claude-opus-5-5");
+  });
+
+  it("throws for every role when the resolved model contains 'fable' (case-insensitive)", () => {
+    for (const role of ["fixer", "reviewer", "judge", "mutator"] as const) {
+      process.env[`SHIM_${role.toUpperCase()}_MODEL`] = "fable-2";
+      expect(() => resolveModel(role, "claude-opus-5-5")).toThrowError(/fable/);
+    }
+  });
+
+  it("throws for every role when the resolved model contains 'mythos' (case-insensitive)", () => {
+    for (const role of ["fixer", "reviewer", "judge", "mutator"] as const) {
+      process.env[`SHIM_${role.toUpperCase()}_MODEL`] = "Mythos-Mini";
+      expect(() => resolveModel(role, "claude-opus-5-5")).toThrowError(/SHIM_[A-Z]+_MODEL/);
+    }
+  });
+
+  it("allows a non-forbidden model id that is not in ALLOWED_MODELS", () => {
+    process.env.SHIM_JUDGE_MODEL = "some-other-model";
+    expect(resolveModel("judge", "claude-opus-5-5")).toBe("some-other-model");
   });
 });
 

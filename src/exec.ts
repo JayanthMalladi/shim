@@ -9,7 +9,17 @@ import crossSpawn from "cross-spawn";
  * authentication keeps working).
  */
 const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
-const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
+/**
+ * Open-source providers that ship models via an OpenAI-compatible endpoint usually use
+ * OPENAI_API_KEY (or OPENROUTER_API_KEY, etc.) — add that prefix here so target commands
+ * never see it. Extendable at runtime via SHIM_SECRET_PREFIXES.
+ */
+const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_", "OPENAI_"];
+/**
+ * Additional key prefixes to strip, comma-separated (e.g. "OPENROUTER_,GROQ_"). Merged with
+ * SECRET_PREFIXES at targetEnv() time.
+ */
+const EXTENDED_SECRET_PREFIXES = (process.env.SHIM_SECRET_PREFIXES ?? "").split(",").map((p) => p.trim()).filter(Boolean);
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
  * Environment essentials that survive the secret strip. Matched case-insensitively, so the
@@ -22,8 +32,9 @@ const KEEP_NAMES = new Set([
 
 /** Environment for commands that run target-repo code: no API keys, tokens or credentials. */
 export function targetEnv(): NodeJS.ProcessEnv {
+  const prefixes = [...SECRET_PREFIXES, ...EXTENDED_SECRET_PREFIXES];
   const secret = (up: string) =>
-    SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
+    SECRET_RE.test(up) || SECRET_NAMES.has(up) || prefixes.some((p) => up.startsWith(p));
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
@@ -56,6 +67,45 @@ export interface ExecResult {
    * the gate as a whole was already red.
    */
   perTest?: Record<string, boolean>;
+}
+
+/**
+ * The configured agent backend: `claude-cli` (default, today's runClaude) or `dsh`
+ * (runs `dsh --profile headless "<prompt>"`; requires SHIM_SANDBOX=1).
+ */
+export type AgentBackend = "claude-cli" | "dsh";
+
+export function agentBackend(): AgentBackend {
+  const b = (process.env.SHIM_AGENT_BACKEND ?? "claude-cli").toLowerCase();
+  if (b !== "claude-cli" && b !== "dsh")
+    throw new Error(`unknown SHIM_AGENT_BACKEND: ${b}; expected "claude-cli" or "dsh"`);
+  return b;
+}
+
+/**
+ * True when cost is not a meaningful number: the `dsh` backend (no per-run cost report) or an
+ * `ANTHROPIC_BASE_URL`-routed provider (its pricing is on the provider's dashboard, not in the
+ * CLI's `total_cost_usd`). Callers should record cost as `null` ("unpriced") instead.
+ */
+export function costUnpriced(): boolean {
+  return agentBackend() === "dsh" || !!process.env.ANTHROPIC_BASE_URL;
+}
+
+/**
+ * The `dsh` backend: runs `dsh --profile headless "<prompt>"` in the repo dir and takes stdout as
+ * the final text. Because dsh has no per-command allowlist or turn cap, it must only be used inside
+ * a throwaway container or VM with no credentials in the environment: the call refuses to start
+ * unless `SHIM_SANDBOX=1` is set. The timeout is enforced via `runAsync`.
+ */
+export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Promise<ExecResult> {
+  if (process.env.SHIM_SANDBOX !== "1")
+    throw new Error(
+      "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
+      "so it may only run inside a throwaway container or VM with no credentials in the environment " +
+      "(SHIM_SANDBOX=1 is the only guard — set it in that context, not on a host machine)",
+    );
+  const res = await runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
+  return { ...res, text: res.output };
 }
 
 /**
@@ -145,4 +195,14 @@ export function msUntilReset(text: string, now = new Date()): number | undefined
   reset.setUTCHours(hour, Number(m[2] ?? 0), 0, 0);
   if (reset.getTime() <= now.getTime()) reset.setUTCDate(reset.getUTCDate() + 1);
   return reset.getTime() - now.getTime() + 2 * 60_000;
+}
+
+/**
+ * Run a prompt on the configured agent backend, returning the same ExecResult shape either way.
+ * The claude-cli backend keeps its model/turn/tools flags (shared by agent.ts and evolve.ts);
+ * the dsh backend just takes the prompt.
+ */
+export async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
+  if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
+  return runClaude(args, dir, timeoutMs);
 }

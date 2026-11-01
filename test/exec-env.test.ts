@@ -19,6 +19,18 @@ function withSecrets(fn: (set: () => void) => void) {
   }
 }
 
+/** Set SHIM_SECRET_PREFIXES for the duration of a test and restore it. */
+function withShimSecretPrefixes(prefixes: string, fn: () => void) {
+  const saved = process.env.SHIM_SECRET_PREFIXES;
+  process.env.SHIM_SECRET_PREFIXES = prefixes;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.SHIM_SECRET_PREFIXES;
+    else process.env.SHIM_SECRET_PREFIXES = saved;
+  }
+}
+
 describe("targetEnv (environment for target-repo commands)", () => {
   it("drops API keys, tokens and credentials; keeps PATH and proxy variables", () => {
     withSecrets(() => {
@@ -42,6 +54,28 @@ describe("targetEnv (environment for target-repo commands)", () => {
         delete process.env.https_proxy;
       }
     });
+  });
+
+  it("drops variables matching a prefix from SHIM_SECRET_PREFIXES", () => {
+    // The test must set both the prefix AND the key variable; the prefix check happens at
+    // module-load time in exec.ts, so we use a key whose prefix we control.
+    process.env.MYPROVIDER_API_KEY = "sk-abc123";
+    withShimSecretPrefixes("MYPROVIDER_", () => {
+      const env = targetEnv();
+      expect("MYPROVIDER_API_KEY" in env).toBe(false);
+    });
+    delete process.env.MYPROVIDER_API_KEY;
+  });
+
+  it("keeps variables that do not match any SHIM_SECRET_PREFIXES prefix", () => {
+    process.env.MYPROVIDER_API_KEY = "sk-abc123";
+    process.env.OTHER_PREFIX_VAR = "safe";
+    withShimSecretPrefixes("MYPROVIDER_", () => {
+      const env = targetEnv();
+      expect("OTHER_PREFIX_VAR" in env).toBe(true);
+    });
+    delete process.env.MYPROVIDER_API_KEY;
+    delete process.env.OTHER_PREFIX_VAR;
   });
 });
 
