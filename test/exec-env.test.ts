@@ -43,6 +43,34 @@ describe("targetEnv (environment for target-repo commands)", () => {
       }
     });
   });
+
+  it("strips the whole GIT_CONFIG_* family together (COUNT + KEY_n + VALUE_n)", () => {
+    // Cause: GIT_CONFIG_VALUE_n can carry auth headers (e.g. http.<host>.extraheader with a token).
+    // If we drop KEY_n/VALUE_n but keep GIT_CONFIG_COUNT, git fails with
+    // "missing config key GIT_CONFIG_KEY_0". Strip all three as one family.
+    const saved = {
+      COUNT: process.env.GIT_CONFIG_COUNT,
+      KEY_0: process.env.GIT_CONFIG_KEY_0,
+      VALUE_0: process.env.GIT_CONFIG_VALUE_0,
+    };
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.autocrlf";
+    process.env.GIT_CONFIG_VALUE_0 = "false";
+    try {
+      const env = targetEnv();
+      expect(env.GIT_CONFIG_COUNT).toBeUndefined();
+      expect(env.GIT_CONFIG_KEY_0).toBeUndefined();
+      expect(env.GIT_CONFIG_VALUE_0).toBeUndefined();
+      // And a target command still succeeds (no missing-config-key failure).
+      const r = run("git", ["--version"], process.cwd(), 30_000);
+      expect(r.ok).toBe(true);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
 });
 
 describe("agentEnv (environment for Shim's own claude runs)", () => {

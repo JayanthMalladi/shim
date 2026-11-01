@@ -121,7 +121,7 @@ for (const f of args.filter((a) => a !== "--fix")) fs.writeFileSync(f, fmt(fs.re
     fs.mkdirSync(path.dirname(binPath), { recursive: true });
     if (process.platform === "win32") {
       // cmd batch shim; npx and cross-spawn both resolve <tool>.cmd on Windows.
-      fs.writeFileSync(binPath + ".cmd", `@ECHO OFF\r\nnode "${jsPath.replace(/\\/g, "\\/")}" %*\r\n`);
+      fs.writeFileSync(binPath + ".cmd", `@ECHO OFF\r\nnode "${jsPath}" %*\r\n`);
     } else {
       fs.writeFileSync(binPath, script, { mode: 0o755 });
     }
