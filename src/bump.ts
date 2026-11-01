@@ -39,7 +39,7 @@ export function bumpAiSdk(root: string, latest: (pkg: string, cwd: string) => st
         const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
         if (!pattern.test(text)) continue;
         text = text.replace(pattern, `$1"${next}"`);
-        changes.push(`${name} (${path.relative(root, file)}, ${field}): ${range} -> ${next}`);
+        changes.push(`${name} (${path.relative(root, file).split(path.sep).join("/")}, ${field}): ${range} -> ${next}`);
       }
     }
     fs.writeFileSync(file, text);

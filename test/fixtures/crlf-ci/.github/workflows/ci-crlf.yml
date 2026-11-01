@@ -1,0 +1,32 @@
+name: CI
+on:
+  pull_request:
+  push:
+jobs:
+  scalar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm test
+  inline:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm test
+  block:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version:
+            - 18
+            - 20
+            - 22
+      - run: npm test

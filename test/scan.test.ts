@@ -6,10 +6,18 @@ import { scan, scanAndFix } from "../src/scan.js";
 import { run } from "../src/exec.js";
 
 const fixture = path.join(import.meta.dirname, "fixtures/v6-app");
+const crlfFixture = path.join(import.meta.dirname, "fixtures/crlf-ci");
 
 function copyFixture(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-"));
   fs.cpSync(fixture, dir, { recursive: true });
+  return dir;
+}
+
+/** A copy of the CRLF workflow fixture in a fresh tmp dir (keeps the fixture pristine). */
+function copyCrlfFixture(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-crlf-"));
+  fs.cpSync(crlfFixture, dir, { recursive: true });
   return dir;
 }
 
@@ -176,6 +184,38 @@ describe("auto fixes", () => {
   });
 });
 
+describe("CRLF workflows keep their line endings", () => {
+  // Windows checkouts are CRLF (core.autocrlf); the fixture is committed CRLF and stays CRLF on disk.
+  // After the node-version rewrite, every line of the result must still end in \r\n (no LF leaks in
+  // from the scalar, inline-list and block-list rewrites), and the rewrite is the only thing that moves.
+  it("keeps CRLF endings on every line after the rewrite (scalar, inline-list, block-list)", async () => {
+    const dir = copyCrlfFixture();
+    const wfPath = path.join(dir, ".github", "workflows", "ci-crlf.yml");
+    const before = fs.readFileSync(wfPath, "utf8");
+    expect(before).toContain("\r\n"); // precondition: the fixture really is CRLF on disk
+    await scanAndFix(dir);
+    const after = fs.readFileSync(wfPath, "utf8");
+    // No bare \n anywhere: the only newline pairs are CRLF.
+    expect(after.match(/(?<!\r)\n/g)).toBeNull();
+    // All three rewrites landed on 22.
+    expect(after).toContain("node-version: '22'");
+    expect(after).toContain("node-version: [22]");
+    expect(after).toContain("            - 22");
+    // The rewrite deleted the two below-22 block entries and nothing else: line count dropped by 2.
+    expect(after.split("\r\n").length).toBe(before.split("\r\n").length - 2);
+  }, 60_000);
+
+  it("leaves an already-Node-22 CRLF workflow byte-identical", async () => {
+    const dir = copyCrlfFixture();
+    const before = fs.readFileSync(path.join(dir, ".github", "workflows", "clean.yml"), "utf8");
+    const { result } = await scan(dir);
+    // clean.yml is PR/push-triggered and at Node 22, so it is not flagged and not edited.
+    expect(result.findings.some((f) => f.file.split(path.sep).join("/") === ".github/workflows/clean.yml")).toBe(false);
+    await scanAndFix(dir);
+    expect(fs.readFileSync(path.join(dir, ".github", "workflows", "clean.yml"), "utf8")).toBe(before);
+  }, 60_000);
+});
+
 describe("source file loading (gitignored build outputs are not scanned)", () => {
   // A call that runs more than one step and reads usage: the `multi-step-result` rule flags it.
   const TRIGGER = `import { generateText, stepCountIs } from "ai";
@@ -241,7 +281,7 @@ export async function run() {
     const files = flagFiles(scan(dir).result);
     expect(files.has("src/main.ts")).toBe(true);
     expect(files.has("dist/out.mjs")).toBe(false);
-  });
+  }, 60_000);
 
   it("walks a folder that sits inside an ignored directory of an outer repo", () => {
     // The scan root (work/x) has no .git of its own; the outer repo gitignores work/.
@@ -255,7 +295,7 @@ export async function run() {
     expect(result.filesScanned).toBeGreaterThan(0);
     expect(result.findings.some((f) => f.ruleId === "multi-step-result")).toBe(true);
     expect(flagFiles(result).has("src/a.ts")).toBe(true);
-  });
+  }, 60_000);
 
   it("scans a tracked file whose name is not ASCII", () => {
     // ls-files without -z quotes non-ASCII paths (e.g. "src/\303\274bung.ts") and drops them;

@@ -560,7 +560,8 @@ function add(ctx: RuleContext, node: Node, ruleId: string, severity: Severity, f
     ruleId,
     severity,
     fix,
-    file: path.relative(ctx.root, sf.getFilePath()),
+    // Forward slashes: the documented finding-path convention, so Windows output matches Linux.
+    file: path.relative(ctx.root, sf.getFilePath()).split(path.sep).join("/"),
     line: node.getStartLineNumber(),
     snippet: node.getText().split("\n")[0]!.slice(0, 160),
     message,
@@ -573,25 +574,26 @@ export async function applyAutoFixes(project: Project, ctx: RuleContext): Promis
   let applied = 0;
   // Plain-text edits: the file is not in the ts-morph project, so rewrite it line-by-line by number.
   // Done before the ts-morph edits; project.save() only writes the project's own files, so they don't collide.
+  // CRLF checkouts: detect the file's line ending up front, normalize to \n for line numbering, then
+  // splice the rewrite text and re-emit the file's original line ending (and final-newline state) so
+  // the result keeps it byte-for-byte. Unchanged files are not written to.
   for (const fe of ctx.fileEdits) {
     const abs = path.join(ctx.root, fe.file);
-    const lines = fs.readFileSync(abs, "utf8").split("\n");
+    const raw = fs.readFileSync(abs, "utf8");
+    const crlf = raw.includes("\r\n");
+    const hadFinalNewline = raw.endsWith("\n");
+    const lines = raw.replace(/\r\n/g, "\n").split("\n");
+    if (hadFinalNewline) lines.pop(); // trailing \n leaves an empty final element; the write re-appends it
     const map = new Map(fe.lines.map((o) => [o.line, o]));
-    const out: string[] = [];
-    for (let i = 1; i <= lines.length; i++) {
-      const op = map.get(i);
-      if (!op) {
-        out.push(lines[i - 1]!);
-        continue;
-      }
-      if (op.delete) {
-        applied++;
-        continue;
-      }
-      out.push(op.text ?? "");
+    const nl = crlf ? "\r\n" : "\n";
+    for (const op of [...fe.lines].sort((a, b) => b.line - a.line)) {
       applied++;
+      if (op.delete) lines.splice(op.line - 1, 1);
+      else lines.splice(op.line - 1, 1, (op.text ?? "").replace(/\r\n?/g, ""));
     }
-    fs.writeFileSync(abs, out.join("\n"));
+    let out = lines.join(nl);
+    if (hadFinalNewline) out += nl;
+    fs.writeFileSync(abs, out);
   }
   for (const { node, text, after } of edits) {
     if (after || node.wasForgotten()) continue;
