@@ -34,6 +34,30 @@ describe("addChangeset", () => {
     expect(fs.readFileSync(cs, "utf8")).not.toContain("fake");
   });
 
+  it("does not strip a real package that contains the substring 'fake' (e.g. faker)", () => {
+    const { root, pkg, cs } = newRoot();
+    pkg("packages/faker/package.json", '{ "name": "faker", "dependencies": { "ai": "^6.0.0" } }');
+    pkg("packages/faker-js/package.json", '{ "name": "@faker-js/faker", "dependencies": { "ai": "^6.0.0" } }');
+    pkg("packages/fakeredis/package.json", '{ "name": "fakeredis", "dependencies": { "ai": "^6.0.0" } }');
+    addChangeset(root, [path.join(root, "packages/faker"), path.join(root, "packages/faker-js"), path.join(root, "packages/fakeredis")]);
+    const text = fs.readFileSync(cs, "utf8");
+    expect(text).toContain('"faker": major');
+    expect(text).toContain('"@faker-js/faker": major');
+    expect(text).toContain('"fakeredis": major');
+  });
+
+  it("treats the literal string 'placeholder' as a placeholder (not 'placeholder-x')", () => {
+    const { root, pkg, cs } = newRoot();
+    pkg("package.json", '{ "name": "@acme/app", "dependencies": { "ai": "^6.0.0" } }');
+    pkg("packages/a/package.json", '{ "name": "placeholder", "dependencies": { "ai": "^6.0.0" } }');
+    pkg("packages/b/package.json", '{ "name": "placeholder-x", "dependencies": { "ai": "^6.0.0" } }');
+    addChangeset(root, [path.join(root, "packages/a"), path.join(root, "packages/b")]);
+    const text = fs.readFileSync(cs, "utf8");
+    // The literal "placeholder" is stripped; "placeholder-x" is a real package name and kept.
+    expect(text).not.toContain('"placeholder": major');
+    expect(text).toContain('"placeholder-x": major');
+  });
+
   it("writes nothing when no published name is available", () => {
     const { root, pkg, cs } = newRoot();
     pkg("package.json", '{ "name": "test", "private": true }');

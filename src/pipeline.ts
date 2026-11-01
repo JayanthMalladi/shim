@@ -259,10 +259,18 @@ function cleanBeforeEdit(dir: string, file: string, check: (committed: string) =
 /**
  * A `name` that would produce a changeset entry for a package that doesn't exist:
  * the scaffold's placeholder (`@fake-scope/fake-pkg`), a literal `placeholder`, or a
- * private/`.`-scoped name. A real published name always passes this check.
+ * private/`.`-scoped name. Matches the placeholder patterns *exactly* so real packages
+ * that contain the substring — `@faker-js/faker`, `fakeredis`, `@test-foo/test` — are not
+ * stripped. A real published name always passes this check.
  */
 function isPlaceholderName(n: string): boolean {
-  return /fake|placeholder/i.test(n) || /^\.+/.test(n) || /__test/i.test(n);
+  return (
+    n === "placeholder" ||
+    n === "fake-pkg" ||
+    n === "@fake-scope/fake-pkg" ||
+    /^\.+/i.test(n) ||
+    /^__test/i.test(n)
+  );
 }
 
 /**
