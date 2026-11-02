@@ -15,12 +15,62 @@ Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 ## Rules
 - Fixes must preserve the target repo's current runtime behavior. Prefer a deterministic rewrite in `src/rules/` over the agent.
 - Every new rule gets a fixture case in `test/fixtures/v6-app` and an assertion in `test/scan.test.ts`, including a case that must not be flagged.
-- Never open a PR unless every gate that passed at baseline still passes (`src/gates.ts`). Otherwise open an issue.
+- Never open a PR unless every gate that passed at baseline still passes (`src/gates.ts`). Otherwise write an issue draft (see "Issue drafts" below). Never post it yourself.
 - Installs of target repos always use `--ignore-scripts`.
 - Keep replies and PR text short and specific; maintainers skim.
-- Agents never open PRs, issues or comments on target repos. `shim pr open` pushes to Jayanth's fork, and Jayanth clicks Create. Never open a second PR on a repo already in `data/prs.csv`.
+- Agents never open, close, edit or comment on PRs or issues on target repos, with any tool (`gh`, the API, MCP) or account. `shim pr open` pushes to Jayanth's fork, and Jayanth clicks Create. Never open a second PR on a repo already in `data/prs.csv`. Agent runs must not hold a GitHub token that can write outside `JayanthMalladi/shim` and Jayanth's forks. On 2026-11-02 an agent posted 11 issues from Jayanth's account; they had to be closed.
 - Never use a Fable or Mythos model in the pipeline or the evolution. The allowlist is in `src/evolve-guard.ts`.
 - This repo is public. Never commit secrets. `src/exec.ts` strips API keys from target-repo commands; keep it that way.
+
+## Issue drafts
+When a repo gets an issue instead of a PR, the agent writes a draft and stops there. A reviewer checks the draft, and Jayanth posts the ones that pass.
+- One file per repo: `drafts/issues/<owner>__<repo>.md`. Line 1 is `Title: ...`, then a blank line, then the body.
+- 15 lines or fewer. Include the `file:line`, which v7 change breaks it (and what it does at runtime), why the codemod and tsc miss it, the suggested fix, and an offer to send a PR.
+- Only write a draft when there is a concrete finding in the repo's code. "Gates regressed", "no green gate at baseline" and "reviewer gave no verdict" are Shim's problems, not the maintainer's. Log them in the run results, not in a draft.
+- No Shim internals (pipeline rule, fix stage, reviewer, WP numbers, scale pass), no boilerplate list of every v7 change, and no links except the repo's own files. One plain "found while upgrading to AI SDK 7" line is enough.
+- Skip repos that already have a Shim PR in `data/prs.csv`. Put anything new for them in a draft reply on that PR.
+- Write files as UTF-8 with a file-write tool, never `echo` or a shell heredoc that interprets escapes. Before committing, check the file for `â€`, `â†`, control characters, and backticked names missing their first letter (e.g. `ole` for `role`).
+- If an existing issue must be closed, Jayanth does it, as "not planned" with: "Closing: this was posted in error by an automated run. Sorry for the noise."
+
+## Coding guidelines (Karpathy)
+Always follow these when writing, reviewing or refactoring code in this repo. Claude sessions should also load the `karpathy-guidelines` skill. Agents without skills (dsh) follow the text below. They favor caution over speed; use judgment on trivial tasks.
+
+1. **Think before coding.** State your assumptions. If a request can be read more than one way, say so instead of picking silently. If a simpler approach exists, say so. If something is unclear, stop and name what's confusing.
+2. **Simplicity first.** Write the minimum code that solves the problem. No features, abstractions, configurability or error handling for impossible cases that nobody asked for. If 200 lines could be 50, rewrite it.
+3. **Surgical changes.** Touch only what the task needs. Don't reformat or "improve" adjacent code, and match the existing style. Mention unrelated dead code instead of deleting it. Remove only the imports, variables and functions your own change made unused. Every changed line should trace to the request.
+4. **Goal-driven execution.** Turn the task into checks you can verify: write a test that reproduces the bug, then make it pass; run `npm test` and `npm run typecheck` before and after a refactor. For multi-step work, write a short plan with a verify step for each item, and loop until each check passes.
+
+## Agent backend
+
+Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime. No model id is hard-coded in the result.
+
+### Environment variables
+
+| Variable | Purpose | Fallback |
+|---|---|---|
+| `SHIM_AGENT_BACKEND` | `claude-cli` (default) or `dsh` | `claude-cli` |
+| `SHIM_FIXER_MODEL` | Model id for the fixer agent | the seed in `arch.ts` |
+| `SHIM_REVIEWER_MODEL` | Model id for the internal reviewer | the seed in `arch.ts` |
+| `SHIM_JUDGE_MODEL` | Model id for the fixed judge (strict, never mutated) | the fallback in `agent.ts` |
+| `SHIM_MUTATOR_MODEL` | Model id for the LLM mutator in the evolve loop | the fallback in `evolve.ts` |
+| `SHIM_EXTRA_MODELS` | Comma-separated extra model ids to add to the allowlist | (none; built-in ids always present) |
+| `SHIM_SANDBOX` | Set to `1` to allow the `dsh` backend (throwaway container, no credentials) | unset (dsh refuses) |
+| `ANTHROPIC_BASE_URL` | Route `claude-cli` through an Anthropic-compatible endpoint; cost becomes `null` (unpriced) | unset |
+
+### Backends
+
+- **`claude-cli`** (default): spawns the `claude` CLI. Works with any Anthropic-compatible endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
+- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard — set it only in a context with no credentials in the environment.
+
+Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract is unchanged.
+
+### Cost semantics
+
+`--max-budget-usd` and the `cost` field in reports are meaningful only on the `claude-cli` backend with Anthropic's own pricing. When `ANTHROPIC_BASE_URL` is set or the backend is `dsh`, cost is recorded as `null` ("unpriced"); actual spend comes from the provider's dashboard.
+
+### Model overrides
+
+Set `<model id>` (e.g. the provider's model string) in the `SHIM_*_MODEL` variables. The built-in seed defaults in `arch.ts` are used only when the env var is unset. The Fable/Mythos ban is absolute: any model id containing `fable` or `mythos` (case-insensitive) is rejected by `sanitizeModels`, even when it appears in `SHIM_EXTRA_MODELS`.
 
 ---
 
@@ -42,7 +92,7 @@ Why Shim is more than the official codemod: AI SDK 7's breaking changes are **si
 - Node 22 is required, in `engines` and in CI.
 - Default `stopWhen` is `isStepCount(1)`, so **single-step calls are unaffected**. Don't flag them.
 
-The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-to-google` renames the repo's own exports and breaks aliased imports (seen on cloudflare/ai). `src/codemod-guard.ts` catches it. A draft bug report for Vercel is in `data/overnight-2026-10-28/vercel-codemod-google-rename.md`; it hasn't been sent. Re-check it against the latest codemod first.
+The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-to-google` renames the repo's own exports and breaks aliased imports (seen on cloudflare/ai). `src/codemod-guard.ts` catches it. It is already reported as vercel/ai#23031. That issue was closed on 2026-10-13 without a fix (the fix PR #23040 was never merged), so 4.0.3 still has the bug, which was re-verified on 2026-11-02. Comment on #23031 instead of opening a new issue.
 
 ## State of the repo (main @ b6433c5, 2026-10-29)
 - `main` contains everything below. The `evolve`, `evolve-guardrails`, `fix/target-env`, `fix/gitignored-scan`, `feat/pr-open`, `feat/pr-status` and `fix/windows-spawn` work is merged, as PRs #1–#7 or direct commits.

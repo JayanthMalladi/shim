@@ -35,7 +35,7 @@ export function totalSpent(entries: ArchiveEntry[]): number {
 export function inFlightCost(
   entries: ArchiveEntry[],
   archId: string,
-  resultFiles: { mtimeMs: number; cost: number; judgeCost?: number }[],
+  resultFiles: { mtimeMs: number; cost: number; judgeCost?: number | null }[],
 ): number {
   const own = entries.filter((e) => e.id === archId).map((e) => Date.parse(e.at)).filter((t) => !Number.isNaN(t));
   const newest = own.length ? Math.max(...own) : undefined;
@@ -78,8 +78,40 @@ export function wouldExceedBudget({ spent, estimate, budgetUsd }: { spent: numbe
  * they are more capable than the fixed judge, so a child could out-score its own judge by reaching
  * for a stronger model, which would corrupt the whole comparison. The mutator itself stays on
  * claude-opus-5-5.
+ *
+ * Extensible via SHIM_EXTRA_MODELS (comma-separated). Any extra model id that contains "fable" or
+ * "mythos" (case-insensitive) is dropped: the Fable/Mythos ban is absolute and cannot be overridden
+ * by the environment.
  */
-export const ALLOWED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+const DEFAULT_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+/** Fable and Mythos are banned absolutely: the env cannot override this. Exported for tests. */
+export const FORBIDDEN_MODEL_RE = /fable|mythos/i;
+
+/**
+ * Resolve the model for one of the four agent roles from the environment, with a hard-coded fallback
+ * when the variable is unset. The Fable/Mythos ban is applied uniformly to all four role variables,
+ * so no role can be pointed at a forbidden model even when the env var is set explicitly.
+ *
+ * @param role  which role's env var to read ("fixer" | "reviewer" | "judge" | "mutator")
+ * @param fallback the hard-coded model used when the env var is unset (empty values fall back too)
+ * @returns the model id, guaranteed not to contain "fable" or "mythos"
+ * @throws if the resolved (or env-supplied) model id matches FORBIDDEN_MODEL_RE
+ */
+export function resolveModel(role: "fixer" | "reviewer" | "judge" | "mutator", fallback: string): string {
+  const envVar = `SHIM_${role.toUpperCase()}_MODEL`;
+  const raw = process.env[envVar];
+  const m = raw !== undefined && raw.trim() !== "" ? raw.trim() : fallback;
+  if (FORBIDDEN_MODEL_RE.test(m))
+    throw new Error(`${envVar} is set to "${m}", which contains a forbidden model name (fable/mythos); these are banned absolutely`);
+  return m;
+}
+
+function extraModels(): string[] {
+  const raw = process.env.SHIM_EXTRA_MODELS ?? "";
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).filter((m) => !FORBIDDEN_MODEL_RE.test(m));
+}
+
+export const ALLOWED_MODELS: string[] = [...DEFAULT_MODELS, ...extraModels()];
 
 /** Numeric bounds on the genome knobs: one bad mutation must not be able to spend the whole budget. */
 export const GENOME_BOUNDS: Record<"candidates" | "attempts" | "fixerMaxTurns" | "reviewRounds", readonly [number, number]> = {
@@ -101,13 +133,16 @@ export function bound(v: unknown, [lo, hi]: readonly [number, number], d: number
 
 /**
  * Replace any fixer/reviewer model off the allowlist with the default. This is how a child that
- * names a Fable or Mythos id (or any other unknown model) gets clamped back to a safe one. Returns
- * the fields that changed so the caller can note it in the child's record.
+ * names a Fable or Mythos id (or any other unknown model) gets clamped back to a safe one. Fable
+ * and Mythos ids are rejected explicitly (belt-and-braces), so the ban holds even if a Fable/Mythos
+ * id were somehow added to ALLOWED_MODELS. Returns the fields that changed so the caller can note
+ * it in the child's record.
  */
 export function sanitizeModels(a: { fixerModel?: string; reviewerModel?: string }, defaults: { fixerModel: string; reviewerModel: string }): { fixerModel: string; reviewerModel: string; clamped: string[] } {
   const clamped: string[] = [];
   const one = (v: string | undefined, d: string, field: string) => {
     if (v == null) return d;
+    if (FORBIDDEN_MODEL_RE.test(v)) { clamped.push(field); return d; }
     if (ALLOWED_MODELS.includes(v)) return v;
     clamped.push(field);
     return d;

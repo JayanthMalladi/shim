@@ -1,6 +1,6 @@
 ## Upgrade to AI SDK 7
 
-This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
+This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Please check before merging".
 
 ### Versions
 - `@ai-sdk/anthropic`: ^3.0.64 → ^4.0.0
@@ -28,15 +28,12 @@ After the codemod, these checks failed; this PR fixes them: `typecheck .`, `test
 
 Specifically:
 - `src/provider-factory.ts`: the `@ai-sdk/google` export `createGoogleGenerativeAI` was renamed to `createGoogle` in v4.
-- `src/provider-factory.ts`: `system` was renamed to `instructions` in AI SDK 7. `allowSystemInMessages: true` is also set on the shared options builder so a `system` string still passed inside `messages` keeps working exactly as in v6.
+- `src/provider-factory.ts`: `system` was renamed to `instructions` in AI SDK 7. `allowSystemInMessages: true` is also set on the shared options builder so a `system` string still passed inside `messages` keeps working exactly as in v6 (the :64/:100 calls use these options, so they keep accepting system messages).
 - `tests/provider-factory.test.ts`: the mocked `@ai-sdk/google` factory was renamed to match.
 
-### Needs your eyes
-Shim did not change these. Please check them before merging.
+### Please check before merging
 - `package.json:1`: AI SDK 7 requires Node.js 22 or later.
-- `src/provider-factory.ts:64` and `src/provider-factory.ts:100`: these calls' options are built by `buildBaseTextCallOptions` (line ~155), so Shim set `allowSystemInMessages: true` there to keep v6 behaviour. **Can you confirm the `system` value never arrives inside `messages`?** If it does, `allowSystemInMessages: true` is what keeps v7 from rejecting the request — please confirm you are happy with that flag staying.
-- `src/provider-factory.ts:72` and `src/provider-factory.ts:77`: these read `result.usage` and `result.warnings` from a `generateText` call whose options are built elsewhere. **If `stopWhen` is ever set, AI SDK 7 makes `usage` and `warnings` span every step instead of only the last one — do you want `result.finalStep.usage` / `result.finalStep.warnings` here to keep the v6 values?**
-- `src/provider-factory.ts:105` and `src/provider-factory.ts:108`: the streaming path reads `result.totalUsage` (deprecated in AI SDK 7) and `result.warnings`. **Should these become `result.usage` / `result.finalStep.warnings`, or is the step-spanning behaviour you want?** Shim left the code alone here because the right answer depends on how the router consumes multi-step results.
+- `src/provider-factory.ts:72` and `src/provider-factory.ts:77`: if `stopWhen` is ever set, AI SDK 7 makes `usage` and `warnings` span every step instead of only the last one — do you want `result.finalStep.usage` / `result.finalStep.warnings` here to keep the v6 values?
 
 ### How it was checked
 | Check | Before | After |

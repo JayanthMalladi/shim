@@ -5,7 +5,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
-import { run, runCapture } from "./exec.js";
+import { costUnpriced, run, runCapture } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
@@ -50,7 +50,8 @@ export interface MigrationReport {
   repairedChecks: GateName[];
   /** Architecture id, agent spend in USD, and wall time of the fix stage. */
   arch?: string;
-  cost?: number;
+  /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
+  cost?: number | null;
   fixMs?: number;
 }
 
@@ -137,7 +138,8 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   const agentRuns: string[] = [];
   let candidates: MigrationReport["candidates"] = [];
   let review: MigrationReport["review"];
-  let cost = 0;
+  const unpriced = costUnpriced();
+  let cost: number | null = unpriced ? null : 0;
 
   const needsFix = remaining.length > 0 || brokenByUpgrade.length > 0 || arch.audit;
   if (opts.agent && needsFix) {
@@ -158,7 +160,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
         return `cd ${rel} && ${pm} run test`;
       }),
     });
-    cost += cands.reduce((s, c) => s + c.cost, 0);
+    cost = unpriced ? null : (cost ?? 0) + cands.reduce((s, c) => s + (c.cost ?? 0), 0);
     candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));
     const chosen = rank(cands, baseline, arch.selection)[0]!;
     await adopt(dir, chosen, cands);
@@ -169,7 +171,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   } else if (opts.agent && arch.review && !brokenByUpgrade.length) {
     log("reviewing diff");
     const r = await runReviewer(dir, arch.reviewerRules, arch.reviewerModel);
-    cost += r.cost;
+    if (!unpriced) cost = (cost ?? 0) + (r.cost ?? 0);
     review = { approve: r.approve, issues: r.issues };
   }
   formatChanged(dir);
@@ -256,11 +258,46 @@ function cleanBeforeEdit(dir: string, file: string, check: (committed: string) =
   return !original.ok || check(original.stdout);
 }
 
-/** Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each published package. */
-function addChangeset(dir: string, pkgDirs: string[]) {
+/**
+ * A `name` that would produce a changeset entry for a package that doesn't exist. Matches the
+ * scaffold's placeholder scopes exactly (`@fake-scope/*`, `fake-pkg`, the literal `placeholder`)
+ * plus dot-leading / `__test` names. A real published name — including `@faker-js/faker`,
+ * `fakeredis`, `fake-indexeddb` — is never filtered.
+ */
+function isPlaceholderName(n: string): boolean {
+  return (
+    /^@fake-scope\//.test(n) ||
+    n === "fake-pkg" ||
+    n === "placeholder" ||
+    /^\.+/i.test(n) ||
+    /^__test/i.test(n)
+  );
+}
+
+/**
+ * Repos on changesets gate releases on a .changeset file; a dropped v6 is a major for each
+ * published package the PR actually changed. Only real publishable names in `pkgDirs` make a
+ * changeset entry — a private package (no change needed) or a placeholder name must not appear,
+ * or the PR ships a changeset for a package that doesn't exist. If every changed package is
+ * private or placeholder, no changeset is written: we do NOT fall back to the root package's
+ * name, because the root may be an unchanged container (e.g. a monorepo root) and a major for
+ * it would be wrong.
+ */
+export function addChangeset(dir: string, pkgDirs: string[]) {
   if (!fs.existsSync(path.join(dir, ".changeset", "config.json"))) return;
-  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private).map((p) => p.name as string))];
-  if (!names.length) return;
+  const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private && !isPlaceholderName(p.name)).map((p) => p.name as string))];
+  if (!names.length) {
+    // All changed packages are private/placeholder. If the root dir itself is in pkgDirs and
+    // has a publishable name, use it; otherwise no changeset is needed.
+    const rootPkg = readPkg(dir);
+    const rootInDirs = pkgDirs.some((d) => path.resolve(d) === path.resolve(dir));
+    if (rootInDirs && rootPkg?.name && !rootPkg.private && !isPlaceholderName(rootPkg.name)) {
+      names.push(rootPkg.name);
+    } else {
+      log("addChangeset: no changed package has a publishable name, skipping");
+      return;
+    }
+  }
   const header = names.map((n) => `"${n}": major`).join("\n");
   fs.writeFileSync(path.join(dir, ".changeset", "upgrade-ai-sdk-7.md"), `---\n${header}\n---\n\nUpgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.\n`);
 }

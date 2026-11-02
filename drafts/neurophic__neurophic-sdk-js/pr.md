@@ -1,6 +1,6 @@
 ## Upgrade to AI SDK 7
 
-This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
+This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Please check before merging".
 
 ### Versions
 - `ai`: ^6.0.149 → ^7.0.0
@@ -12,19 +12,19 @@ Source files changed (codemod renames and fixer edits): `packages/ai-sdk/src/too
 
 After the codemod, these checks failed; this PR fixes them: `build`, `typecheck .`, `typecheck packages/ai-sdk`.
 
-In AI SDK 7, `tool()` no longer infers the `execute` callback's input type from `inputSchema` in a way that survives this package's `strict` tsconfig — the destructured parameters (`{ content, topic }`, `{ query, goal, since, limit }`) fall back to implicit `any` and fail `noImplicitAny`. The fix types the `execute` callback parameter directly (no public signature change on `createTools`, no new public type import):
+In AI SDK 7, `tool()` returns `ExecutableTool<Tool<…>>` whose declaration lives in `@ai-sdk/provider-utils` / `@ai-sdk/provider`, neither of which this library depends on (only on `ai`). So tsc can't write the declaration file for `createTools`'s inferred return type and fails the build and typechecks with:
 
-```ts
-execute: async (args: { content: string; topic?: "work" | "personal" }) => { ... }
-execute: async (args: { query: string; goal?: string; since?: string; limit?: number }) => { ... }
+```
+src/tools.ts(5,17): error TS2742: The inferred type of 'createTools' cannot be named without a reference to
+'.pnpm/@ai-sdk+provider-utils@…/node_modules/@ai-sdk/provider-utils'. This is likely not portable.
 ```
 
-The `since` field stays `string` to match the `z.iso.datetime().or(z.iso.date())` schema (either form serialises to a string). The `createTools` signature and its returned tool objects are unchanged in shape — only the internal callback typing was added.
+The fix adds one explicit return type to `createTools`, spelling each tool as `Tool<In, Out>` (`Tool` is re-exported by `ai` — no new dependencies). `In` is the schema's field types and `Out` is `{ success: boolean; id: string; status: string }` for `remember` and `{ result: string }` for `recall` (the shape of the `neurophic` client's `RetrieveResponse`). The schemas and the `execute` callbacks are unchanged.
 
-### Needs your eyes
-Shim did not change these. Please check them before merging.
+### Please check before merging
 - `packages/ai-sdk/package.json:1`: AI SDK 7 requires Node.js 22 or later.
-- The inline parameter types on the two `execute` callbacks duplicate the schema's field types. If the schema ever changes, update both.
+- The `Tool<…>` input/output types in the new return annotation duplicate the schema's field types. If the schemas ever change, update both.
+- **Widening:** in v6 the inferred `createTools` return had `execute` required (the `tool()` result was an executable tool). In v7, `Tool<In, Out>` declares `execute` optional, so this annotation widens the public type: `remember.execute` and `recall.execute` become `execute?` instead of `execute`. Callers that already invoke these through `ai`'s `streamText`/`generateText` are unaffected (the runtime shape still provides `execute`), but any downstream type that pattern-matches on the presence of `execute` will now see it as optional. Flag if that is a problem for your users.
 
 ### How it was checked
 | Check | Before | After |

@@ -12,6 +12,13 @@ const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
 const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
+ * Git's GIT_CONFIG_* env vars let a caller set config entries for a child git process.
+ * GIT_CONFIG_VALUE_n can carry auth headers (e.g. http.<host>.extraheader with a token),
+ * so strip the whole family together: if we drop KEY_n/VALUE_n but keep GIT_CONFIG_COUNT,
+ * git fails with "missing config key GIT_CONFIG_KEY_0".
+ */
+const GIT_CONFIG_RE = /^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+)$/;
+/**
  * Environment essentials that survive the secret strip. Matched case-insensitively, so the
  * lower-case forms of proxy and config variables are kept too.
  */
@@ -23,7 +30,7 @@ const KEEP_NAMES = new Set([
 /** Environment for commands that run target-repo code: no API keys, tokens or credentials. */
 export function targetEnv(): NodeJS.ProcessEnv {
   const secret = (up: string) =>
-    SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
+    GIT_CONFIG_RE.test(up) || SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
@@ -55,7 +62,55 @@ export interface ExecResult {
    * regressions() catch a test that passed at baseline now failing or going missing even when
    * the gate as a whole was already red.
    */
-  perTest?: Record<string, boolean>;
+     perTest?: Record<string, boolean>;
+}
+
+/**
+ * The configured agent backend: `claude-cli` (default, today's runClaude) or `dsh`
+ * (runs `dsh --profile headless "<prompt>"`; requires SHIM_SANDBOX=1).
+ */
+export type AgentBackend = "claude-cli" | "dsh";
+
+export function agentBackend(): AgentBackend {
+  const b = (process.env.SHIM_AGENT_BACKEND ?? "claude-cli").toLowerCase();
+  if (b !== "claude-cli" && b !== "dsh")
+    throw new Error(`unknown SHIM_AGENT_BACKEND: ${b}; expected "claude-cli" or "dsh"`);
+  return b;
+}
+
+/**
+ * True when cost is not a meaningful number: the `dsh` backend (no per-run cost report) or an
+ * `ANTHROPIC_BASE_URL`-routed provider (its pricing is on the provider's dashboard, not in the
+ * CLI's `total_cost_usd`). Callers should record cost as `null` ("unpriced") instead.
+ */
+export function costUnpriced(): boolean {
+  return agentBackend() === "dsh" || process.env.ANTHROPIC_BASE_URL !== undefined;
+}
+
+/**
+ * The `dsh` backend: runs `dsh --profile headless "<prompt>"` in the repo dir and takes stdout as
+ * the final text. Because dsh has no per-command allowlist or turn cap, it must only be used inside
+ * a throwaway container or VM with no credentials in the environment: the call refuses to start
+ * unless `SHIM_SANDBOX=1` is set. The timeout is enforced via `runAsync`.
+ */
+export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Promise<ExecResult> {
+  if (process.env.SHIM_SANDBOX !== "1")
+    throw new Error(
+      "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
+      "so it may only run inside a throwaway container or VM with no credentials in the environment. " +
+      "Set SHIM_SANDBOX=1 to acknowledge that precondition."
+    );
+  return runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
+}
+
+/**
+ * Backend-agnostic agent dispatch: the `dsh` backend takes the prompt directly; `claude-cli`
+ * dispatches through `runClaude` with the full claude argument list. Callers pass both so a
+ * single call site works regardless of `SHIM_AGENT_BACKEND`.
+ */
+export async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
+  if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
+  return runClaude(args, dir, timeoutMs);
 }
 
 /**

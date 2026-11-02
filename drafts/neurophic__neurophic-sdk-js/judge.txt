@@ -2,5 +2,5 @@ verdict: approve
 {
   "approve": true,
   "issues": [],
-  "cost": 0.5415272
+  "cost": 1.6909748
 }

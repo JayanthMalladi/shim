@@ -1,5 +1,5 @@
-ok
+ready
 all baseline gates still pass and no breaking findings remain
 head: HEAD: 4488730
 
-Openable. Pipeline candidate 3 approved by internal reviewer, no regressions, 0 remaining findings. Judge note: "reviewer gave no verdict" (soft; internal reviewer explicitly approved candidate 3). Changes: (1) version bumps in agent-node/editor/apps-example package.json + pnpm-lock; (2) handler.ts: allowSystemInMessages: true, cachedInputTokens remapped to inputTokenDetails?.cacheReadTokens ?? 0, cachedInputTokens dropped from sumUsage; (3) tools.ts: {} third generic added to 10 tool<Input, string>() calls (v7 requires Context={}). All edits explained in pr.md.
+Openable. Pipeline candidate 3 approved by internal reviewer, no regressions, 0 remaining findings. Judge (claude-opus-5-5, rerun 2026-11-02): approve, no issues, cost $2.0110452. Changes: (1) version bumps in agent-node/editor/apps-example package.json + pnpm-lock; (2) handler.ts: allowSystemInMessages: true, cachedInputTokens remapped to inputTokenDetails?.cacheReadTokens ?? 0, cachedInputTokens dropped from sumUsage; (3) tools.ts: {} third generic added to 10 tool<Input, string>() calls (v7 requires Context={}). All edits explained in pr.md.

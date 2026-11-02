@@ -1,6 +1,6 @@
 ## Upgrade to AI SDK 7
 
-This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
+This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Please check before merging".
 
 ### Versions
 - `@ai-sdk/anthropic`: ^3.0.0 → ^4.0.0
@@ -26,8 +26,7 @@ Other source files changed (codemod renames and fixer edits): `packages/agent-no
 
 After the codemod, these checks failed; this PR fixes them: `typecheck .`, `test .`, `typecheck packages/agent-node`, `test packages/agent-node`, `typecheck packages/editor`.
 
-### Needs your eyes
-Shim did not change these. Please check them before merging.
+### Please check before merging
 - `packages/agent-node/package.json:1`, `packages/editor/package.json:1`, `apps/example/package.json:1`: AI SDK 7 requires Node.js 22 or later.
 
 ### How it was checked
