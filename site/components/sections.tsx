@@ -1,6 +1,5 @@
 import { CopyButton } from "./copy-button";
 import { Reveal } from "./reveal";
-import { SiteLink } from "./site-link";
 import { links, scanCommands } from "@/lib/site";
 import { prList, proof, proofValue } from "@/lib/stats";
 
@@ -226,8 +225,8 @@ const faq = [
     a: "No. Installs always use --ignore-scripts, and commands in your repo run without API keys.",
   },
   {
-    q: "What does the pilot cost?",
-    a: "Nothing. The scan stays free after the pilot too.",
+    q: "Can I run it myself?",
+    a: "Yes. The code is public on GitHub, and the scan runs from a clone with Node 22 or later.",
   },
 ];
 
@@ -257,21 +256,86 @@ export function FaqSection() {
   );
 }
 
+const changelog = [
+  {
+    label: "Shipped",
+    bg: "bg-mint",
+    items: [
+      `${prList.length} AI SDK 7 upgrade PRs opened on public repos`,
+      `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
+      "A guard for the official codemod when it renames your own exports",
+      "Per test baseline: only checks green before the upgrade count after it",
+      "Runs on macOS, Linux and Windows",
+    ],
+  },
+  {
+    label: "Building now",
+    bg: "bg-paper",
+    items: [
+      "Evolving the fix agent: variants compete on real repos and the winner becomes the default",
+      "Short issue drafts with file and line when a PR would regress a check",
+    ],
+  },
+  {
+    label: "Next",
+    bg: "bg-pink",
+    items: [
+      "pnpm catalog: support, which blocked four repos so far",
+      "Scan repos that already moved to v7 for the silent bugs they kept",
+      "More API migrations after AI SDK 7",
+    ],
+  },
+];
+
+export function ChangelogSection() {
+  return (
+    <section aria-labelledby="changelog-title" id="changelog" className="px-4 py-24 sm:px-8">
+      <Reveal className="mx-auto flex max-w-[1184px] flex-col gap-12">
+        <SectionHead id="changelog-title" title="Built in the open">
+          Shim is in active development. Here is what works today and what ships next.
+        </SectionHead>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          {changelog.map((c) => (
+            <div key={c.label} className={`card ${c.bg}`}>
+              <span className="tag bg-paper">{c.label}</span>
+              <ul className="m-0 flex list-none flex-col gap-3 p-0">
+                {c.items.map((i) => (
+                  <li key={i} className="flex gap-3 text-base leading-6 font-medium">
+                    <span aria-hidden="true" className="font-bold">
+                      ▸
+                    </span>
+                    {i}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
 export function FinalCta() {
   return (
     <section aria-labelledby="start-title" id="start" className="px-4 pt-12 pb-24 sm:px-8">
       <div className="mx-auto flex max-w-[1184px] flex-wrap items-center justify-between gap-8 rounded-[32px] border-[3px] border-ink bg-wedge p-8 shadow-[12px_12px_0_#111] sm:p-12">
         <div className="flex flex-[1_1_420px] flex-col gap-3">
           <h2 id="start-title" className="m-0 text-4xl leading-none font-bold tracking-[-0.04em] sm:text-5xl">
-            Level your upgrade tonight.
+            Follow the build.
           </h2>
           <p className="m-0 text-lg leading-7 font-medium">
-            Free during the pilot. No PR unless every check that passed before still passes.
+            New features land in the repo first. Run the scan on your app tonight, or watch what ships next.
           </p>
         </div>
-        <SiteLink href={links.booking} className="btn shadow-[6px_6px_0_#fff] hover:shadow-[8px_8px_0_#fff]">
-          Join the pilot →
-        </SiteLink>
+        <div className="flex flex-wrap gap-4">
+          <a href={links.repo} className="btn shadow-[6px_6px_0_#fff] hover:shadow-[8px_8px_0_#fff]">
+            Star on GitHub →
+          </a>
+          <a href="#scan" className="btn btn-alt">
+            Run the scan
+          </a>
+        </div>
       </div>
     </section>
   );

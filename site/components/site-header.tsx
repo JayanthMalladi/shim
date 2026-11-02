@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "./icons";
-import { SiteLink } from "./site-link";
 import { links } from "@/lib/site";
 
 const nav = [
   { href: "#watch", label: "Watch it work" },
   { href: "#wobbles", label: "The wobbles" },
-  { href: "#how", label: "How it works" },
+  { href: "#changelog", label: "Changelog" },
   { href: "#faq", label: "FAQ" },
 ];
 
@@ -59,9 +58,9 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <SiteLink href={links.booking} className="btn btn-sm">
-            Join the pilot
-          </SiteLink>
+          <a href={links.repo} className="btn btn-sm">
+            GitHub
+          </a>
           <button
             ref={buttonRef}
             type="button"

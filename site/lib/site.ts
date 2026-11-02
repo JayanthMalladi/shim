@@ -1,11 +1,5 @@
-/**
- * Every outbound link and launch placeholder lives here.
- * Values wrapped in [brackets] are unresolved placeholders: the UI marks them
- * with a dashed outline until they are replaced with real values.
- */
+/** Every outbound link lives here. */
 export const links = {
-  // The primary CTA. Replace with a real scheduling link (Cal.com, Calendly, ...).
-  booking: "[BOOKING URL]",
   repo: "https://github.com/JayanthMalladi/shim",
 } as const;
 
@@ -20,7 +14,3 @@ export const scanCommands = [
   "cd shim && npm install",
   "npx tsx src/cli.ts scan ../your-app",
 ] as const;
-
-export function isPlaceholder(value: string): boolean {
-  return /^\[.+\]$/.test(value.trim());
-}
