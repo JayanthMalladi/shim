@@ -4,11 +4,11 @@
  * with a dashed outline until they are replaced with real values.
  */
 export const links = {
-  // Stand-in until a real waitlist form exists. Points at the repo so the CTA
-  // is a working link, not a dashed placeholder box, while we don't yet have
-  // a Tally/Typeform URL.
+  // Stand-in until a real waitlist form exists. Points at the repo; the CTA is
+  // labelled "Star on GitHub" so it says what it does, not a promise of a form.
   waitlist: "https://github.com/JayanthMalladi/shim",
-  // GitHub App not published yet — point the install button at the repo too.
+  // GitHub App not published yet — the CTA is labelled "View source" and points
+  // at the repo.
   githubApp: "https://github.com/JayanthMalladi/shim",
   repo: "https://github.com/JayanthMalladi/shim",
   firstPr: "https://github.com/requestyai/ai-sdk-requesty/pull/66",

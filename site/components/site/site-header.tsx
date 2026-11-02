@@ -58,7 +58,7 @@ export function SiteHeader() {
             href={links.waitlist}
             className="btn-amber inline-flex min-h-10 items-center rounded-lg px-4 font-semibold no-underline"
           >
-            Join waitlist
+            Star on GitHub
           </SiteLink>
         </nav>
 
@@ -68,7 +68,7 @@ export function SiteHeader() {
             href={links.waitlist}
             className="btn-amber inline-flex min-h-10 items-center rounded-lg px-3.5 text-sm font-semibold no-underline"
           >
-            Join waitlist
+            Star on GitHub
           </SiteLink>
           <button
             ref={buttonRef}
