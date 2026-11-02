@@ -19,8 +19,8 @@ Notes:
   removed, so the public type is no longer widened. Typecheck passes without them because both
   execute callbacks already type their parameters inline. The two files are now byte-identical to
   upstream and no longer appear in the diff.
-- The finalStep.* test-read changes were kept (WP3) and are now explained in pr.md.
-- pnpm-lock.yaml regenerated: upstream moved from the draft's 5c368c9 to 7836c58391, so the draft's
-  lockfile hunk no longer applied.
+- stepCountIs kept in context7.ts (v6-compatible alias, valid in both v6 and v7); only the test
+  file renames to isStepCount.
+- pnpm-lock.yaml regenerated for upstream HEAD 7836c58391.
 - Verified: changes.patch applies cleanly to upstream HEAD 7836c58391; install (pnpm, --ignore-scripts),
   build, root typecheck and packages/tools-ai-sdk typecheck all pass.

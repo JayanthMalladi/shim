@@ -1,14 +1,3 @@
-diff --git a/.changeset/upgrade-ai-sdk-7.md b/.changeset/upgrade-ai-sdk-7.md
-new file mode 100644
-index 0000000..b4b31b6
---- /dev/null
-+++ b/.changeset/upgrade-ai-sdk-7.md
-@@ -0,0 +1,5 @@
-+---
-+"@upstash/context7-tools-ai-sdk": major
-+---
-+
-+Upgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.
 diff --git a/packages/tools-ai-sdk/package.json b/packages/tools-ai-sdk/package.json
 index 94faa04..6c68664 100644
 --- a/packages/tools-ai-sdk/package.json
@@ -22,27 +11,8 @@ index 94faa04..6c68664 100644
      "zod": "^4.6.5",
      "@openrouter/ai-sdk-provider": "^2.10.0",
      "@types/node": "catalog:",
-diff --git a/packages/tools-ai-sdk/src/agents/context7.ts b/packages/tools-ai-sdk/src/agents/context7.ts
-index 0f3fb1d..46c56e9 100644
---- a/packages/tools-ai-sdk/src/agents/context7.ts
-+++ b/packages/tools-ai-sdk/src/agents/context7.ts
-@@ -1,4 +1,4 @@
--import { ToolLoopAgent, type ToolLoopAgentSettings, type ToolSet, stepCountIs } from "ai";
-+import { ToolLoopAgent, type ToolLoopAgentSettings, type ToolSet, isStepCount } from "ai";
- import { resolveLibraryId, queryDocs } from "@tools";
- import { AGENT_PROMPT } from "@prompts";
- 
-@@ -39,7 +39,7 @@ export class Context7Agent extends ToolLoopAgent<never, ToolSet> {
-   constructor(config: Context7AgentConfig) {
-     const {
-       model,
--      stopWhen = stepCountIs(5),
-+      stopWhen = isStepCount(5),
-       instructions,
-       apiKey,
- 
 diff --git a/packages/tools-ai-sdk/src/index.test.ts b/packages/tools-ai-sdk/src/index.test.ts
-index 5901e28..f5724df 100644
+index 5901e28..1ed02b9 100644
 --- a/packages/tools-ai-sdk/src/index.test.ts
 +++ b/packages/tools-ai-sdk/src/index.test.ts
 @@ -1,5 +1,5 @@
@@ -52,7 +22,7 @@ index 5901e28..f5724df 100644
  import { createOpenRouter } from "@openrouter/ai-sdk-provider";
  import { z } from "zod";
  import {
-@@ -48,14 +48,14 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+@@ -48,7 +48,7 @@ describe("@upstash/context7-tools-ai-sdk", () => {
            resolveLibraryId: resolveLibraryId(),
          },
          toolChoice: { type: "tool", toolName: "resolveLibraryId" },
@@ -61,18 +31,7 @@ index 5901e28..f5724df 100644
          prompt: "Search for 'react' library",
        });
  
--      expect(result.toolCalls.length).toBeGreaterThan(0);
--      expect(result.toolCalls[0].toolName).toBe("resolveLibraryId");
--      expect(result.toolResults.length).toBeGreaterThan(0);
--      const toolResult = result.toolResults[0] as unknown as { output: string };
-+      expect(result.finalStep.toolCalls.length).toBeGreaterThan(0);
-+      expect(result.finalStep.toolCalls[0].toolName).toBe("resolveLibraryId");
-+      expect(result.finalStep.toolResults.length).toBeGreaterThan(0);
-+      const toolResult = result.finalStep.toolResults[0] as unknown as { output: string };
-       expect(typeof toolResult.output).toBe("string");
-       expect(toolResult.output).toContain("Context7-compatible library ID");
-     }, 30000);
-@@ -67,14 +67,14 @@ describe("@upstash/context7-tools-ai-sdk", () => {
+@@ -67,7 +67,7 @@ describe("@upstash/context7-tools-ai-sdk", () => {
            queryDocs: queryDocs(),
          },
          toolChoice: { type: "tool", toolName: "queryDocs" },
@@ -81,17 +40,6 @@ index 5901e28..f5724df 100644
          prompt: "Fetch documentation for library ID '/facebook/react' about hooks",
        });
  
--      expect(result.toolCalls.length).toBeGreaterThan(0);
--      expect(result.toolCalls[0].toolName).toBe("queryDocs");
--      expect(result.toolResults.length).toBeGreaterThan(0);
--      const toolResult = result.toolResults[0] as unknown as { output: string };
-+      expect(result.finalStep.toolCalls.length).toBeGreaterThan(0);
-+      expect(result.finalStep.toolCalls[0].toolName).toBe("queryDocs");
-+      expect(result.finalStep.toolResults.length).toBeGreaterThan(0);
-+      const toolResult = result.finalStep.toolResults[0] as unknown as { output: string };
-       expect(typeof toolResult.output).toBe("string");
-       expect(toolResult.output.length).toBeGreaterThan(0);
-     }, 30000);
 @@ -86,7 +86,7 @@ describe("@upstash/context7-tools-ai-sdk", () => {
            resolveLibraryId: resolveLibraryId(),
            queryDocs: queryDocs(),
