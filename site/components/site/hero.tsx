@@ -31,7 +31,7 @@ export function Hero() {
             href={links.waitlist}
             className="btn-amber inline-flex min-h-12 items-center rounded-[10px] px-[22px] font-semibold no-underline"
           >
-            Join the waitlist
+            Star on GitHub
           </SiteLink>
           <CopyCommand command={scanCommand} />
         </div>
@@ -41,12 +41,10 @@ export function Hero() {
             <span className="font-semibold text-fg">{prs.open}</span> PRs open upstream
           </span>
           <span aria-hidden="true">·</span>
-          <span>
-            <span className="font-semibold text-fg">{prs.merged}</span> merged
-          </span>
+          <span>{prs.merged > 0 ? <><span className="font-semibold text-fg">{prs.merged}</span> merged</> : "first merges pending"}</span>
           <span aria-hidden="true">·</span>
           <span>
-            merge rate <span className="font-semibold text-fg">{prs.mergeRate}</span>
+            <span className="font-semibold text-fg">{prs.replied}</span> maintainer replies
           </span>
         </div>
       </div>

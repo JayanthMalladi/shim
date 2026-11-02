@@ -27,13 +27,13 @@ export function StartSection() {
               href={links.githubApp}
               className="btn-ghost inline-flex min-h-11 items-center rounded-[10px] border border-edge-strong px-4 text-sm text-fg no-underline hover:text-fg"
             >
-              Install GitHub App
+              View source
             </SiteLink>
             <SiteLink
               href={links.waitlist}
               className="btn-amber inline-flex min-h-11 items-center gap-2 rounded-[10px] px-[18px] text-sm font-semibold no-underline"
             >
-              Join waitlist
+              Star on GitHub
               <ArrowRightIcon />
             </SiteLink>
           </div>
