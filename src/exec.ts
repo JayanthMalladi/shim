@@ -12,6 +12,13 @@ const SECRET_RE = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)/i;
 const SECRET_PREFIXES = ["ANTHROPIC_", "CLAUDE_", "AWS_", "GH_", "GITHUB_"];
 const SECRET_NAMES = new Set(["NPM_TOKEN", "NODE_AUTH_TOKEN"]);
 /**
+ * Git's GIT_CONFIG_* env vars let a caller set config entries for a child git process.
+ * GIT_CONFIG_VALUE_n can carry auth headers (e.g. http.<host>.extraheader with a token),
+ * so strip the whole family together: if we drop KEY_n/VALUE_n but keep GIT_CONFIG_COUNT,
+ * git fails with "missing config key GIT_CONFIG_KEY_0".
+ */
+const GIT_CONFIG_RE = /^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+)$/;
+/**
  * Environment essentials that survive the secret strip. Matched case-insensitively, so the
  * lower-case forms of proxy and config variables are kept too.
  */
@@ -23,7 +30,7 @@ const KEEP_NAMES = new Set([
 /** Environment for commands that run target-repo code: no API keys, tokens or credentials. */
 export function targetEnv(): NodeJS.ProcessEnv {
   const secret = (up: string) =>
-    SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
+    GIT_CONFIG_RE.test(up) || SECRET_RE.test(up) || SECRET_NAMES.has(up) || SECRET_PREFIXES.some((p) => up.startsWith(p));
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
