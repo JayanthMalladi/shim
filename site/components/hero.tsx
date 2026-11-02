@@ -46,12 +46,12 @@ export function Hero() {
             code that compiles but quietly changed, and hands you one tested pull request.
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-2">
-            <SiteLink href={links.booking} className="btn">
-              Join the pilot →
-            </SiteLink>
-            <a href="#scan" className="btn btn-alt">
-              Free scan
+            <a href="#scan" className="btn">
+              Run a scan →
             </a>
+            <SiteLink href={links.repo} className="btn btn-alt">
+              View on GitHub
+            </SiteLink>
           </div>
         </div>
         <Scene />

@@ -59,8 +59,8 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <SiteLink href={links.booking} className="btn btn-sm">
-            Join the pilot
+          <SiteLink href={links.repo} className="btn btn-sm">
+            GitHub
           </SiteLink>
           <button
             ref={buttonRef}

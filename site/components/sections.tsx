@@ -226,8 +226,8 @@ const faq = [
     a: "No. Installs always use --ignore-scripts, and commands in your repo run without API keys.",
   },
   {
-    q: "What does the pilot cost?",
-    a: "Nothing. The scan stays free after the pilot too.",
+    q: "What does it cost?",
+    a: "Nothing. Shim is in active development, and the source is on GitHub.",
   },
 ];
 
@@ -263,14 +263,14 @@ export function FinalCta() {
       <div className="mx-auto flex max-w-[1184px] flex-wrap items-center justify-between gap-8 rounded-[32px] border-[3px] border-ink bg-wedge p-8 shadow-[12px_12px_0_#111] sm:p-12">
         <div className="flex flex-[1_1_420px] flex-col gap-3">
           <h2 id="start-title" className="m-0 text-4xl leading-none font-bold tracking-[-0.04em] sm:text-5xl">
-            Level your upgrade tonight.
+            In active development.
           </h2>
           <p className="m-0 text-lg leading-7 font-medium">
-            Free during the pilot. No PR unless every check that passed before still passes.
+            AI SDK 6 to 7 is the first migration. More are shipping soon. Follow along on GitHub.
           </p>
         </div>
-        <SiteLink href={links.booking} className="btn shadow-[6px_6px_0_#fff] hover:shadow-[8px_8px_0_#fff]">
-          Join the pilot →
+        <SiteLink href={links.repo} className="btn shadow-[6px_6px_0_#fff] hover:shadow-[8px_8px_0_#fff]">
+          View on GitHub →
         </SiteLink>
       </div>
     </section>

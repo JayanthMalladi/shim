@@ -4,8 +4,6 @@
  * with a dashed outline until they are replaced with real values.
  */
 export const links = {
-  // The primary CTA. Replace with a real scheduling link (Cal.com, Calendly, ...).
-  booking: "[BOOKING URL]",
   repo: "https://github.com/JayanthMalladi/shim",
 } as const;
 
