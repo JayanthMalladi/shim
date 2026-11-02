@@ -1,6 +1,6 @@
 # Shim
 
-Start with `docs/SPEC.md`: current status, architecture, and the work packages (WP0–WP12) with acceptance criteria.
+Start with `docs/SPEC.md`: current status, architecture, and the work packages (WP0â€“WP12) with acceptance criteria.
 
 Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 
@@ -36,14 +36,13 @@ Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime.
 | `SHIM_JUDGE_MODEL` | Model id for the fixed judge (strict, never mutated) | the fallback in `agent.ts` |
 | `SHIM_MUTATOR_MODEL` | Model id for the LLM mutator in the evolve loop | the fallback in `evolve.ts` |
 | `SHIM_EXTRA_MODELS` | Comma-separated extra model ids to add to the allowlist | (none; built-in ids always present) |
-| `SHIM_SECRET_PREFIXES` | Comma-separated extra env-var key prefixes to strip from target commands | (none; `ANTHROPIC_*`, `CLAUDE_*`, `AWS_*`, `GH_*`, `GITHUB_*`, `OPENAI_*` are always stripped) |
 | `SHIM_SANDBOX` | Set to `1` to allow the `dsh` backend (throwaway container, no credentials) | unset (dsh refuses) |
 | `ANTHROPIC_BASE_URL` | Route `claude-cli` through an Anthropic-compatible endpoint; cost becomes `null` (unpriced) | unset |
 
 ### Backends
 
 - **`claude-cli`** (default): spawns the `claude` CLI. Works with any Anthropic-compatible endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
-- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard — set it only in a context with no credentials in the environment.
+- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard â€” set it only in a context with no credentials in the environment.
 
 Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract is unchanged.
 
@@ -78,7 +77,7 @@ Why Shim is more than the official codemod: AI SDK 7's breaking changes are **si
 The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-to-google` renames the repo's own exports and breaks aliased imports (seen on cloudflare/ai). `src/codemod-guard.ts` catches it. A draft bug report for Vercel is in `data/overnight-2026-10-28/vercel-codemod-google-rename.md`; it hasn't been sent. Re-check it against the latest codemod first.
 
 ## State of the repo (main @ b6433c5, 2026-10-29)
-- `main` contains everything below. The `evolve`, `evolve-guardrails`, `fix/target-env`, `fix/gitignored-scan`, `feat/pr-open`, `feat/pr-status` and `fix/windows-spawn` work is merged, as PRs #1–#7 or direct commits.
+- `main` contains everything below. The `evolve`, `evolve-guardrails`, `fix/target-env`, `fix/gitignored-scan`, `feat/pr-open`, `feat/pr-status` and `fix/windows-spawn` work is merged, as PRs #1â€“#7 or direct commits.
 - **Not merged:** branch `claude/serene-babbage-yzfhbn`. It has `docs/evolve-runbook.md` (a prompt for running the evolution on an `ANTHROPIC_API_KEY` with a budget, an 8-repo dev set and a 5-repo holdout) and `drafts/` (every draft with `pr.md`, `changes.patch`, `judge.txt`, `status.txt`, plus `drafts/READY.md` and `SUMMARY.csv`). It branched from older code, so **cherry-pick `docs/` and `drafts/` only. Don't merge it**: it would revert newer src, site and test files.
 - `site/` is the landing page (static Next.js on Vercel). `.github/workflows/refresh-site.yml` runs every 6 hours: `shim pr status` refreshes `data/prs.csv`, `shim stats` refreshes `site/lib/stats.json`, and the bot commits both.
 - It now runs on Windows too (cross-spawn, LF-normalized patches, EBUSY retries). Jayanth runs Shim locally.
@@ -107,7 +106,7 @@ The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-t
   - It keeps an archive, and the LLM mutator (opus) reads past runs and proposes children.
   - Results are resumable and can be pushed durably via `--mirror`.
   - `--budget-usd` stops before an evaluation that would exceed the budget.
-  - The genome is bounded (candidates 1–4, attempts 1–3, turns ≤60, review rounds ≤2) and the models are allowlisted (opus/sonnet/haiku).
+  - The genome is bounded (candidates 1â€“4, attempts 1â€“3, turns â‰¤60, review rounds â‰¤2) and the models are allowlisted (opus/sonnet/haiku).
 - **Exec** (`src/exec.ts`):
   - `runClaude` waits out plan usage limits.
   - `SAFE_ENV` sets `CI=1` and `npm_config_verify_deps_before_run=false`. Without it, pnpm 11 silently runs `pnpm install` with lifecycle scripts before `pnpm run`.

@@ -112,11 +112,16 @@ describe("runReviewer guard (fake dsh backend, real diff-restore path)", () => {
       ];
       fs.writeFileSync(path.join(fakeDir, "dsh.cmd"), lines.join("\r\n") + "\r\n");
     } else {
+      // POSIX: the fake is launched with cwd = repo dir, so writing recording files into the
+      // cwd would create untracked files in the repo and trip the diff-restore guard (the no-edit
+      // case must leave the tree byte-identical). `dirname $0` is the fake's own dir (fakeDir),
+      // so write there instead. cross-spawn runs the absolute path, so $0 is the absolute fake
+      // path and dirname $0 == fakeDir.
       const lines = [
         "#!/bin/sh",
         edit ? "[ -f c.ts ] || echo 'const c = 1' > c.ts" : "true",
-        "git diff HEAD > saw-diff.txt",
-        "awk 'NF { c++ } END { print c+0 }' saw-diff.txt > saw-len.txt",
+        'git diff HEAD > "$(dirname "$0")/saw-diff.txt" 2>/dev/null',
+        'awk \'NF { c++ } END { print c+0 }\' "$(dirname "$0")/saw-diff.txt" > "$(dirname "$0")/saw-len.txt"',
         'echo \'{"approve": true, "issues": []}\'',
       ];
       fs.writeFileSync(path.join(fakeDir, "dsh"), lines.join("\n") + "\n", { mode: 0o755 });

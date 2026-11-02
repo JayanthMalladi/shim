@@ -93,10 +93,24 @@ export function costUnpriced(): boolean {
  * a throwaway container or VM with no credentials in the environment: the call refuses to start
  * unless `SHIM_SANDBOX=1` is set. The timeout is enforced via `runAsync`.
  */
-export function runDsh(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {
+export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Promise<ExecResult> {
   if (process.env.SHIM_SANDBOX !== "1")
-    throw new Error("SHIM_AGENT_BACKEND=dsh requires SHIM_SANDBOX=1 (throwaway container, no credentials)");
-  return runAsync("dsh", ["--profile", "headless", ...args], cwd, timeoutMs, agentEnv());
+    throw new Error(
+      "the dsh agent backend refuses to start without SHIM_SANDBOX=1: dsh has no per-command allowlist or turn cap, " +
+      "so it may only run inside a throwaway container or VM with no credentials in the environment. " +
+      "Set SHIM_SANDBOX=1 to acknowledge that precondition."
+    );
+  return runAsync("dsh", ["--profile", "headless", prompt], cwd, timeoutMs, agentEnv());
+}
+
+/**
+ * Backend-agnostic agent dispatch: the `dsh` backend takes the prompt directly; `claude-cli`
+ * dispatches through `runClaude` with the full claude argument list. Callers pass both so a
+ * single call site works regardless of `SHIM_AGENT_BACKEND`.
+ */
+export async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
+  if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
+  return runClaude(args, dir, timeoutMs);
 }
 
 /**
@@ -160,7 +174,7 @@ function parseAgentJson(output: string): { total_cost_usd?: number; result?: str
 const LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit reached|rate_limit_error|overloaded_error/i;
 
 /**
- * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit Ã‚Â·
+ * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit ·
  * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again.
  */
 export async function runClaude(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {

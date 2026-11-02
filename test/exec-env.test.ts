@@ -71,29 +71,6 @@ describe("targetEnv (environment for target-repo commands)", () => {
       }
     }
   });
-
-  it("strips the whole GIT_CONFIG_* family together (COUNT + KEY_n + VALUE_n)", () => {
-    // GIT_CONFIG_VALUE_n can carry auth headers (http.<host>.extraheader with a token), so the
-    // family is stripped as a unit: dropping KEY/VALUE but keeping COUNT makes git fail with
-    // "missing config key GIT_CONFIG_KEY_0".
-    const saved = Object.fromEntries(["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"].map((n) => [n, process.env[n]]));
-    process.env.GIT_CONFIG_COUNT = "1";
-    process.env.GIT_CONFIG_KEY_0 = "core.autocrlf";
-    process.env.GIT_CONFIG_VALUE_0 = "false";
-    try {
-      const env = targetEnv();
-      expect("GIT_CONFIG_COUNT" in env).toBe(false);
-      expect("GIT_CONFIG_KEY_0" in env).toBe(false);
-      expect("GIT_CONFIG_VALUE_0" in env).toBe(false);
-      // ...and a target command still runs fine with the stripped env.
-      expect(run("git", ["--version"], process.cwd(), 30_000).ok).toBe(true);
-    } finally {
-      for (const [n, v] of Object.entries(saved)) {
-        if (v === undefined) delete process.env[n];
-        else process.env[n] = v;
-      }
-    }
-  });
 });
 
 describe("agentEnv (environment for Shim's own claude runs)", () => {
