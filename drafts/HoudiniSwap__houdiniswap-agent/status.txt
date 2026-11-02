@@ -1,6 +1,18 @@
-not-ready
-gates regressed: build, typecheck packages/ai-tools
-head: HEAD: b64bbcf
+ready
+gates re-verified on 2026-11-02 against fork branch shim/ai-sdk-7 @ 8544915
+head: b64bbcf (baseline) / 8544915 (candidate)
+
+Gate table (Before at b64bbcf / After at 8544915):
+| Check | Before (b64bbcf) | After (8544915) |
+|---|---|---|
+| build (root, turbo: shared, ai-tools, mcp-server) | pass | pass |
+| typecheck packages/ai-tools (npx tsc --noEmit -p packages/ai-tools/tsconfig.json) | pass | pass |
+| tests packages/ai-tools (npm test -w packages/ai-tools) | pass (25/25) | pass (25/25) |
+| test . (root npm test) | fail (mcp-server http-transport "binds loopback only" shells `ss -ltn`/`netstat -ltn`, neither exists on Windows) | fail (identical) |
+
+Note: the root `npm test` failure is a platform issue (mcp-server's http-transport hardening test shells out to `ss -ltn || netstat -ltn`, both Linux/macOS-only commands). It failed identically at the b64bbcf baseline, so it is not a regression from this upgrade.
+
+The root @ai-sdk/anthropic bump (^3.0.69 -> ^4.0.0) is in 8544915.
 
 Diagnosis (2026-10-28, no agent spend): genuine upgrade break, caused by a Shim bug. Not an environment problem and not caused by the package-typecheck gate change.
 - Both failures are TS2742 ("inferred type of createTools/createHoudiniTools cannot be named without a reference to ai/node_modules/@ai-sdk/provider").
