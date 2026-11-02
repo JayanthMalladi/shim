@@ -1,0 +1,10 @@
+{
+  "repo": "frayme-ai/frayme-sdk",
+  "arch": "v2-parallel-review",
+  "verdict": "open-issue",
+  "reason": "no green typecheck or tests to validate against",
+  "cost": 6.2554631999999994,
+  "fixMs": 437789,
+  "candidates": [],
+  "diffStat": "warning: in the working copy of 'packages/api/test/ai-sdk-tools.test.ts', LF will be replaced by CRLF the next time Git touches it"
+}

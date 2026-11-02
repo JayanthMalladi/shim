@@ -1,0 +1,86 @@
+{
+  "repo": "frayme-ai/frayme-sdk",
+  "verdict": "open-issue",
+  "reason": "no green typecheck or tests to validate against",
+  "versionChanges": [
+    "ai (packages\\api\\package.json, devDependencies): ^6.0.0 -> ^7.0.0",
+    "ai (packages\\api\\package.json, peerDependencies): ^6.0.0 -> ^7.0.0",
+    "@ai-sdk/react (packages\\runtime\\package.json, devDependencies): ^3.0.0 -> ^4.0.0",
+    "ai (packages\\runtime\\package.json, devDependencies): ^6.0.0 -> ^7.0.0",
+    "@ai-sdk/react (packages\\runtime\\package.json, peerDependencies): ^3.0.0 -> ^4.0.0",
+    "ai (packages\\runtime\\package.json, peerDependencies): ^6.0.0 -> ^7.0.0"
+  ],
+  "library": true,
+  "codemod": false,
+  "autoFixed": 1,
+  "before": [
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages\\api\\package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20.19.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    },
+    {
+      "ruleId": "system-in-messages",
+      "severity": "break",
+      "fix": "auto",
+      "file": "packages\\api\\test\\ai-sdk-tools.test.ts",
+      "line": 1037,
+      "snippet": "messages: await convertToModelMessages(messages as UIMessage[], { tools })",
+      "message": "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default. `allowSystemInMessages: true` keeps the v6 behavior."
+    },
+    {
+      "ruleId": "node-22",
+      "severity": "break",
+      "fix": "manual",
+      "file": "packages\\runtime\\package.json",
+      "line": 1,
+      "snippet": "\"engines\": { \"node\": \">=20.19.0\" }",
+      "message": "AI SDK 7 requires Node.js 22 or later."
+    }
+  ],
+  "remaining": [],
+  "baseline": {
+    "install": true,
+    "build": false,
+    "test .": false,
+    "typecheck packages\\api": false,
+    "test packages\\api": false,
+    "typecheck packages\\runtime": false,
+    "test packages\\runtime": false
+  },
+  "after": {
+    "install": true,
+    "build": false,
+    "test .": false,
+    "typecheck packages\\api": false,
+    "test packages\\api": false,
+    "typecheck packages\\runtime": false,
+    "test packages\\runtime": false
+  },
+  "regressions": [],
+  "diffStat": "package-lock.json                      | 210 ++++++++++++++++-----------------\n packages/api/package.json              |   4 +-\n packages/api/test/ai-sdk-tools.test.ts |   1 +\n packages/runtime/package.json          |   8 +-\n 4 files changed, 107 insertions(+), 116 deletions(-)\nwarning: in the working copy of 'packages/api/test/ai-sdk-tools.test.ts', LF will be replaced by CRLF the next time Git touches it",
+  "changedFiles": [
+    "package-lock.json",
+    "packages/api/package.json",
+    "packages/api/test/ai-sdk-tools.test.ts",
+    "packages/runtime/package.json",
+    "warning: in the working copy of 'packages/api/test/ai-sdk-tools.test.ts', LF will be replaced by CRLF the next time Git touches it"
+  ],
+  "repairedChecks": [],
+  "agentRuns": [],
+  "candidates": [],
+  "review": {
+    "approve": false,
+    "issues": [
+      "reviewer gave no verdict"
+    ]
+  },
+  "failures": {},
+  "arch": "v2-parallel-review",
+  "cost": 6.2554631999999994,
+  "fixMs": 437789
+}
