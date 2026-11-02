@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { runFixer, runReviewer, type Review } from "./agent.js";
 import type { Architecture } from "./arch.js";
 import { copyRepo, rmTree, unshareNodeModules } from "./copy.js";
-import { run } from "./exec.js";
+import { costUnpriced, run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
 import type { Finding } from "./types.js";
 
@@ -17,7 +17,8 @@ export interface Candidate {
   ok: boolean;
   /** The internal reviewer's last verdict, when the architecture has one. */
   review?: Review;
-  cost: number;
+  /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
+  cost: number | null;
 }
 
 export interface FixContext {
@@ -59,14 +60,15 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   let after = ctx.after;
   let remaining = ctx.findings;
   let review: Review | undefined;
-  let cost = 0;
+  const unpriced = costUnpriced();
+  let cost: number | null = unpriced ? null : 0;
   const agentRuns: string[] = [];
   const passing = () => !regressions(ctx.baseline, after).length && !remaining.length;
   const fix = async (reviewIssues?: string[]) => {
     const first = !agentRuns.length;
     const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch);
     agentRuns.push(res.text ?? res.output);
-    cost += res.cost ?? 0;
+    if (!unpriced) cost = (cost ?? 0) + (res.cost ?? 0);
     // Reinstall only if the fixer touched a manifest; then drop the shared node_modules first.
     const manifests = git(cdir, "diff", "--name-only", "HEAD").output.split("\n").some((f) => MANIFESTS.test(f));
     if (manifests) await unshareNodeModules(cdir);
@@ -81,7 +83,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   if (arch.review) {
     for (let round = 0; passing(); round++) {
       review = await runReviewer(cdir, arch.reviewerRules, arch.reviewerModel);
-      cost += review.cost;
+      if (!unpriced) cost = (cost ?? 0) + (review.cost ?? 0);
       if (review.approve || round >= arch.reviewRounds) break;
       await fix(review.issues);
     }

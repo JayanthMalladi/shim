@@ -13,15 +13,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { SEEDS, V2, type Architecture } from "./arch.js";
 import { copyRepo } from "./copy.js";
-import { runAsync, runClaude } from "./exec.js";
-import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, type ArchiveEntry } from "./evolve-guard.js";
+import { costUnpriced, run, runAsync, runClaude, runAgentBackend } from "./exec.js";
+import { totalSpent, inFlightCost, estimateNext, shouldStopForBudget, wouldExceedBudget, ALLOWED_MODELS, sanitizeModels, bound, GENOME_BOUNDS, syncMirror, resolveModel, type ArchiveEntry } from "./evolve-guard.js";
 
 interface RepoResult {
   repo: string;
   verdict: string;
   reason: string;
-  judge?: { approve: boolean; issues: string[]; cost?: number };
-  cost?: number;
+  judge?: { approve: boolean; issues: string[]; cost?: number | null };
+  /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
+  cost?: number | null;
   fixMs?: number;
   candidates?: unknown[];
   diffStat?: string;
@@ -56,6 +57,11 @@ const concurrency = Number(flag("--concurrency", "2"));
 const only = flag("--only"); // evaluate one archived arch id on this set, then exit
 const mirror = flag("--mirror"); // a second folder to copy the logs into
 const budgetUsd = flag("--budget-usd") ? Number(flag("--budget-usd")) : undefined;
+/** Hard cap on the number of evaluations this run may start. Unset when the flag is absent. */
+const maxEvalsRaw = args.includes("--max-evals") ? Number(args[args.indexOf("--max-evals") + 1]) : undefined;
+if (maxEvalsRaw !== undefined && (!Number.isInteger(maxEvalsRaw) || maxEvalsRaw < 1))
+  throw new Error(`--max-evals must be a positive integer, got ${args[args.indexOf("--max-evals") + 1]}`);
+const maxEvals = maxEvalsRaw;
 
 /**
  * What the run has spent so far: completed evaluations in the archive (every set), the mutator's
@@ -73,14 +79,14 @@ function spentSoFar(entries: ArchiveEntry[], inFlightArchId?: string): number {
     }
   if (inFlightArchId) {
     const root = path.join(out, "runs", inFlightArchId);
-    const files: { mtimeMs: number; cost: number; judgeCost?: number }[] = [];
+    const files: { mtimeMs: number; cost: number; judgeCost?: number | null }[] = [];
     if (fs.existsSync(root))
       for (const repo of fs.readdirSync(root)) {
         const rj = path.join(root, repo, "result.json");
         if (!fs.existsSync(rj)) continue;
         try {
           const r: RepoResult = JSON.parse(fs.readFileSync(rj, "utf8"));
-          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost });
+          files.push({ mtimeMs: fs.statSync(rj).mtimeMs, cost: r.cost ?? 0, judgeCost: r.judge?.cost ?? undefined });
         } catch { /* no partial result yet */ }
       }
     spent += inFlightCost(entries, inFlightArchId, files);
@@ -237,24 +243,43 @@ less money. Change what the evidence points to; small targeted edits to the rule
 to one repo's file names: the rules must work on any repo.
 
 Reply with a short hypothesis paragraph, then the child genome as a single \`\`\`json block with all fields.`;
-  const res = await runClaude(["-p", prompt, "--model", "claude-opus-5-5", "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
-    out,
-    20 * 60_000,
-  );
-  fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
-  const text = res.text ?? res.output;
-  const json = text.match(/```json\s*([\s\S]*?)```/)?.[1];
-  const hypothesis = text.split("```")[0]!.trim().replace(/\s+/g, " ").slice(0, 600);
-  let child: Partial<Architecture> = {};
+  // The mutator model comes from SHIM_MUTATOR_MODEL when set, falling back to the hard-coded opus.
+  const mutatorModel = resolveModel("mutator", "claude-opus-5-5");
+  // On the dsh backend the agent has full write access in its cwd (it ignores the --allowedTools
+  // arg — dsh takes only the prompt), and out/ holds archive.jsonl + runs/*/result.json (the
+  // scores it is reasoning about). Running it in out/ would let the mutator rewrite the archive
+  // or the run results. Instead give it a scratch dir with copies of the read-only data it needs;
+  // on claude-cli the Read/Glob/Grep allowlist already prevents writes, so the scratch dir is
+  // the dsh-specific guard.
+  const scratch = fs.mkdtempSync(path.join(out, ".mutator-"));
   try {
-    child = JSON.parse(json ?? "{}");
-  } catch {
-    log("mutator returned no parsable genome; using parent with feedback rounds toggled");
-    child = { ...genome, reviewRounds: genome.reviewRounds ? 0 : 1 };
+    if (fs.existsSync(ARCHIVE)) fs.copyFileSync(ARCHIVE, path.join(scratch, "archive.jsonl"));
+    if (fs.existsSync(MUTATOR)) fs.copyFileSync(MUTATOR, path.join(scratch, "mutator.jsonl"));
+    const runsDir = path.join(out, "runs");
+    if (fs.existsSync(runsDir)) fs.cpSync(runsDir, path.join(scratch, "runs"), { recursive: true });
+    const res = await runAgentBackend(["-p", prompt, "--model", mutatorModel, "--max-turns", "25", "--allowedTools", "Read", "Glob", "Grep", "--output-format", "json"],
+      scratch,
+      20 * 60_000,
+      prompt,
+    );
+    fs.appendFileSync(MUTATOR, `${JSON.stringify({ at: new Date().toISOString(), cost: res.cost ?? 0 })}\n`);
+    const text = res.text ?? res.output;
+    const json = text.match(/```json\s*([\s\S]*?)```/)?.[1];
+    const hypothesis = text.split("```")[0]!.trim().replace(/\s+/g, " ").slice(0, 600);
+    let child: Partial<Architecture> = {};
+    try {
+      child = JSON.parse(json ?? "{}");
+    } catch {
+      log("mutator returned no parsable genome; using parent with feedback rounds toggled");
+      child = { ...genome, reviewRounds: genome.reviewRounds ? 0 : 1 };
+    }
+    const id = `g${gen}-${parent.arch.id.split("-")[0]}-${Math.random().toString(36).slice(2, 6)}`;
+    fs.writeFileSync(path.join(out, `mutation-${id}.txt`), `${prompt}\n\n=== RESPONSE ===\n${text}`);
+    return { arch: clamp(child, id, `child of ${parent.arch.id}. ${hypothesis}`), parent: parent.arch.id };
+  } finally {
+    // Remove the scratch dir but keep the mutation log (written to out/ above) for the archive.
+    fs.rmSync(scratch, { recursive: true, force: true });
   }
-  const id = `g${gen}-${parent.arch.id.split("-")[0]}-${Math.random().toString(36).slice(2, 6)}`;
-  fs.writeFileSync(path.join(out, `mutation-${id}.txt`), `${prompt}\n\n=== RESPONSE ===\n${text}`);
-  return { arch: clamp(child, id, `child of ${parent.arch.id}. ${hypothesis}`), parent: parent.arch.id };
 }
 
 function writeLog(archive: Evaluation[]) {
@@ -317,6 +342,18 @@ function withinBudget(entries: ArchiveEntry[], archId: string, parent: string | 
 }
 
 async function main() {
+  // When the backend is unpriced (dsh or ANTHROPIC_BASE_URL), --budget-usd is meaningless: cost is
+  // recorded as null, so totalSpent would stay 0 forever and the budget check would never fire.
+  // Refuse to start with a clear message pointing at --max-evals, which does work in this mode.
+  if (budgetUsd !== undefined && costUnpriced()) {
+    console.error(
+      `[evolve] refusing to start: --budget-usd ${budgetUsd} is meaningless when cost is unpriced ` +
+      `(the dsh backend or ANTHROPIC_BASE_URL routes cost to the provider's dashboard, not total_cost_usd). ` +
+      `Use --max-evals N to bound the number of evaluations instead.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   if (only) {
     const arch = readArchive().find((e) => e.arch.id === only)?.arch ?? SEEDS.find((a) => a.id === only);
     if (!arch) throw new Error(`no arch ${only}`);
@@ -327,7 +364,12 @@ async function main() {
     return;
   }
   let gen = readArchive().length;
+  let evalsDone = 0;
   while (Date.now() < deadline) {
+    if (maxEvals !== undefined && evalsDone >= maxEvals) {
+      log(`--max-evals ${maxEvals} reached; stopping`);
+      break;
+    }
     const archive = readArchive();
     const entries = toEntries(archive);
     const done = new Set(archive.filter((e) => !e.invalid && e.set === set).map((e) => e.arch.id));
@@ -360,6 +402,7 @@ async function main() {
     fs.rmSync(PENDING, { force: true });
     writeLog(readArchive());
     log(`${arch.id}: shipped ${ev.shipped}/${ev.results.length}, gate-pass ${ev.gatePass}, $${ev.cost.toFixed(2)}, ${ev.minutes} min${ev.invalid ? `, INVALID ${ev.invalid}` : ""}`);
+    evalsDone++;
     if (ev.invalid) {
       log("pausing 20 minutes for rate limits");
       await new Promise((r) => setTimeout(r, 20 * 60_000));
