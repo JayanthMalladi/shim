@@ -1,20 +1,44 @@
 {
-  "name": "shim",
+  "name": "getshim",
   "version": "0.1.0",
   "description": "When an API you depend on changes, Shim opens a tested pull request that updates your code before it breaks.",
+  "keywords": [
+    "ai-sdk",
+    "vercel-ai",
+    "migration",
+    "codemod",
+    "upgrade",
+    "pull-request"
+  ],
+  "license": "MIT",
+  "author": "Jayanth Malladi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JayanthMalladi/shim.git"
+  },
+  "homepage": "https://github.com/JayanthMalladi/shim#readme",
+  "bugs": {
+    "url": "https://github.com/JayanthMalladi/shim/issues"
+  },
   "type": "module",
-  "private": true,
   "engines": {
     "node": ">=22"
   },
   "bin": {
+    "getshim": "./dist/cli.js",
     "shim": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "shim": "tsx src/cli.ts"
+    "shim": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "cross-spawn": "^7.0.6",
