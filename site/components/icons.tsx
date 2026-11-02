@@ -39,31 +39,11 @@ export function CopyIcon(props: IconProps) {
   );
 }
 
-export function ArrowRightIcon(props: IconProps) {
+/** The Shim mark: the orange wedge. */
+export function LogoMark({ size = 36 }: { size?: number }) {
   return (
-    <Svg {...props}>
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </Svg>
-  );
-}
-
-export function PullRequestIcon(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="6" cy="18" r="2.5" />
-      <circle cx="18" cy="18" r="2.5" />
-      <path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4M13 3.5L10.5 6 13 8.5" />
-    </Svg>
-  );
-}
-
-/** The Shim mark: a wedge sliding under a line. */
-export function LogoMark({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <rect width="22" height="22" rx="6" fill="#0F172A" />
-      <path d="M4 16.5 L18 6 L18 16.5 Z" stroke="#60A5FA" strokeWidth="1.6" strokeLinejoin="round" />
+    <svg width={size} height={(size * 2) / 3} viewBox="0 0 36 24" aria-hidden="true">
+      <path d="M2 22 L34 4 L34 22 Z" fill="#FF6B3D" stroke="#111111" strokeWidth="3" strokeLinejoin="round" />
     </svg>
   );
 }
