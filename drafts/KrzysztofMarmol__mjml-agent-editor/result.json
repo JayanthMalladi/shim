@@ -4,34 +4,42 @@
   "verdict": "open-pr",
   "reason": "all baseline gates still pass and no breaking findings remain",
   "judge": {
-    "approve": true,
-    "issues": [],
-    "cost": 0.7857794000000001
+    "approve": false,
+    "issues": [
+      "reviewer gave no verdict"
+    ],
+    "cost": null
   },
-  "cost": 4.7848974,
-  "fixMs": 518322,
+  "cost": null,
+  "fixMs": 809371,
   "candidates": [
     {
-      "ok": true,
-      "size": 27,
-      "regressions": [],
-      "remaining": 0,
-      "approved": true
+      "ok": false,
+      "size": 23,
+      "regressions": [
+        "typecheck .",
+        "test .",
+        "typecheck packages\\agent-node"
+      ],
+      "remaining": 0
+    },
+    {
+      "ok": false,
+      "size": 12,
+      "regressions": [
+        "typecheck .",
+        "test .",
+        "typecheck packages\\agent-node"
+      ],
+      "remaining": 0
     },
     {
       "ok": true,
-      "size": 27,
-      "regressions": [],
-      "remaining": 0,
-      "approved": true
-    },
-    {
-      "ok": true,
-      "size": 27,
+      "size": 23,
       "regressions": [],
       "remaining": 0,
       "approved": true
     }
   ],
-  "diffStat": " 5 files changed, 106 insertions(+), 105 deletions(-)"
+  "diffStat": "warning: in the working copy of 'pnpm-lock.yaml', LF will be replaced by CRLF the next time Git touches it"
 }

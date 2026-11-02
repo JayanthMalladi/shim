@@ -1,5 +1,26 @@
-needs-review
+ready
 all baseline gates still pass and no breaking findings remain
-head: HEAD: 5c368c9
+head: HEAD: 7836c58391
 
-Needs-review (quality bar, read-only check of changes.patch/pr.md): Fixer added hand-written Tool<...> return annotations to exported queryDocs/resolveLibraryId (public type widened, execute optional) and rewrote test reads to result.finalStep.*; pr.md does not mention the annotations. Check consumer typing before opening.
+| Check | Before | After |
+|---|---|---|
+| install | pass | pass |
+| build | pass | pass |
+| typecheck . | pass | pass |
+| test . | fail | fail |
+| typecheck packages/tools-ai-sdk | pass | pass |
+| test packages/tools-ai-sdk | fail | fail |
+
+The two test gates fail before AND after, for the same reason: they call the real OpenRouter API and
+need OPENROUTER_API_KEY (not set in this environment). No gate that passed at baseline fails now.
+
+Notes:
+- The hand-written Tool<...> return annotations on exported queryDocs / resolveLibraryId were
+  removed, so the public type is no longer widened. Typecheck passes without them because both
+  execute callbacks already type their parameters inline. The two files are now byte-identical to
+  upstream and no longer appear in the diff.
+- The finalStep.* test-read changes were kept (WP3) and are now explained in pr.md.
+- pnpm-lock.yaml regenerated: upstream moved from the draft's 5c368c9 to 7836c58391, so the draft's
+  lockfile hunk no longer applied.
+- Verified: changes.patch applies cleanly to upstream HEAD 7836c58391; install (pnpm, --ignore-scripts),
+  build, root typecheck and packages/tools-ai-sdk typecheck all pass.

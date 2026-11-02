@@ -1,6 +1,8 @@
-verdict: approve
+verdict: reject (reviewer gave no verdict)
 {
-  "approve": true,
-  "issues": [],
-  "cost": 0.7857794000000001
+  "approve": false,
+  "issues": [
+    "reviewer gave no verdict"
+  ],
+  "cost": null
 }

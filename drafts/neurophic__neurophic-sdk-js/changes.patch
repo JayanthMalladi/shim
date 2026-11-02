@@ -12,29 +12,49 @@ index 33bd330..4521de3 100644
      "tsdown": "^0.21.0",
      "typescript": "^5.5.0",
 diff --git a/packages/ai-sdk/src/tools.ts b/packages/ai-sdk/src/tools.ts
-index 9ae01ff..e6262d4 100644
+index 9ae01ff..27e7931 100644
 --- a/packages/ai-sdk/src/tools.ts
 +++ b/packages/ai-sdk/src/tools.ts
-@@ -1,8 +1,15 @@
--import { tool } from "ai";
-+import { type Tool, tool } from "ai";
-+import type { RetrieveResponse } from "neurophic";
- import { z } from "zod";
- import type { NeurophicToolOptions } from "./types";
+@@ -14,12 +14,12 @@ export function createTools(options: NeurophicToolOptions) {
+ 				.optional()
+ 				.describe("Optional topic used to categorise the memory"),
+ 		}),
+-		execute: async ({ content, topic }) => {
++		execute: async (args: { content: string; topic?: "work" | "personal" }) => {
+ 			const { id, status } = await client.ingest({
+ 				identifier,
+ 				name,
+-				content,
+-				metadata: topic ? { topic } : undefined,
++				content: args.content,
++				metadata: args.topic ? { topic: args.topic } : undefined,
+ 			});
+ 			return { success: true, id, status };
+ 		},
+@@ -47,8 +47,19 @@ export function createTools(options: NeurophicToolOptions) {
+ 				.optional()
+ 				.describe("Maximum number of results (default 5)"),
+ 		}),
+-		execute: async ({ query, goal, since, limit }) => {
+-			return client.retrieve({ identifier, query, goal, since, limit });
++		execute: async (args: {
++			query: string;
++			goal?: string;
++			since?: string;
++			limit?: number;
++		}) => {
++			return client.retrieve({
++				identifier,
++				query: args.query,
++				goal: args.goal,
++				since: args.since,
++				limit: args.limit,
++			});
+ 		},
+ 	});
  
--export function createTools(options: NeurophicToolOptions) {
-+export function createTools(options: NeurophicToolOptions): {
-+	remember: Tool<
-+		{ content: string; topic?: "work" | "personal" },
-+		{ success: boolean; id: string; status: string }
-+	>;
-+	recall: Tool<{ query: string; goal?: string; since?: string; limit?: number }, RetrieveResponse>;
-+} {
- 	const { client, identifier, name } = options;
- 
- 	const remember = tool({
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index ff7d7d1..2bede4c 100644
+index ff7d7d1..aa4c744 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
 @@ -27,8 +27,8 @@ importers:
@@ -44,7 +64,7 @@ index ff7d7d1..2bede4c 100644
 -        specifier: ^6.0.149
 -        version: 6.0.149(zod@4.3.6)
 +        specifier: ^7.0.0
-+        version: 7.0.155(zod@4.3.6)
++        version: 7.0.159(zod@4.3.6)
        neurophic:
          specifier: workspace:^
          version: link:../neurophic
@@ -55,8 +75,8 @@ index ff7d7d1..2bede4c 100644
 -  '@ai-sdk/gateway@3.0.91':
 -    resolution: {integrity: sha512-J39Dh6Gyg6HjG3A7OFKnJMp3QyZ3Eex+XDiX8aFBdRwwZm3jGWaMhkCxQPH7yiQ9kRiErZwHXX/Oexx4SyGGGA==}
 -    engines: {node: '>=18'}
-+  '@ai-sdk/gateway@4.0.128':
-+    resolution: {integrity: sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==}
++  '@ai-sdk/gateway@4.0.132':
++    resolution: {integrity: sha512-ppStDEz96g+JEuxGiVTP29OKBjPyYZXRxs38wnq3427U2QbZtxe6TukrgSAAq0n4yaHvSvVAWJY9kBlW8XudYg==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
@@ -64,8 +84,8 @@ index ff7d7d1..2bede4c 100644
 -  '@ai-sdk/provider-utils@4.0.23':
 -    resolution: {integrity: sha512-z8GlDaCmRSDlqkMF2f4/RFgWxdarvIbyuk+m6WXT1LYgsnGiXRJGTD2Z1+SDl3LqtFuRtGX1aghYvQLoHL/9pg==}
 -    engines: {node: '>=18'}
-+  '@ai-sdk/provider-utils@5.0.70':
-+    resolution: {integrity: sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==}
++  '@ai-sdk/provider-utils@5.0.72':
++    resolution: {integrity: sha512-M6QAztI84jWumQSvKcGOL91DxhChsWxn3D3gYtV0/7E1TPQg9BmLdIerOolUC/jghQbMlQrHyzp0hqdIhUZ2Rw==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
@@ -73,8 +93,8 @@ index ff7d7d1..2bede4c 100644
 -  '@ai-sdk/provider@3.0.8':
 -    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
 -    engines: {node: '>=18'}
-+  '@ai-sdk/provider@4.0.34':
-+    resolution: {integrity: sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==}
++  '@ai-sdk/provider@4.0.35':
++    resolution: {integrity: sha512-yBz6fmLS8MSCIzy7NiHEUAq56ZLD4ZA1GR6bpXBxgbwUacP1La7LuwAr/xy9jSzthem4F8Xu2OrhvU/JrE9fYA==}
 +    engines: {node: '>=22'}
  
    '@babel/generator@8.0.0-rc.3':
@@ -106,8 +126,8 @@ index ff7d7d1..2bede4c 100644
 +  '@workflow/serde@4.1.0':
 +    resolution: {integrity: sha512-pav4F2BoirECWR7Nf1TKt+2eETcBj7jj4cBefQ8VXQCA6NPkaKeLfj/zMgi+3zYV5ZIBT4GuUiphsj0/b9hPQQ==}
 +
-+  ai@7.0.155:
-+    resolution: {integrity: sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==}
++  ai@7.0.159:
++    resolution: {integrity: sha512-4e/BwDoKJlMNYZaqERcTbGte+4TwroN9qKnCprog/XVfD9InzVPlhCviDhN452JIRrRsYg9BT0WsQ2C3Ds2mVQ==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
@@ -139,21 +159,21 @@ index ff7d7d1..2bede4c 100644
  snapshots:
  
 -  '@ai-sdk/gateway@3.0.91(zod@4.3.6)':
-+  '@ai-sdk/gateway@4.0.128(zod@4.3.6)':
++  '@ai-sdk/gateway@4.0.132(zod@4.3.6)':
      dependencies:
 -      '@ai-sdk/provider': 3.0.8
 -      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
 -      '@vercel/oidc': 3.1.0
-+      '@ai-sdk/provider': 4.0.34
-+      '@ai-sdk/provider-utils': 5.0.70(zod@4.3.6)
++      '@ai-sdk/provider': 4.0.35
++      '@ai-sdk/provider-utils': 5.0.72(zod@4.3.6)
 +      '@vercel/oidc': 3.2.0
        zod: 4.3.6
  
 -  '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
-+  '@ai-sdk/provider-utils@5.0.70(zod@4.3.6)':
++  '@ai-sdk/provider-utils@5.0.72(zod@4.3.6)':
      dependencies:
 -      '@ai-sdk/provider': 3.0.8
-+      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider': 4.0.35
        '@standard-schema/spec': 1.1.0
 -      eventsource-parser: 3.0.6
 +      '@workflow/serde': 4.1.0
@@ -162,7 +182,7 @@ index ff7d7d1..2bede4c 100644
        zod: 4.3.6
  
 -  '@ai-sdk/provider@3.0.8':
-+  '@ai-sdk/provider@4.0.34':
++  '@ai-sdk/provider@4.0.35':
      dependencies:
        json-schema: 0.4.0
  
@@ -185,15 +205,15 @@ index ff7d7d1..2bede4c 100644
 -  ai@6.0.149(zod@4.3.6):
 +  '@workflow/serde@4.1.0': {}
 +
-+  ai@7.0.155(zod@4.3.6):
++  ai@7.0.159(zod@4.3.6):
      dependencies:
 -      '@ai-sdk/gateway': 3.0.91(zod@4.3.6)
 -      '@ai-sdk/provider': 3.0.8
 -      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
 -      '@opentelemetry/api': 1.9.0
-+      '@ai-sdk/gateway': 4.0.128(zod@4.3.6)
-+      '@ai-sdk/provider': 4.0.34
-+      '@ai-sdk/provider-utils': 5.0.70(zod@4.3.6)
++      '@ai-sdk/gateway': 4.0.132(zod@4.3.6)
++      '@ai-sdk/provider': 4.0.35
++      '@ai-sdk/provider-utils': 5.0.72(zod@4.3.6)
        zod: 4.3.6
  
    ansis@4.2.0: {}

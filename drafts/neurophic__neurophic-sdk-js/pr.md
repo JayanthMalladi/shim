@@ -12,9 +12,19 @@ Source files changed (codemod renames and fixer edits): `packages/ai-sdk/src/too
 
 After the codemod, these checks failed; this PR fixes them: `build`, `typecheck .`, `typecheck packages/ai-sdk`.
 
+In AI SDK 7, `tool()` no longer infers the `execute` callback's input type from `inputSchema` in a way that survives this package's `strict` tsconfig — the destructured parameters (`{ content, topic }`, `{ query, goal, since, limit }`) fall back to implicit `any` and fail `noImplicitAny`. The fix types the `execute` callback parameter directly (no public signature change on `createTools`, no new public type import):
+
+```ts
+execute: async (args: { content: string; topic?: "work" | "personal" }) => { ... }
+execute: async (args: { query: string; goal?: string; since?: string; limit?: number }) => { ... }
+```
+
+The `since` field stays `string` to match the `z.iso.datetime().or(z.iso.date())` schema (either form serialises to a string). The `createTools` signature and its returned tool objects are unchanged in shape — only the internal callback typing was added.
+
 ### Needs your eyes
 Shim did not change these. Please check them before merging.
 - `packages/ai-sdk/package.json:1`: AI SDK 7 requires Node.js 22 or later.
+- The inline parameter types on the two `execute` callbacks duplicate the schema's field types. If the schema ever changes, update both.
 
 ### How it was checked
 | Check | Before | After |

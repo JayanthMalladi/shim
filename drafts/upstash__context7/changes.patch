@@ -110,81 +110,39 @@ index 5901e28..f5724df 100644
        });
  
        const result = await agent.generate({
-diff --git a/packages/tools-ai-sdk/src/tools/query-docs.ts b/packages/tools-ai-sdk/src/tools/query-docs.ts
-index e00383a..6425816 100644
---- a/packages/tools-ai-sdk/src/tools/query-docs.ts
-+++ b/packages/tools-ai-sdk/src/tools/query-docs.ts
-@@ -1,4 +1,4 @@
--import { tool } from "ai";
-+import { tool, type Tool } from "ai";
- import { z } from "zod";
- import { Context7 } from "@upstash/context7-sdk";
- import type { Context7ToolsConfig } from "./types";
-@@ -30,7 +30,9 @@ import { QUERY_DOCS_DESCRIPTION } from "@prompts";
-  * });
-  * ```
-  */
--export function queryDocs(config: Context7ToolsConfig = {}) {
-+export function queryDocs(
-+  config: Context7ToolsConfig = {}
-+): Tool<{ libraryId: string; query: string }, string> {
-   const { apiKey } = config;
-   const getClient = () => new Context7({ apiKey });
- 
-diff --git a/packages/tools-ai-sdk/src/tools/resolve-library-id.ts b/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
-index a33c6c1..ad3cce2 100644
---- a/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
-+++ b/packages/tools-ai-sdk/src/tools/resolve-library-id.ts
-@@ -1,4 +1,4 @@
--import { tool } from "ai";
-+import { tool, type Tool } from "ai";
- import { z } from "zod";
- import { Context7 } from "@upstash/context7-sdk";
- import { RESOLVE_LIBRARY_ID_DESCRIPTION } from "@prompts";
-@@ -30,7 +30,9 @@ import type { Context7ToolsConfig } from "./types";
-  * });
-  * ```
-  */
--export function resolveLibraryId(config: Context7ToolsConfig = {}) {
-+export function resolveLibraryId(
-+  config: Context7ToolsConfig = {}
-+): Tool<{ query: string; libraryName: string }, string> {
-   const { apiKey } = config;
-   const getClient = () => new Context7({ apiKey });
- 
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index fe2cdc3..f353702 100644
+index d8d160e..74aefd9 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
-@@ -302,7 +302,7 @@ importers:
+@@ -344,7 +344,7 @@ importers:
      devDependencies:
        '@openrouter/ai-sdk-provider':
          specifier: ^2.10.0
 -        version: 2.10.0(ai@6.0.23(zod@4.6.5))(zod@4.6.5)
-+        version: 2.10.0(ai@7.0.148(zod@4.6.5))(zod@4.6.5)
++        version: 2.10.0(ai@7.0.153(zod@4.6.5))(zod@4.6.5)
        '@types/node':
          specifier: 'catalog:'
          version: 25.9.8
-@@ -310,8 +310,8 @@ importers:
+@@ -352,8 +352,8 @@ importers:
          specifier: workspace:*
          version: link:../sdk
        ai:
 -        specifier: ^6.0.5
 -        version: 6.0.23(zod@4.6.5)
 +        specifier: ^7.0.0
-+        version: 7.0.148(zod@4.6.5)
++        version: 7.0.153(zod@4.6.5)
        dotenv:
          specifier: 'catalog:'
          version: 17.4.2
-@@ -330,26 +330,26 @@ importers:
+@@ -372,26 +372,26 @@ importers:
  
  packages:
  
 -  '@ai-sdk/gateway@3.0.10':
 -    resolution: {integrity: sha512-sRlPMKd38+fdp2y11USW44c0o8tsIsT6T/pgyY04VXC3URjIRnkxugxd9AkU2ogfpPDMz50cBAGPnMxj+6663Q==}
 -    engines: {node: '>=18'}
-+  '@ai-sdk/gateway@4.0.121':
-+    resolution: {integrity: sha512-cPNXvQ4B5OkmVAm98Dxe1fHdMthyqqqAG0HJx3D92NUa9FpcvkNxdAqiuZdeAhNAodFb9lBrslzzzEwxuVS53A==}
++  '@ai-sdk/gateway@4.0.126':
++    resolution: {integrity: sha512-gOrvnfrWxslTws5puMe+CvEDjZ0rxbpQYLZgdngQl1g/z3mRc5sllcflVAhy2xJSZacrWtsXwua+NJoc/IKZDw==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
@@ -192,8 +150,8 @@ index fe2cdc3..f353702 100644
 -  '@ai-sdk/provider-utils@4.0.4':
 -    resolution: {integrity: sha512-VxhX0B/dWGbpNHxrKCWUAJKXIXV015J4e7qYjdIU9lLWeptk0KMLGcqkB4wFxff5Njqur8dt8wRi1MN9lZtDqg==}
 -    engines: {node: '>=18'}
-+  '@ai-sdk/provider-utils@5.0.65':
-+    resolution: {integrity: sha512-LCugcsP8oWmdeI3BASf4Fuo1wiC6Qx0YrefFssl7n12s+LV4DNi5RdwWQrtrB4oek3GGNQRN/h/NSwVZM2eHKw==}
++  '@ai-sdk/provider-utils@5.0.68':
++    resolution: {integrity: sha512-SASuC1DqSdWoYyYfpxbgPKm9VCnMP1VTahWY7WEYzi2QDmFdbw4runqmH7NKC33iB/INo+XbaN2hH3dXHSNQZw==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
@@ -206,14 +164,14 @@ index fe2cdc3..f353702 100644
      resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
      engines: {node: '>=18'}
  
-+  '@ai-sdk/provider@4.0.31':
-+    resolution: {integrity: sha512-3wJnwVTFg8SwOyoZCv+ov7Re2GB+7IQnU5a5MYJACrtiWDDUHgqTBeeesq2MB2ddgojzL8hgWleltwpAgtUqfg==}
++  '@ai-sdk/provider@4.0.34':
++    resolution: {integrity: sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==}
 +    engines: {node: '>=22'}
 +
    '@anthropic-ai/sdk@0.91.1':
      resolution: {integrity: sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw==}
      hasBin: true
-@@ -2137,8 +2137,8 @@ packages:
+@@ -2256,8 +2256,8 @@ packages:
      resolution: {integrity: sha512-8eQ9R218XORK+KLosnf4bu/QsUXvUyVwTbArg7/0NMB1Pu87OJKvj4nhFblkYE8gQV73mW1dx1ptlPCkwRGa7A==}
      engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
  
@@ -223,8 +181,8 @@ index fe2cdc3..f353702 100644
 +    resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
      engines: {node: '>= 20'}
  
-   '@vitest/mocker@5.0.3':
-@@ -2155,6 +2155,9 @@ packages:
+   '@vitejs/plugin-react@6.1.2':
+@@ -2290,6 +2290,9 @@ packages:
    '@vitest/spy@5.0.3':
      resolution: {integrity: sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg==}
  
@@ -234,39 +192,39 @@ index fe2cdc3..f353702 100644
    abbrev@4.0.0:
      resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
      engines: {node: ^20.17.0 || >=22.9.0}
-@@ -2177,9 +2180,9 @@ packages:
+@@ -2312,9 +2315,9 @@ packages:
      resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
      engines: {node: '>= 14'}
  
 -  ai@6.0.23:
 -    resolution: {integrity: sha512-IV8hqp6sQvZ0XVlu8bCnFlwG7+2d40ff26RZ1k4yw/zVuk2F6SXlONURtTo9vwPOPYeF7auXvyPA+dMDoepWxg==}
 -    engines: {node: '>=18'}
-+  ai@7.0.148:
-+    resolution: {integrity: sha512-FPgfIAhz/FrlzcvqTN7pGGibahR5rD19NXZWX9WQ1tskTic+CN+jxvubpreyq8uN1maIEHPwvZmil/3IYN8FIw==}
++  ai@7.0.153:
++    resolution: {integrity: sha512-Ib8v374jWn9FXsjADXodRaP7fsMutlmPsbTLT5gYBDyadFcF9XxfYX1CSSxgSvE1r06MmOeYVwvQjFb3CcBi1Q==}
 +    engines: {node: '>=22'}
      peerDependencies:
        zod: ^3.25.76 || ^4.1.8
  
-@@ -3946,25 +3949,27 @@ packages:
+@@ -4296,25 +4299,27 @@ packages:
  
  snapshots:
  
 -  '@ai-sdk/gateway@3.0.10(zod@4.6.5)':
-+  '@ai-sdk/gateway@4.0.121(zod@4.6.5)':
++  '@ai-sdk/gateway@4.0.126(zod@4.6.5)':
      dependencies:
 -      '@ai-sdk/provider': 3.0.2
 -      '@ai-sdk/provider-utils': 4.0.4(zod@4.6.5)
 -      '@vercel/oidc': 3.1.0
-+      '@ai-sdk/provider': 4.0.31
-+      '@ai-sdk/provider-utils': 5.0.65(zod@4.6.5)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.68(zod@4.6.5)
 +      '@vercel/oidc': 3.2.0
        zod: 4.6.5
  
 -  '@ai-sdk/provider-utils@4.0.4(zod@4.6.5)':
-+  '@ai-sdk/provider-utils@5.0.65(zod@4.6.5)':
++  '@ai-sdk/provider-utils@5.0.68(zod@4.6.5)':
      dependencies:
 -      '@ai-sdk/provider': 3.0.2
-+      '@ai-sdk/provider': 4.0.31
++      '@ai-sdk/provider': 4.0.34
        '@standard-schema/spec': 1.1.0
 +      '@workflow/serde': 4.1.0
        eventsource-parser: 3.1.1
@@ -279,32 +237,32 @@ index fe2cdc3..f353702 100644
        json-schema: 0.4.0
  
 -  '@ai-sdk/provider@3.0.8':
-+  '@ai-sdk/provider@4.0.31':
++  '@ai-sdk/provider@4.0.34':
      dependencies:
        json-schema: 0.4.0
  
-@@ -5272,9 +5277,9 @@ snapshots:
+@@ -5559,9 +5564,9 @@ snapshots:
        - supports-color
        - utf-8-validate
  
 -  '@openrouter/ai-sdk-provider@2.10.0(ai@6.0.23(zod@4.6.5))(zod@4.6.5)':
-+  '@openrouter/ai-sdk-provider@2.10.0(ai@7.0.148(zod@4.6.5))(zod@4.6.5)':
++  '@openrouter/ai-sdk-provider@2.10.0(ai@7.0.153(zod@4.6.5))(zod@4.6.5)':
      dependencies:
 -      ai: 6.0.23(zod@4.6.5)
-+      ai: 7.0.148(zod@4.6.5)
++      ai: 7.0.153(zod@4.6.5)
        zod: 4.6.5
  
    '@opentelemetry/api-logs@0.219.0':
-@@ -5814,7 +5819,7 @@ snapshots:
+@@ -6233,7 +6238,7 @@ snapshots:
        '@typescript-eslint/types': 8.71.0
        eslint-visitor-keys: 5.0.1
  
 -  '@vercel/oidc@3.1.0': {}
 +  '@vercel/oidc@3.2.0': {}
  
-   '@vitest/mocker@5.0.3(vite@7.2.4(@types/node@25.9.8)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
+   '@vitejs/plugin-react@6.1.2(vite@8.3.4(@types/node@25.9.8)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
      dependencies:
-@@ -5827,6 +5832,8 @@ snapshots:
+@@ -6260,6 +6265,8 @@ snapshots:
  
    '@vitest/spy@5.0.3': {}
  
@@ -313,20 +271,20 @@ index fe2cdc3..f353702 100644
    abbrev@4.0.0: {}
  
    accepts@2.0.0:
-@@ -5842,12 +5849,11 @@ snapshots:
+@@ -6275,12 +6282,11 @@ snapshots:
  
    agent-base@7.1.4: {}
  
 -  ai@6.0.23(zod@4.6.5):
-+  ai@7.0.148(zod@4.6.5):
++  ai@7.0.153(zod@4.6.5):
      dependencies:
 -      '@ai-sdk/gateway': 3.0.10(zod@4.6.5)
 -      '@ai-sdk/provider': 3.0.2
 -      '@ai-sdk/provider-utils': 4.0.4(zod@4.6.5)
 -      '@opentelemetry/api': 1.9.0
-+      '@ai-sdk/gateway': 4.0.121(zod@4.6.5)
-+      '@ai-sdk/provider': 4.0.31
-+      '@ai-sdk/provider-utils': 5.0.65(zod@4.6.5)
++      '@ai-sdk/gateway': 4.0.126(zod@4.6.5)
++      '@ai-sdk/provider': 4.0.34
++      '@ai-sdk/provider-utils': 5.0.68(zod@4.6.5)
        zod: 4.6.5
  
    ajv-formats@3.0.1(ajv@8.20.0):

@@ -1,6 +1,25 @@
-needs-review
+ready
 all baseline gates still pass and no breaking findings remain
-Update after pr-body fix: pr.md no longer overclaims. It now lists only package/dep changes and the codemod/fixer edits as changed, and puts the unfixed reads (provider-factory.ts:64,100 system messages; :72,77,108 usage/warnings) under 'Needs your eyes'. Still needs a human: decide whether those calls' options (built in buildBaseTextCallOptions) can be multi-step or carry system messages; the diff sets allowSystemInMessages only there.
-head: HEAD: 7d2ac17
+head: HEAD: 474040e0a8
 
-Needs-review (quality bar, read-only check of changes.patch/pr.md): pr.md overclaims: lists 6 findings under 'Fixed' (provider-factory.ts lines 64,72,77,100,105,108) but the diff only adds allowSystemInMessages/instructions at ~line 158 and renames createGoogle; usage/warnings reads (72,77,108) and totalUsage (105) are not changed in the diff, so possibly unfixed multi-step reads on options built elsewhere. Needs a manual look before opening.
+| Check | Before | After |
+|---|---|---|
+| install | pass | pass |
+| build | pass | pass |
+| typecheck . | pass | pass |
+| test . | pass | pass |
+
+Gates were run by hand at upstream HEAD 474040e0a8 (the draft was originally made at 7d2ac17;
+upstream moved since, so changes.patch was regenerated against 474040e0a8).
+
+Notes:
+- @openrouter/ai-sdk-provider bumped ^2.3.3 -> ^3.1.0. v2 peers on ai@^6.0.0, so with ai@7 in the
+  tree `npm install` fails with ERESOLVE. v3 peers on ai@^7.0.0. The pipeline's own install gate used
+  `npm ci` from the lockfile, which does not re-check peers, so this was not caught there.
+- package-lock.json regenerated (upstream updated the lock in #129, so the draft's lock hunk no
+  longer applied).
+- Code left alone per WP3. pr.md lists the multi-step reads on options built elsewhere
+  (src/provider-factory.ts:72, :77, :105, :108) and the system-message risk at :64 and :100 under
+  "Needs your eyes", each with a question for the maintainer.
+- 2026-11-01 note (superseded): upstream HEAD moved 7d2ac17 -> 066175a; pr open needed --allow-drift.
+  Now re-based on 474040e0a8, so no drift flag is needed.
