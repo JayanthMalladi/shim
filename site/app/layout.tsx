@@ -3,22 +3,23 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
+const title = "Shim · Wake up to a tested AI SDK 7 upgrade";
 const description =
-  "Shim migrates AI SDK 6 apps to 7 and opens a tested pull request. The official codemod does the renames. Shim fixes the changes that still compile but return different data.";
+  "Shim upgrades AI SDK 6 apps to 7 and opens one tested pull request. It fixes the changes the codemod and tsc miss: code that still compiles but returns different data.";
 
 export const metadata: Metadata = {
-  title: "Shim — Your tests pass. Your behavior changed.",
+  title,
   description,
   openGraph: {
-    title: "Shim — Your tests pass. Your behavior changed.",
+    title,
     description,
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0C0D0E",
-  colorScheme: "dark",
+  themeColor: "#FFFFFF",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
