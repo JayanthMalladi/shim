@@ -1,37 +1,29 @@
 @import "tailwindcss";
 
 /*
- * "Morning PR": a light page built around the pull request a team wakes up to.
- * Type, spacing, radius and motion follow the landing-page-design rules:
- * Geist only, Tailwind type steps, the 2/4/8/12/16/24/32/40/48/64/80/96 spacing
- * scale, flat backgrounds, and one easing curve.
+ * "The wedge": a shim is the little wedge that levels a wobbly table.
+ * Yellow page, ink outlines, offset shadows, orange wedge. Motion loops in
+ * pure CSS and stops for prefers-reduced-motion.
  */
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-page: #ffffff;
-  --color-surface: #f8fafc;
-  --color-sunken: #f1f5f9;
-  --color-line: #e2e8f0;
-  --color-line-soft: #f1f5f9;
+  --color-page: #ffd84d;
+  --color-paper: #ffffff;
+  --color-cream: #fff6cc;
+  --color-ink: #111111;
+  --color-wedge: #ff6b3d;
+  --color-mint: #7de2d1;
+  --color-pink: #ffb3c7;
+  --color-bad: #ffc2b0;
+  --color-good: #bdf2e6;
 
-  --color-ink: #0f172a;
-  --color-ink-2: #334155;
-  --color-body: #475569;
-  --color-muted: #64748b;
-
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-wash: #eff6ff;
-  --color-accent-ink: #1e40af;
-
-  --color-ok-wash: #dcfce7;
-  --color-ok-ink: #166534;
-  --color-warn-wash: #fef3c7;
-  --color-warn-ink: #92400e;
-  --color-del-wash: #fdecec;
-  --color-del-ink: #9f1239;
+  /* Kept so existing utilities resolve; mapped onto the wedge palette. */
+  --color-body: #2b2b2b;
+  --color-muted: #4a4a4a;
+  --color-line: #111111;
+  --color-accent: #111111;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -97,14 +89,6 @@
   font-weight: 400;
 }
 
-/* Hero heading: the one place a gradient is allowed, on text only. */
-@utility ink-gradient {
-  background: linear-gradient(90deg, #000000, #666666);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 @layer base {
   html {
     color-scheme: light;
@@ -127,12 +111,13 @@
     color: inherit;
   }
   :where(a, button, summary, [tabindex]):focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 3px solid var(--color-ink);
     outline-offset: 2px;
     border-radius: 6px;
   }
   ::selection {
-    background: #bfdbfe;
+    background: var(--color-wedge);
+    color: var(--color-ink);
   }
   @media (prefers-reduced-motion: reduce) {
     html {
@@ -147,70 +132,86 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 44px;
+    min-height: 52px;
     box-sizing: border-box;
+    padding: 12px 24px;
+    border: 3px solid var(--color-ink);
+    border-radius: 14px;
+    background: var(--color-ink);
+    color: var(--color-page);
+    font-size: var(--text-lg);
+    line-height: 1.75rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 6px 6px 0 var(--color-wedge);
+    transition:
+      transform 300ms var(--ease-out-soft),
+      box-shadow 300ms var(--ease-out-soft);
+  }
+  .btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0 var(--color-wedge);
+  }
+  .btn:active {
+    transform: translate(4px, 4px);
+    box-shadow: 2px 2px 0 var(--color-wedge);
+  }
+  .btn-alt {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    box-shadow: 6px 6px 0 var(--color-ink);
+  }
+  .btn-alt:hover {
+    box-shadow: 8px 8px 0 var(--color-ink);
+  }
+  .btn-alt:active {
+    box-shadow: 2px 2px 0 var(--color-ink);
+  }
+  .btn-sm {
+    min-height: 44px;
     padding: 8px 16px;
+    font-size: var(--text-base);
+    line-height: 1.5rem;
+    box-shadow: 4px 4px 0 var(--color-wedge);
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
+    background: var(--color-paper);
+    border: 3px solid var(--color-ink);
+    border-radius: 20px;
+    box-shadow: 8px 8px 0 var(--color-ink);
+  }
+
+  .sticker {
+    position: absolute;
+    padding: 8px 16px;
+    border: 3px solid var(--color-ink);
     border-radius: 9999px;
     font-size: var(--text-base);
     line-height: 1.5rem;
-    font-weight: 600;
-    text-decoration: none;
-    cursor: pointer;
-    transition:
-      transform 300ms var(--ease-out-soft),
-      background-color 300ms var(--ease-out-soft),
-      border-color 300ms var(--ease-out-soft);
-  }
-  .btn:active {
-    transform: scale(0.98);
-  }
-  .btn-primary {
-    background: var(--color-accent);
-    color: #ffffff;
-    border: 0;
-  }
-  .btn-primary:hover {
-    background: var(--color-accent-hover);
-  }
-  .btn-ghost {
-    background: var(--color-page);
-    color: var(--color-ink);
-    border: 1px solid var(--color-line);
-  }
-  .btn-ghost:hover {
-    border-color: #cbd5e1;
-    background: var(--color-surface);
-  }
-  .btn-sm {
-    min-height: 36px;
-    padding: 8px 12px;
-    font-size: var(--text-sm);
-    line-height: 1.25rem;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 9999px;
-    font-size: var(--text-xs);
-    line-height: 1rem;
-    font-weight: 500;
+    font-weight: 700;
     white-space: nowrap;
   }
 
-  .lift {
-    transition: transform 500ms var(--ease-out-soft);
-  }
-  .lift:hover {
-    transform: translateY(-4px);
+  .tag {
+    align-self: flex-start;
+    padding: 4px 12px;
+    border: 2px solid var(--color-ink);
+    border-radius: 9999px;
+    font-size: var(--text-sm);
+    line-height: 1.25rem;
+    font-weight: 700;
   }
 
   /* Unresolved [placeholder] links: dashed outline until a real value is set. */
   a[data-placeholder] {
-    outline: 1px dashed #94a3b8;
-    outline-offset: 3px;
+    outline: 2px dashed var(--color-ink);
+    outline-offset: 4px;
   }
 
   /* Scroll reveal: only armed by JS for sections below the fold, so the page is complete at rest. */
@@ -226,9 +227,104 @@
       transform 700ms var(--ease-out-soft);
   }
 
-  /* Tagline words: muted until their turn. */
-  .tag-word {
-    transition: color 500ms var(--ease-out-soft);
+  /* Hero: the table wobbles, the wedge slides in, the table levels. One 9s loop. */
+  .scene {
+    position: relative;
+    width: 460px;
+    height: 420px;
+    transform-origin: top left;
+  }
+  .tilt {
+    position: absolute;
+    inset: 0;
+    transform-origin: 91px 352px;
+    animation: tilt 9s var(--ease-out-soft) infinite;
+  }
+  .wedge-in {
+    animation: wedge-in 9s var(--ease-out-soft) infinite;
+  }
+  .level {
+    animation: level 9s infinite;
+  }
+
+  /* Marquee of repos with Shim PRs. Pauses on hover and focus. */
+  .marquee {
+    display: flex;
+    gap: 48px;
+    width: max-content;
+    animation: slide 60s linear infinite;
+  }
+  .marquee:hover,
+  .marquee:focus-within {
+    animation-play-state: paused;
+  }
+
+  .rock {
+    animation: rock 3.2s ease-in-out infinite;
+  }
+
+  /* The agent card: a cursor walks three lines; each turns red, then is rewritten green. */
+  .ag-lines {
+    position: relative;
+    min-width: 640px;
+    padding-left: 92px;
+    display: flex;
+    flex-direction: column;
+  }
+  .ag-row {
+    position: relative;
+    height: 40px;
+    border-radius: 8px;
+    font-size: var(--text-sm);
+    line-height: 40px;
+  }
+  .ag-row > span {
+    position: absolute;
+    left: 12px;
+    top: 0;
+    white-space: nowrap;
+  }
+  .ag-g,
+  .ag-s2 {
+    opacity: 0;
+  }
+  .ag-status {
+    display: inline-grid;
+  }
+  .ag-status > span {
+    grid-area: 1 / 1;
+  }
+  .ag-cur {
+    position: absolute;
+    left: 0;
+    top: 4px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 9999px;
+    background: var(--color-wedge);
+    color: var(--color-ink);
+    font-size: var(--text-xs);
+    line-height: 32px;
+    font-weight: 700;
+    white-space: nowrap;
+    animation: ag-cur 9s var(--ease-out-soft) infinite;
+  }
+  .r1 { animation: ag-hl1 9s infinite; }
+  .b1 { animation: ag-b1 9s infinite; }
+  .g1 { animation: ag-g1 9s infinite; }
+  .r2 { animation: ag-hl2 9s infinite; }
+  .b2 { animation: ag-b2 9s infinite; }
+  .g2 { animation: ag-g2 9s infinite; }
+  .r3 { animation: ag-hl3 9s infinite; }
+  .b3 { animation: ag-b3 9s infinite; }
+  .g3 { animation: ag-g3 9s infinite; }
+  .ag-s1 { animation: ag-s1 9s infinite; }
+  .ag-s2 { animation: ag-s2 9s infinite; }
+
+  @media (max-width: 639px) {
+    .scene {
+      scale: 0.74;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -238,12 +334,101 @@
       transform: none;
       transition: none;
     }
-    .lift:hover,
+    .btn:hover,
     .btn:active {
       transform: none;
     }
+    .tilt,
+    .wedge-in,
+    .level,
+    .marquee,
+    .rock,
+    .agent * {
+      animation: none !important;
+    }
+    .level,
+    .ag-g,
+    .ag-s2 {
+      opacity: 1;
+    }
+    .ag-b,
+    .ag-s1 {
+      opacity: 0;
+    }
+    .ag-row {
+      background: var(--color-good);
+    }
+    .marquee {
+      width: auto;
+      flex-wrap: wrap;
+      gap: 16px 32px;
+      padding: 0 16px;
+    }
+    .marquee [data-dup] {
+      display: none;
+    }
   }
 }
+
+@keyframes tilt {
+  0% { transform: rotate(5deg); }
+  4% { transform: rotate(3deg); }
+  8% { transform: rotate(5deg); }
+  12% { transform: rotate(3.5deg); }
+  16%, 22% { transform: rotate(5deg); }
+  32%, 88% { transform: rotate(0deg); }
+  96%, 100% { transform: rotate(5deg); }
+}
+@keyframes wedge-in {
+  0%, 12% { transform: translateX(240px); opacity: 0; }
+  26%, 88% { transform: translateX(0); opacity: 1; }
+  96%, 100% { transform: translateX(240px); opacity: 0; }
+}
+@keyframes level {
+  0%, 30% { opacity: 0; transform: scale(0.6); }
+  34%, 88% { opacity: 1; transform: scale(1); }
+  94%, 100% { opacity: 0; transform: scale(0.6); }
+}
+@keyframes slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes rock {
+  0%, 100% { transform: rotate(var(--t)); }
+  50% { transform: rotate(calc(var(--t) * -1)); }
+}
+@keyframes ag-cur {
+  0%, 28% { transform: translateY(0); }
+  33%, 61% { transform: translateY(40px); }
+  66%, 94% { transform: translateY(80px); }
+  100% { transform: translateY(0); }
+}
+@keyframes ag-hl1 {
+  0%, 6% { background: transparent; }
+  8%, 19% { background: var(--color-bad); }
+  21%, 92% { background: var(--color-good); }
+  97%, 100% { background: transparent; }
+}
+@keyframes ag-hl2 {
+  0%, 39% { background: transparent; }
+  41%, 52% { background: var(--color-bad); }
+  54%, 92% { background: var(--color-good); }
+  97%, 100% { background: transparent; }
+}
+@keyframes ag-hl3 {
+  0%, 72% { background: transparent; }
+  74%, 85% { background: var(--color-bad); }
+  87%, 92% { background: var(--color-good); }
+  97%, 100% { background: transparent; }
+}
+@keyframes ag-b1 { 0%, 19% { opacity: 1; } 21%, 95% { opacity: 0; } 97%, 100% { opacity: 1; } }
+@keyframes ag-g1 { 0%, 19% { opacity: 0; } 21%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes ag-b2 { 0%, 52% { opacity: 1; } 54%, 95% { opacity: 0; } 97%, 100% { opacity: 1; } }
+@keyframes ag-g2 { 0%, 52% { opacity: 0; } 54%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes ag-b3 { 0%, 85% { opacity: 1; } 87%, 95% { opacity: 0; } 97%, 100% { opacity: 1; } }
+@keyframes ag-g3 { 0%, 85% { opacity: 0; } 87%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes ag-s1 { 0%, 86% { opacity: 1; } 88%, 95% { opacity: 0; } 97%, 100% { opacity: 1; } }
+@keyframes ag-s2 { 0%, 86% { opacity: 0; } 88%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
 
 @keyframes menu-in {
   from {

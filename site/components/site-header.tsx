@@ -6,13 +6,13 @@ import { SiteLink } from "./site-link";
 import { links } from "@/lib/site";
 
 const nav = [
+  { href: "#watch", label: "Watch it work" },
+  { href: "#wobbles", label: "The wobbles" },
   { href: "#how", label: "How it works" },
-  { href: "#prs", label: "Live PRs" },
-  { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
 ];
 
-/** Floating pill nav. On phones the links open in a full height panel. */
+/** Top nav. On phones the links open in a full height panel. */
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -39,11 +39,11 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="sticky top-4 z-40 px-4">
-      <div className="mx-auto flex max-w-[720px] items-center justify-between gap-4 rounded-full border border-line bg-white/80 py-2 pr-2 pl-4 backdrop-blur-lg">
-        <a href="#top" className="flex items-center gap-2 no-underline">
+    <header className="relative z-40 px-4 sm:px-8">
+      <div className="mx-auto flex max-w-[1184px] items-center justify-between gap-4 py-6">
+        <a href="#top" className="flex items-center gap-2 text-3xl leading-9 font-bold tracking-[-0.03em] no-underline">
           <LogoMark />
-          <span className="title-2 font-semibold">shim</span>
+          shim
         </a>
 
         <nav aria-label="Primary" className="hidden items-center gap-6 md:flex">
@@ -51,7 +51,7 @@ export function SiteHeader() {
             <a
               key={item.href}
               href={item.href}
-              className="body-6 font-medium text-body no-underline transition-colors duration-300 hover:text-ink"
+              className="text-base leading-6 font-medium no-underline underline-offset-4 hover:underline"
             >
               {item.label}
             </a>
@@ -59,7 +59,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <SiteLink href={links.booking} className="btn btn-primary btn-sm">
+          <SiteLink href={links.booking} className="btn btn-sm">
             Join the pilot
           </SiteLink>
           <button
@@ -69,7 +69,7 @@ export function SiteHeader() {
             aria-expanded={open}
             aria-controls="mobile-nav"
             onClick={() => setOpen((v) => !v)}
-            className="relative grid size-10 cursor-pointer place-items-center rounded-full border border-line bg-white md:hidden"
+            className="relative grid size-11 cursor-pointer place-items-center rounded-xl border-[3px] border-ink bg-paper md:hidden"
           >
             <span
               aria-hidden="true"
@@ -87,7 +87,7 @@ export function SiteHeader() {
         id="mobile-nav"
         aria-label="Primary"
         hidden={!open}
-        className="fixed inset-0 top-0 -z-10 bg-white/95 px-6 pt-24 backdrop-blur-xl md:hidden"
+        className="fixed inset-0 top-0 -z-10 bg-page px-6 pt-28 md:hidden"
       >
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {nav.map((item, i) => (
@@ -99,7 +99,7 @@ export function SiteHeader() {
               <a
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="heading-5 flex min-h-12 items-center text-ink no-underline"
+                className="flex min-h-12 items-center text-3xl leading-9 font-bold text-ink no-underline"
               >
                 {item.label}
               </a>
