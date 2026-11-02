@@ -67,14 +67,25 @@ If WP7 (audit mode) lands with real findings before I submit, add one line: "Aud
 
 ## 4. Checklist, ordered by deadline
 
+### What's left before submitting (updated Mon 2026-11-02 15:50 IST)
+About 6 hours to my 10 pm IST target. In order:
+1. **HoudiniSwap #29.** Its draft says not-ready: the root `@ai-sdk/anthropic` stays on v3, so the build may fail. Either push the root bump to fork branch `shim/ai-sdk-7` (`@ai-sdk/anthropic` to `^4.0.0`, regenerate the lockfile, run their build and typecheck locally), or close the PR. "No checks reported" means their CI is waiting for maintainer approval, so waiting won't show anything.
+2. **Look at all 14 PRs once** for human comments or "approve workflow" notices. Answer any human comment. The last refresh (Nov 1 21:36 UTC) showed 0 human replies.
+3. **Write the application** from section 5, using only the numbers in section 2. Don't cite the Nov 2 three-repo calibration run ("0 false passes"): none of those repos had a known-bad diff, so it proves nothing about the judge. Don't mention the 11 issues an agent posted on Nov 2 (all closed now).
+4. **Founder video (1 min, solo).** A ~60 s product demo draft already exists (`/mnt/project-files/shim/video/shim-demo-draft.mp4`). Watch it and decide whether to use it as the optional demo.
+5. **Cold read.** Have someone read the application. Can they say what Shim does in one sentence?
+6. **Evening:** refresh the PR counts (`site/lib/stats.json` or `pr status`), paste, upload, add the site and repo links, and **submit by 10 pm IST**.
+
+Done since Nov 1: PRs #12–#17 merged and reviewed (`main` typechecks, 160/161 tests pass; the one failure is a date-dependent `pr-status` test). The landing page has no placeholders left, and its merge count is live. Issue-draft rules are in CLAUDE.md. All 11 agent-posted issues are closed. The two new issue drafts (Vendure, Uluops) failed verification, so there's nothing to post. The Vercel codemod bug is already filed as vercel/ai#23031; comment there after submitting.
+
 Times are IST (I'm in India). PT is in brackets.
 
 ### Tonight, Sun Nov 1, before sleep (~1.5 h) [Sun ~10:30 am to 12 pm PT]
-- [ ] **Check all 14 PRs on GitHub** for maintainer comments, review requests or "approve workflow" notices. Answer any human comment within the hour. Paste it to an agent for a draft reply and fix, and push fixes to `shim/ai-sdk-7`.
-- [ ] **HoudiniSwap #29**: verify the build is green. Fix it or close it (see the table above).
+- [ ] *(carried to the list above)* **Check all 14 PRs on GitHub** for maintainer comments, review requests or "approve workflow" notices. Answer any human comment within the hour. Paste it to an agent for a draft reply and fix, and push fixes to `shim/ai-sdk-7`.
+- [ ] *(carried to the list above)* **HoudiniSwap #29**: verify the build is green. Fix it or close it (see the table above).
 - [ ] **ChainFuse #1136, requesty #66**: confirm the comments are still bots only. If CI is waiting for approval, a one-line comment is fine: "CI is waiting on workflow approval for a first-time contributor; happy to fix anything it finds."
-- [ ] **Merge this PR** (it fills in the founder name in the site footer). Then fix the waitlist, GitHub App and price placeholders, or remove them.
-- [ ] **Freeze `main`**: don't merge #10, #11 or #12 until after submitting.
+- [x] **Merge this PR** (it fills in the founder name in the site footer). Then fix the waitlist, GitHub App and price placeholders, or remove them.
+- [x] ~~**Freeze `main`**~~: superseded. #12, #14, #15, #16 and #17 were reviewed and merged on Nov 2, and `main` is green apart from the `pr-status` date test.
 
 ### Mon Nov 2 morning (~3 h) [Sun 8:30 pm to 11:30 pm PT]
 - [ ] Write the application text using the drafts in section 5. Read every number against section 2.
@@ -91,9 +102,10 @@ Times are IST (I'm in India). PT is in brackets.
 
 ### After submitting (Tue onward)
 - [ ] Keep answering maintainers. Send YC an update if a PR merges before interviews.
-- [ ] Fix PR #12's regex. Replace #10 with `wp11-review-fixes`. Get the WP1 review findings fixed before #11 merges.
+- [x] Fix PR #12's regex. Replace #10 with `wp11-review-fixes`. Get the WP1 review findings fixed before #11 merges. (All done on Nov 2: #12, #14, #15.)
+- [ ] Fix the date-dependent `pr-status` test ("excludes a PR merged within 3 days").
 - [ ] WP3: finish the 4 needs-review drafts, then open them.
-- [ ] Send the Vercel codemod report (WP12), re-checked first.
+- [ ] Vercel codemod (WP12): comment on vercel/ai#23031 (closed without a fix; 4.0.3 still has the bug) with the cloudflare/ai repro and the export-rename case. Don't open a new issue.
 
 ---
 
