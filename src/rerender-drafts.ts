@@ -3,6 +3,9 @@
  * then refresh the "Please check before merging" items in READY.md. No agent runs: it only re-renders saved data.
  *
  *   npx tsx src/rerender-drafts.ts [drafts-dir]
+ *
+ * Note: this overwrites hand-curated pr.md files with a fresh render from report.json.
+ * Run only on drafts whose pr.md is not hand-edited, or re-apply the hand edits afterwards.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +31,7 @@ if (fs.existsSync(ready)) {
   const lines = fs.readFileSync(ready, "utf8").split("\n").map((line) => {
     const m = line.match(/draft: `drafts\/([^/]+)\/`/);
     const items = m && eyes.get(m[1]!);
-    return items ? line.replace(/ Needs your eyes: .*$/, ` Please check before merging: ${items}`) : line;
+    return items ? line.replace(/ (?:Needs your eyes|Please check before merging): .*$/, ` Please check before merging: ${items}`) : line;
   });
   fs.writeFileSync(ready, lines.join("\n"));
 }
