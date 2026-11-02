@@ -1,6 +1,6 @@
 needs-review
 all baseline gates still pass and no breaking findings remain
-head: HEAD: 7d2ac17
+head: HEAD: 474040e0a8
 
 | Check | Before | After |
 |---|---|---|
@@ -21,6 +21,7 @@ Notes:
 - Code left alone per WP3. pr.md now claims only what the patch did (allowSystemInMessages added to the
   shared options builder; totalUsage/usage on the streaming path are the same value in v7, so the code was
   left as-is) and asks two questions under "Please check before merging": Node 22 in engines, and whether
-  the :72/:77 usage/warnings reads should switch to finalStep.* if stopWhen is ever set.
+  the :72/:77 usage/warnings reads should switch to finalStep.* if stopWhen is ever set. (pr.md no longer
+  overclaims; a human still owns the :72/:77 call, hence needs-review.)
 - 2026-11-01 note (superseded): upstream HEAD moved 7d2ac17 -> 066175a; pr open needed --allow-drift.
   Now re-based on 474040e0a8, so no drift flag is needed.
