@@ -1,5 +1,6 @@
 import { Hero } from "@/components/hero";
 import {
+  ChangelogSection,
   FaqSection,
   FinalCta,
   HowSection,
@@ -28,6 +29,7 @@ export default function Home() {
         <WobblesSection />
         <HowSection />
         <ScanSection />
+        <ChangelogSection />
         <FaqSection />
         <FinalCta />
       </main>

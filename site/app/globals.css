@@ -208,12 +208,6 @@
     font-weight: 700;
   }
 
-  /* Unresolved [placeholder] links: dashed outline until a real value is set. */
-  a[data-placeholder] {
-    outline: 2px dashed var(--color-ink);
-    outline-offset: 4px;
-  }
-
   /* Scroll reveal: only armed by JS for sections below the fold, so the page is complete at rest. */
   [data-reveal="armed"] {
     opacity: 0;
