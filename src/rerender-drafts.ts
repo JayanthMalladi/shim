@@ -1,6 +1,6 @@
 /**
  * Regenerate pr.md for every ready or needs-review draft from its saved report.json and changes.patch,
- * then refresh the "Needs your eyes" items in READY.md. No agent runs: it only re-renders saved data.
+ * then refresh the "Please check before merging" items in READY.md. No agent runs: it only re-renders saved data.
  *
  *   npx tsx src/rerender-drafts.ts [drafts-dir]
  */
@@ -18,7 +18,7 @@ for (const name of fs.readdirSync(dir)) {
   if (status !== "ready" && status !== "needs-review") continue;
   const body = prBody(JSON.parse(read("report.json")!), read("changes.patch"));
   fs.writeFileSync(path.join(d, "pr.md"), body);
-  const section = body.match(/### Needs your eyes\n[^\n]*\n([\s\S]*?)\n\n### /)?.[1];
+  const section = body.match(/### Please check before merging\n([\s\S]*?)\n\n### /)?.[1];
   eyes.set(name, section ? section.split("\n").map((l) => l.replace(/^- /, "")).join("; ") : "none");
   console.log(`${name}: ${status}`);
 }
@@ -28,7 +28,7 @@ if (fs.existsSync(ready)) {
   const lines = fs.readFileSync(ready, "utf8").split("\n").map((line) => {
     const m = line.match(/draft: `drafts\/([^/]+)\/`/);
     const items = m && eyes.get(m[1]!);
-    return items ? line.replace(/ Needs your eyes: .*$/, ` Needs your eyes: ${items}`) : line;
+    return items ? line.replace(/ Needs your eyes: .*$/, ` Please check before merging: ${items}`) : line;
   });
   fs.writeFileSync(ready, lines.join("\n"));
 }

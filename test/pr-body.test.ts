@@ -75,11 +75,11 @@ describe("prBody", () => {
   it("does not claim a finding the patch left alone as fixed", () => {
     const kept = finding({ line: 40, snippet: "result.warnings", message: "`result.warnings` now covers every step." });
     const body = prBody(report({ before: [finding({ line: 10 }), kept], changedFiles: ["src/a.ts"] }), rewrite(10));
-    const [fixed, eyes] = body.split("### Needs your eyes");
+    const [fixed, eyes] = body.split("### Please check before merging");
     expect(fixed).toContain("`src/a.ts:10`");
     expect(fixed).not.toContain("src/a.ts:40");
     expect(eyes).toContain("`src/a.ts:40`: `result.warnings` now covers every step.");
-    expect(body).toContain('except where noted under "Needs your eyes"');
+    expect(body).toContain('except where noted under "Please check before merging"');
   });
 
   it("counts an allowSystemInMessages insertion in the same call as the fix", () => {
@@ -93,7 +93,7 @@ describe("prBody", () => {
 
   it("omits unfixed deprecated findings, keeps the layout tight, and keeps the footer", () => {
     const body = prBody(report({ before: [finding({ ruleId: "total-usage", severity: "deprecated", message: "totalUsage is deprecated" })], changedFiles: ["src/a.ts"] }), rewrite(99));
-    expect(body).not.toContain("Needs your eyes");
+    expect(body).not.toContain("Please check before merging");
     expect(body).not.toMatch(/\n\n\n/);
     expect(body).toContain("| install | pass | pass |");
     expect(body).toContain("### Rollback");

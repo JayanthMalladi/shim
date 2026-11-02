@@ -51,13 +51,13 @@ export function prBody(r: MigrationReport, patch?: string): string {
   return [
     `## Upgrade to AI SDK 7`,
     [
-      `This PR moves the project from AI SDK 6 to 7 and keeps its current behavior${forHuman.length ? ', except where noted under "Needs your eyes"' : ""}.`,
+      `This PR moves the project from AI SDK 6 to 7 and keeps its current behavior${forHuman.length ? ', except where noted under "Please check before merging"' : ""}.`,
       ...explain(fixed),
     ].join("\n"),
     `### Versions\n${versionLines(r.versionChanges, patch)}`,
     ...(r.library ? ["This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version."] : []),
     `### What changed and why\n${whatChanged.join("\n\n")}`,
-    ...(forHuman.length ? [`### Needs your eyes\nShim did not change these. Please check them before merging.\n${group(forHuman)}`] : []),
+    ...(forHuman.length ? [`### Please check before merging\n${group(forHuman)}`] : []),
     `### How it was checked\n| Check | Before | After |\n|---|---|---|\n${gates}`,
     `Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`,
     `### Rollback\nRevert this PR. No data or config migrations are involved.`,

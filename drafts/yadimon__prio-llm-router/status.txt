@@ -1,4 +1,4 @@
-ready
+needs-review
 all baseline gates still pass and no breaking findings remain
 head: HEAD: 474040e0a8
 
@@ -18,8 +18,9 @@ Notes:
   `npm ci` from the lockfile, which does not re-check peers, so this was not caught there.
 - package-lock.json regenerated (upstream updated the lock in #129, so the draft's lock hunk no
   longer applied).
-- Code left alone per WP3. pr.md lists the multi-step reads on options built elsewhere
-  (src/provider-factory.ts:72, :77, :105, :108) and the system-message risk at :64 and :100 under
-  "Needs your eyes", each with a question for the maintainer.
+- Code left alone per WP3. pr.md now claims only what the patch did (allowSystemInMessages added to the
+  shared options builder; totalUsage/usage on the streaming path are the same value in v7, so the code was
+  left as-is) and asks two questions under "Please check before merging": Node 22 in engines, and whether
+  the :72/:77 usage/warnings reads should switch to finalStep.* if stopWhen is ever set.
 - 2026-11-01 note (superseded): upstream HEAD moved 7d2ac17 -> 066175a; pr open needed --allow-drift.
   Now re-based on 474040e0a8, so no drift flag is needed.
