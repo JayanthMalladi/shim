@@ -41,12 +41,10 @@ export function Hero() {
             <span className="font-semibold text-fg">{prs.open}</span> PRs open upstream
           </span>
           <span aria-hidden="true">·</span>
-          <span>
-            <span className="font-semibold text-fg">{prs.merged}</span> merged
-          </span>
+          <span>first merges pending</span>
           <span aria-hidden="true">·</span>
           <span>
-            merge rate <span className="font-semibold text-fg">{prs.mergeRate}</span>
+            <span className="font-semibold text-fg">{prs.replied}</span> maintainer replies
           </span>
         </div>
       </div>

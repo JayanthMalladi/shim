@@ -4,14 +4,19 @@
  * with a dashed outline until they are replaced with real values.
  */
 export const links = {
-  waitlist: "[Join waitlist link]",
-  githubApp: "[GitHub App install]",
+  // Stand-in until a real waitlist form exists. Points at the repo so the CTA
+  // is a working link, not a dashed placeholder box, while we don't yet have
+  // a Tally/Typeform URL.
+  waitlist: "https://github.com/JayanthMalladi/shim",
+  // GitHub App not published yet — point the install button at the repo too.
+  githubApp: "https://github.com/JayanthMalladi/shim",
   repo: "https://github.com/JayanthMalladi/shim",
   firstPr: "https://github.com/requestyai/ai-sdk-requesty/pull/66",
 } as const;
 
 export const placeholders = {
-  price: "[PRICE]",
+  // Free during the pilot is the honest current state.
+  price: "Free during pilot",
   founder: "Jayanth Malladi",
 } as const;
 
