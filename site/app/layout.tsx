@@ -1,29 +1,32 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
+import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-bricolage" });
+
+const title = "Shim · Upgrades shouldn't wobble";
 const description =
-  "Shim migrates AI SDK 6 apps to 7 and opens a tested pull request. The official codemod does the renames. Shim fixes the changes that still compile but return different data.";
+  "Shim upgrades AI SDK 6 apps to 7 and opens one tested pull request. It fixes the changes the codemod and tsc miss: code that still compiles but returns different data.";
 
 export const metadata: Metadata = {
-  title: "Shim — Your tests pass. Your behavior changed.",
+  title,
   description,
   openGraph: {
-    title: "Shim — Your tests pass. Your behavior changed.",
+    title,
     description,
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0C0D0E",
-  colorScheme: "dark",
+  themeColor: "#FFD84D",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" className={`${bricolage.variable} ${GeistMono.variable}`}>
       <body>{children}</body>
     </html>
   );
