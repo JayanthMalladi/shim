@@ -1,6 +1,6 @@
 # Shim
 
-Start with `docs/SPEC.md`: current status, architecture, and the work packages (WP0â€“WP12) with acceptance criteria.
+Start with `docs/SPEC.md`: current status, architecture, and the work packages (WP0–WP12) with acceptance criteria.
 
 Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 
@@ -15,12 +15,22 @@ Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 ## Rules
 - Fixes must preserve the target repo's current runtime behavior. Prefer a deterministic rewrite in `src/rules/` over the agent.
 - Every new rule gets a fixture case in `test/fixtures/v6-app` and an assertion in `test/scan.test.ts`, including a case that must not be flagged.
-- Never open a PR unless every gate that passed at baseline still passes (`src/gates.ts`). Otherwise open an issue.
+- Never open a PR unless every gate that passed at baseline still passes (`src/gates.ts`). Otherwise write an issue draft (see "Issue drafts" below). Never post it yourself.
 - Installs of target repos always use `--ignore-scripts`.
 - Keep replies and PR text short and specific; maintainers skim.
-- Agents never open PRs, issues or comments on target repos. `shim pr open` pushes to Jayanth's fork, and Jayanth clicks Create. Never open a second PR on a repo already in `data/prs.csv`.
+- Agents never open, close, edit or comment on PRs or issues on target repos, with any tool (`gh`, the API, MCP) or account. `shim pr open` pushes to Jayanth's fork, and Jayanth clicks Create. Never open a second PR on a repo already in `data/prs.csv`. Agent runs must not hold a GitHub token that can write outside `JayanthMalladi/shim` and Jayanth's forks. On 2026-11-02 an agent posted 11 issues from Jayanth's account; they had to be closed.
 - Never use a Fable or Mythos model in the pipeline or the evolution. The allowlist is in `src/evolve-guard.ts`.
 - This repo is public. Never commit secrets. `src/exec.ts` strips API keys from target-repo commands; keep it that way.
+
+## Issue drafts
+When a repo gets an issue instead of a PR, the agent writes a draft and stops there. A reviewer checks the draft, and Jayanth posts the ones that pass.
+- One file per repo: `drafts/issues/<owner>__<repo>.md`. Line 1 is `Title: ...`, then a blank line, then the body.
+- 15 lines or fewer. Include the `file:line`, which v7 change breaks it (and what it does at runtime), why the codemod and tsc miss it, the suggested fix, and an offer to send a PR.
+- Only write a draft when there is a concrete finding in the repo's code. "Gates regressed", "no green gate at baseline" and "reviewer gave no verdict" are Shim's problems, not the maintainer's. Log them in the run results, not in a draft.
+- No Shim internals (pipeline rule, fix stage, reviewer, WP numbers, scale pass), no boilerplate list of every v7 change, and no links except the repo's own files. One plain "found while upgrading to AI SDK 7" line is enough.
+- Skip repos that already have a Shim PR in `data/prs.csv`. Put anything new for them in a draft reply on that PR.
+- Write files as UTF-8 with a file-write tool, never `echo` or a shell heredoc that interprets escapes. Before committing, check the file for `â€`, `â†`, control characters, and backticked names missing their first letter (e.g. `ole` for `role`).
+- If an existing issue must be closed, Jayanth does it, as "not planned" with: "Closing: this was posted in error by an automated run. Sorry for the noise."
 
 ## Agent backend
 
@@ -42,7 +52,7 @@ Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime.
 ### Backends
 
 - **`claude-cli`** (default): spawns the `claude` CLI. Works with any Anthropic-compatible endpoint via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. If the provider is only OpenAI-compatible, put a translating proxy in front (e.g. LiteLLM).
-- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard â€” set it only in a context with no credentials in the environment.
+- **`dsh`**: runs `dsh --profile headless "<prompt>"` in the repo directory; stdout is the final text; exit 0/1 maps to ok/not-ok. Because `dsh` has no per-command allowlist or turn cap, it **refuses to start unless `SHIM_SANDBOX=1`** is set, meaning the run is inside a throwaway container or VM with no credentials in the environment. `SHIM_SANDBOX=1` is the **only** guard — set it only in a context with no credentials in the environment.
 
 Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON contract is unchanged.
 
@@ -74,10 +84,10 @@ Why Shim is more than the official codemod: AI SDK 7's breaking changes are **si
 - Node 22 is required, in `engines` and in CI.
 - Default `stopWhen` is `isStepCount(1)`, so **single-step calls are unaffected**. Don't flag them.
 
-The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-to-google` renames the repo's own exports and breaks aliased imports (seen on cloudflare/ai). `src/codemod-guard.ts` catches it. A draft bug report for Vercel is in `data/overnight-2026-10-28/vercel-codemod-google-rename.md`; it hasn't been sent. Re-check it against the latest codemod first.
+The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-to-google` renames the repo's own exports and breaks aliased imports (seen on cloudflare/ai). `src/codemod-guard.ts` catches it. It is already reported as vercel/ai#23031. That issue was closed on 2026-10-13 without a fix (the fix PR #23040 was never merged), so 4.0.3 still has the bug, which was re-verified on 2026-11-02. Comment on #23031 instead of opening a new issue.
 
 ## State of the repo (main @ b6433c5, 2026-10-29)
-- `main` contains everything below. The `evolve`, `evolve-guardrails`, `fix/target-env`, `fix/gitignored-scan`, `feat/pr-open`, `feat/pr-status` and `fix/windows-spawn` work is merged, as PRs #1â€“#7 or direct commits.
+- `main` contains everything below. The `evolve`, `evolve-guardrails`, `fix/target-env`, `fix/gitignored-scan`, `feat/pr-open`, `feat/pr-status` and `fix/windows-spawn` work is merged, as PRs #1–#7 or direct commits.
 - **Not merged:** branch `claude/serene-babbage-yzfhbn`. It has `docs/evolve-runbook.md` (a prompt for running the evolution on an `ANTHROPIC_API_KEY` with a budget, an 8-repo dev set and a 5-repo holdout) and `drafts/` (every draft with `pr.md`, `changes.patch`, `judge.txt`, `status.txt`, plus `drafts/READY.md` and `SUMMARY.csv`). It branched from older code, so **cherry-pick `docs/` and `drafts/` only. Don't merge it**: it would revert newer src, site and test files.
 - `site/` is the landing page (static Next.js on Vercel). `.github/workflows/refresh-site.yml` runs every 6 hours: `shim pr status` refreshes `data/prs.csv`, `shim stats` refreshes `site/lib/stats.json`, and the bot commits both.
 - It now runs on Windows too (cross-spawn, LF-normalized patches, EBUSY retries). Jayanth runs Shim locally.
@@ -106,7 +116,7 @@ The official `@ai-sdk/codemod@4.0.3` transform `v7/rename-google-generative-ai-t
   - It keeps an archive, and the LLM mutator (opus) reads past runs and proposes children.
   - Results are resumable and can be pushed durably via `--mirror`.
   - `--budget-usd` stops before an evaluation that would exceed the budget.
-  - The genome is bounded (candidates 1â€“4, attempts 1â€“3, turns â‰¤60, review rounds â‰¤2) and the models are allowlisted (opus/sonnet/haiku).
+  - The genome is bounded (candidates 1–4, attempts 1–3, turns ≤60, review rounds ≤2) and the models are allowlisted (opus/sonnet/haiku).
 - **Exec** (`src/exec.ts`):
   - `runClaude` waits out plan usage limits.
   - `SAFE_ENV` sets `CI=1` and `npm_config_verify_deps_before_run=false`. Without it, pnpm 11 silently runs `pnpm install` with lifecycle scripts before `pnpm run`.
