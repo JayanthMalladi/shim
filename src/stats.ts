@@ -24,10 +24,20 @@ export interface PrStats {
   mergeRate3d: string;
 }
 
+/** One upstream PR, for the site's public list. */
+export interface PrRow {
+  repo: string;
+  url: string;
+  state: "open" | "merged" | "closed";
+  openedAt: string;
+}
+
 export interface Stats {
   /** When this file was regenerated. */
   asOf: string;
   prs: PrStats;
+  /** Every tracked PR, oldest first, so the site can list them without hand edits. */
+  list: PrRow[];
   proof: {
     headline: string;
     stats: Array<[string, string]>;
@@ -111,9 +121,27 @@ export function computePrStats(csv: string, now = Date.now()): PrStats {
   };
 }
 
+/** The PR ledger as display rows, oldest first. */
+export function listPrs(csv: string): PrRow[] {
+  return parseCsv(csv)
+    .filter((r) => r.pr_url?.includes("/pull/"))
+    .map((r) => ({
+      repo: r.repo ?? "",
+      url: r.pr_url!,
+      state: r.state === "merged" || r.merged_at ? "merged" : r.state === "closed" ? "closed" : "open",
+      openedAt: r.opened_at ?? "",
+    }) as PrRow)
+    .sort((a, b) => a.openedAt.localeCompare(b.openedAt));
+}
+
 /** Build the full stats object (live prs + fixed proof). */
 export function buildStats(prsCsv: string, now = Date.now()): Stats {
-  return { asOf: new Date(now).toISOString(), prs: computePrStats(prsCsv, now), proof: PROOF };
+  return {
+    asOf: new Date(now).toISOString(),
+    prs: computePrStats(prsCsv, now),
+    list: listPrs(prsCsv),
+    proof: PROOF,
+  };
 }
 
 /**

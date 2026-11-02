@@ -9,21 +9,10 @@ export function SiteLink({ href, title, ...props }: ComponentProps<"a"> & { href
   const pending = isPlaceholder(href);
   return (
     <a
-      href={href}
+      href={pending ? "#start" : href}
       data-placeholder={pending ? "" : undefined}
       title={pending ? `Placeholder: ${href}` : title}
       {...props}
     />
-  );
-}
-
-/** Visible marker for placeholder text such as [PRICE]. */
-export function PlaceholderText({ children }: { children: string }) {
-  return isPlaceholder(children) ? (
-    <span className="placeholder-text" title="Placeholder">
-      {children}
-    </span>
-  ) : (
-    <>{children}</>
   );
 }

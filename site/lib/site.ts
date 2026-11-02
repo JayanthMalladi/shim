@@ -4,24 +4,22 @@
  * with a dashed outline until they are replaced with real values.
  */
 export const links = {
-  // Stand-in until a real waitlist form exists. Points at the repo; the CTA is
-  // labelled "Star on GitHub" so it says what it does, not a promise of a form.
-  waitlist: "https://github.com/JayanthMalladi/shim",
-  // GitHub App not published yet — the CTA is labelled "View source" and points
-  // at the repo.
-  githubApp: "https://github.com/JayanthMalladi/shim",
+  // The primary CTA. Replace with a real scheduling link (Cal.com, Calendly, ...).
+  booking: "[BOOKING URL]",
   repo: "https://github.com/JayanthMalladi/shim",
-  firstPr: "https://github.com/requestyai/ai-sdk-requesty/pull/66",
 } as const;
 
-export const placeholders = {
-  // Free during the pilot is the honest current state.
-  price: "Free during pilot",
-  founder: "Jayanth Malladi",
-} as const;
+export const founder = "Jayanth Malladi";
 
-export const scanCommand = "npx shim scan .";
-export const migrateCommand = "npx shim migrate . --agent";
+/**
+ * Shim is not on npm (the `shim` package there is unrelated), so the scan runs
+ * from a clone of the repo.
+ */
+export const scanCommands = [
+  "git clone https://github.com/JayanthMalladi/shim",
+  "cd shim && npm install",
+  "npx tsx src/cli.ts scan ../your-app",
+] as const;
 
 export function isPlaceholder(value: string): boolean {
   return /^\[.+\]$/.test(value.trim());

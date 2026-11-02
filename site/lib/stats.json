@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-11-01T21:36:22.055Z",
+  "asOf": "2026-11-02T11:31:56.657Z",
   "prs": {
     "total": 14,
     "open": 14,
@@ -8,6 +8,92 @@
     "mergeRate": "0%",
     "mergeRate3d": "0/14 (0%)"
   },
+  "list": [
+    {
+      "repo": "requestyai/ai-sdk-requesty",
+      "url": "https://github.com/requestyai/ai-sdk-requesty/pull/66",
+      "state": "open",
+      "openedAt": "2026-10-27"
+    },
+    {
+      "repo": "nkwib/toolroute",
+      "url": "https://github.com/nkwib/toolroute/pull/30",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "xtruder/opencode-claude-max-plugin",
+      "url": "https://github.com/xtruder/opencode-claude-max-plugin/pull/4",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "frayme-ai/frayme-sdk",
+      "url": "https://github.com/frayme-ai/frayme-sdk/pull/1",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "jodit/jodit-ai-adapter",
+      "url": "https://github.com/jodit/jodit-ai-adapter/pull/1",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "ChainFuse/packages",
+      "url": "https://github.com/ChainFuse/packages/pull/1136",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "aws/bedrock-agentcore-sdk-typescript",
+      "url": "https://github.com/aws/bedrock-agentcore-sdk-typescript/pull/308",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "zeabur/ai-sdk",
+      "url": "https://github.com/zeabur/ai-sdk/pull/24",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "merge-api/merge-gateway-ai-sdk-provider",
+      "url": "https://github.com/merge-api/merge-gateway-ai-sdk-provider/pull/7",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "apertis-ai/apertis-sdk",
+      "url": "https://github.com/apertis-ai/apertis-sdk/pull/8",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "VoxellInc/forge-ai-provider",
+      "url": "https://github.com/VoxellInc/forge-ai-provider/pull/2",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "voightxyz/voight-vercel-ai",
+      "url": "https://github.com/Voightxyz/voight-vercel-ai/pull/1",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "aorizondo/opencode-claude-code-acpbridge",
+      "url": "https://github.com/aorizondo/opencode-claude-code-acpbridge/pull/2",
+      "state": "open",
+      "openedAt": "2026-10-28"
+    },
+    {
+      "repo": "HoudiniSwap/houdiniswap-agent",
+      "url": "https://github.com/HoudiniSwap/houdiniswap-agent/pull/29",
+      "state": "open",
+      "openedAt": "2026-10-29"
+    }
+  ],
   "proof": {
     "headline": "5",
     "stats": [
