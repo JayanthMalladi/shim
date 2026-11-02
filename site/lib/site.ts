@@ -20,8 +20,11 @@ export const placeholders = {
   founder: "Jayanth Malladi",
 } as const;
 
-export const scanCommand = "npx shim scan .";
-export const migrateCommand = "npx shim migrate . --agent";
+// Shim isn't on npm yet (the npm name "shim" belongs to an unrelated polyfill),
+// so the commands run it from a clone.
+export const scanCommand = "npx tsx src/cli.ts scan ../your-repo";
+export const migrateCommand = "npx tsx src/cli.ts migrate ../your-repo --agent";
+export const setupCommand = "git clone https://github.com/JayanthMalladi/shim && cd shim && npm install";
 
 export function isPlaceholder(value: string): boolean {
   return /^\[.+\]$/.test(value.trim());

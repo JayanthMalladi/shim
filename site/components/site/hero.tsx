@@ -1,4 +1,4 @@
-import { links, scanCommand } from "@/lib/site";
+import { links, setupCommand } from "@/lib/site";
 import { prs } from "@/lib/stats";
 import { CopyCommand } from "./copy-command";
 import { HeroTranscript } from "./hero-transcript";
@@ -33,7 +33,7 @@ export function Hero() {
           >
             Star on GitHub
           </SiteLink>
-          <CopyCommand command={scanCommand} />
+          <CopyCommand command={setupCommand} />
         </div>
         <p className="m-0 text-sm text-muted">The scan is read-only. It lists every silent change with file and line.</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line pt-4 font-mono text-[13px] text-muted">

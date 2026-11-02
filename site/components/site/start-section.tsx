@@ -1,5 +1,5 @@
 import { ArrowRightIcon } from "@/components/ai-elements/icons";
-import { links, migrateCommand, placeholders, scanCommand } from "@/lib/site";
+import { links, migrateCommand, placeholders, scanCommand, setupCommand } from "@/lib/site";
 import { PlaceholderText, SiteLink } from "./placeholder";
 import { Eyebrow, SectionTitle, TimelineSection } from "./timeline-section";
 
@@ -10,7 +10,7 @@ export function StartSection() {
       <SectionTitle id="start-title">Find your silent changes first.</SectionTitle>
       <div className="mt-8 max-w-[760px] rounded-[14px] border border-edge-strong bg-panel">
         <label htmlFor="cmd" className="block px-[18px] pt-3.5 text-[13px] text-muted">
-          Run in your repo
+          Not on npm yet. Clone Shim: <span className="font-mono">{setupCommand}</span>, then run
         </label>
         <input
           id="cmd"
