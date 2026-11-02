@@ -226,7 +226,7 @@ const faq = [
   },
   {
     q: "Can I run it myself?",
-    a: "Yes. The code is public on GitHub, and the scan runs from a clone with Node 22 or later.",
+    a: "Yes. The code is public on GitHub, and the scan runs with “npx getshim scan .” on Node 22 or later.",
   },
 ];
 

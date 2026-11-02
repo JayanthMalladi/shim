@@ -16,10 +16,11 @@ The first migration is **Vercel AI SDK 6 -> 7**. The official codemod handles re
 ## Usage
 
 ```sh
-npm install
-npx tsx src/cli.ts scan path/to/repo
-npx tsx src/cli.ts migrate path/to/repo --agent --repo owner/name
+npx getshim scan path/to/repo
+npx getshim migrate path/to/repo --agent --repo owner/name   # --agent needs the claude CLI
 ```
+
+From a clone: `npm install`, then `npx tsx src/cli.ts scan path/to/repo`.
 
 ## Rules (AI SDK 7)
 

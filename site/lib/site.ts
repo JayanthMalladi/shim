@@ -6,11 +6,7 @@ export const links = {
 export const founder = "Jayanth Malladi";
 
 /**
- * Shim is not on npm (the `shim` package there is unrelated), so the scan runs
- * from a clone of the repo.
+ * Shim is published on npm as `getshim` (the `shim` package there is unrelated).
+ * Run it from the repo you want to scan.
  */
-export const scanCommands = [
-  "git clone https://github.com/JayanthMalladi/shim",
-  "cd shim && npm install",
-  "npx tsx src/cli.ts scan ../your-app",
-] as const;
+export const scanCommands = ["cd your-app", "npx getshim scan ."] as const;
