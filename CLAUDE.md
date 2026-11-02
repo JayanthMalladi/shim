@@ -32,6 +32,14 @@ When a repo gets an issue instead of a PR, the agent writes a draft and stops th
 - Write files as UTF-8 with a file-write tool, never `echo` or a shell heredoc that interprets escapes. Before committing, check the file for `â€`, `â†`, control characters, and backticked names missing their first letter (e.g. `ole` for `role`).
 - If an existing issue must be closed, Jayanth does it, as "not planned" with: "Closing: this was posted in error by an automated run. Sorry for the noise."
 
+## Coding guidelines (Karpathy)
+Always follow these when writing, reviewing or refactoring code in this repo. Claude sessions should also load the `karpathy-guidelines` skill. Agents without skills (dsh) follow the text below. They favor caution over speed; use judgment on trivial tasks.
+
+1. **Think before coding.** State your assumptions. If a request can be read more than one way, say so instead of picking silently. If a simpler approach exists, say so. If something is unclear, stop and name what's confusing.
+2. **Simplicity first.** Write the minimum code that solves the problem. No features, abstractions, configurability or error handling for impossible cases that nobody asked for. If 200 lines could be 50, rewrite it.
+3. **Surgical changes.** Touch only what the task needs. Don't reformat or "improve" adjacent code, and match the existing style. Mention unrelated dead code instead of deleting it. Remove only the imports, variables and functions your own change made unused. Every changed line should trace to the request.
+4. **Goal-driven execution.** Turn the task into checks you can verify: write a test that reproduces the bug, then make it pass; run `npm test` and `npm run typecheck` before and after a refactor. For multi-step work, write a short plan with a verify step for each item, and loop until each check passes.
+
 ## Agent backend
 
 Shim's agent runs (fixer, reviewer, judge, mutator) are configurable at runtime. No model id is hard-coded in the result.
