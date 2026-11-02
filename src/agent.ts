@@ -93,10 +93,8 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
   const statusBefore = run("git", ["status", "--porcelain"], dir, 60_000).output;
   // Snapshot the pre-review tree (including the fixer's uncommitted edits and new files) so the
-  // restore can reset the tree to exactly that state without wiping the fixer's work. `git
-  // add -A` stages everything so the write-tree includes the untracked files; restore un-stages.
-  run("git", ["add", "-A"], dir, 60_000);
-  const treeBefore = run("git", ["write-tree"], dir, 60_000).output.trim();
+  // restore can reset the tree to exactly that state without wiping the fixer's work.
+  const treeBefore = snapshotTree(dir);
   const prompt = [
     "Review the uncommitted diff in this repository (`git diff`, plus untracked files from `git status`).",
     "It upgrades the project from AI SDK 6 to 7. A maintainer will merge it only if it is a pure upgrade.",
@@ -131,14 +129,7 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
       const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
       const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
       if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
-        // Restore the tree to the pre-review snapshot (the fixer's uncommitted work): read-tree
-        // brings the snapshot tree into the index, clean -fd removes untracked files not in the
-        // snapshot (the reviewer's), checkout -- . rewrites tracked files to the snapshot, and
-        // reset -q un-stages everything so the tree matches the pre-review diff/status exactly.
-        run("git", ["read-tree", treeBefore], dir, 60_000);
-        run("git", ["clean", "-q", "-fd"], dir, 60_000);
-        run("git", ["checkout", "-q", "--", "."], dir, 60_000);
-        run("git", ["reset", "-q"], dir, 60_000);
+        restoreSnapshot(dir, treeBefore);
         return { approve: false, issues: ["reviewer modified files; result discarded"], output: last.slice(-2000), cost };
       }
       return { ...verdict, output: last, cost };
@@ -148,13 +139,32 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   // partial run left edits behind.
   const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
   const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
-  if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
-    run("git", ["read-tree", treeBefore], dir, 60_000);
-    run("git", ["clean", "-q", "-fd"], dir, 60_000);
-    run("git", ["checkout", "-q", "--", "."], dir, 60_000);
-    run("git", ["reset", "-q"], dir, 60_000);
-  }
+  if (diffAfter !== diffBefore || statusAfter !== statusBefore) restoreSnapshot(dir, treeBefore);
   return { approve: false, issues: [NO_VERDICT], output: last.slice(-2000), cost };
+}
+
+/**
+ * Reset the working tree and index to the snapshot captured by `snapshotTree`. The snapshot was
+ * taken with the fixer's uncommitted work staged (`add -A` + `write-tree` + `reset -q`), so the
+ * restore must end in the same un-staged state for the pre/post `git status --porcelain` comparison
+ * to be meaningful. read-tree + checkout-index -a -f restore both the modified tracked files and
+ * the new untracked files from the snapshot; clean -fd removes anything the reviewer added; reset -q
+ * un-stages so the tree looks exactly as the fixer left it.
+ */
+function restoreSnapshot(dir: string, snap: string) {
+  run("git", ["read-tree", snap], dir, 60_000);
+  run("git", ["checkout-index", "-a", "-f"], dir, 60_000);
+  run("git", ["clean", "-q", "-fd"], dir, 60_000);
+  run("git", ["reset", "-q"], dir, 60_000);
+}
+
+/** Snapshot the working tree (tracked + untracked) for restoreSnapshot: stages everything, writes
+ * the tree object, then un-stages so the tree is back to how it was before the call. */
+function snapshotTree(dir: string): string {
+  run("git", ["add", "-A"], dir, 60_000);
+  const snap = run("git", ["write-tree"], dir, 60_000).output.trim();
+  run("git", ["reset", "-q"], dir, 60_000);
+  return snap;
 }
 
 const NO_VERDICT = "reviewer gave no verdict";

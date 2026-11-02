@@ -6,14 +6,18 @@ import { run } from "../src/exec.js";
 import { runReviewer } from "../src/agent.js";
 
 /**
- * The reviewer diff-restore guard in agent.ts snapshots the tree with `git write-tree` before
- * the agent runs, and restores it with `git read-tree <snapshot> + git reset -q` if the tree
+ * The reviewer diff-restore guard in agent.ts snapshots the tree with `git add -A` + `git
+ * write-tree` + `git reset -q` before the agent runs, and restores it with `git read-tree
+ * <snapshot>` + `git checkout-index -a -f` + `git clean -fd` + `git reset -q` if the tree
  * differs afterwards. This keeps the fixer's uncommitted edits (the candidate diff) intact
- * while removing anything the reviewer added.
+ * while removing anything the reviewer added, and — because the snapshot ends with `reset -q`
+ * — the pre- and post-review `git status --porcelain` readings are taken in the same staging
+ * state, so a read-only reviewer (no tree change) is not falsely discarded.
  *
- * The second test exercises `runReviewer` directly with `SHIM_AGENT_BACKEND=dsh` and a fake
- * `dsh` on PATH that edits a file: it asserts the pre-review diff survives and the result is
- * `approve: false` (discarded).
+ * The runReviewer tests exercise the real guard with `SHIM_AGENT_BACKEND=dsh` and a fake `dsh`
+ * on PATH: one fake edits a file (verdict discarded, pre-review diff survives), one makes no
+ * edits (verdict kept, and the fake saw a non-empty `git diff` — proof the un-staged tree is
+ * what the reviewer reads).
  */
 function setupRepo(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-reviewer-guard-"));
@@ -23,7 +27,7 @@ function setupRepo(): string {
   // Stable line endings on Windows: git's checkout would otherwise round-trip the test's \n
   // working files to \r\n, so the restored file contents would not byte-equal the pre-review ones.
   run("git", ["config", "core.autocrlf", "false"], dir);
-  fs.writeFileSync(path.join(dir, "src.ts"), "const x = 1;\n");
+  fs.writeFileSync(path.join(dir, "a.ts"), "const a = 1;\n");
   run("git", ["add", "."], dir);
   run("git", ["commit", "-q", "-m", "init"], dir);
   return dir;
@@ -34,79 +38,97 @@ describe("reviewer diff-restore guard (git snapshot/restore mechanics)", () => {
   beforeEach(() => { dir = setupRepo(); });
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
-  it("read-tree + clean -fd + checkout -- . + reset -q restores a dirty tree to the snapshot state", () => {
+  it("snapshot (add -A + write-tree + reset -q) + restore (read-tree + checkout-index + clean + reset) keeps the fixer's work", () => {
     // Simulate the fixer's uncommitted work: a modified tracked file + a new untracked file.
-    fs.writeFileSync(path.join(dir, "src.ts"), "const x = 2;\n");
-    fs.writeFileSync(path.join(dir, "new-file.ts"), "const y = 1;\n");
-    // Snapshot: stage everything (so the write-tree includes the fixer's new file) then write-tree.
+    fs.writeFileSync(path.join(dir, "a.ts"), "const a = 2;\n");
+    fs.writeFileSync(path.join(dir, "b.ts"), "const b = 1;\n");
+    // Snapshot exactly as agent.ts does: stage, write-tree, then un-stage.
     run("git", ["add", "-A"], dir);
-    const treeBefore = run("git", ["write-tree"], dir).output.trim();
-    expect(treeBefore).toMatch(/^[0-9a-f]{40}$/);
-    // Simulate the reviewer making further edits: overwrite the tracked file + add its own file.
-    fs.writeFileSync(path.join(dir, "src.ts"), "const x = 99;\n");
-    fs.writeFileSync(path.join(dir, "rogue.ts"), "const z = 1;\n");
-    // Restore to the pre-review snapshot: read-tree restores new-file.ts from the snapshot into the
-    // index; clean -fd removes untracked files that are NOT in the snapshot (rogue.ts, but keeps
-    // new-file.ts because it is in the snapshot's tree); checkout -- . rewrites tracked files from the
-    // index; reset -q un-stages everything so the tree matches the pre-review diff/status exactly.
-    run("git", ["read-tree", treeBefore], dir);
-    run("git", ["clean", "-q", "-fd"], dir);
-    run("git", ["checkout", "-q", "--", "."], dir);
+    const snap = run("git", ["write-tree"], dir).output.trim();
     run("git", ["reset", "-q"], dir);
-    // The fixer's edits survive; the reviewer's additions are gone.
-    expect(fs.readFileSync(path.join(dir, "src.ts"), "utf8")).toBe("const x = 2;\n");
-    expect(fs.readFileSync(path.join(dir, "new-file.ts"), "utf8")).toBe("const y = 1;\n");
-    expect(fs.existsSync(path.join(dir, "rogue.ts"))).toBe(false);
-    // The tree is unstaged and matches the pre-review state exactly.
-    const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir).output;
+    expect(snap).toMatch(/^[0-9a-f]{40}$/);
+    // After the snapshot the tree is back to the un-staged state the fixer left it in.
+    expect(run("git", ["status", "--porcelain"], dir).output).toContain("a.ts");
+    // Simulate the reviewer making further edits: overwrite the tracked file + add its own file.
+    fs.writeFileSync(path.join(dir, "a.ts"), "const a = 99;\n");
+    fs.writeFileSync(path.join(dir, "c.ts"), "const c = 1;\n");
+    // Restore to the pre-review snapshot, exactly as agent.ts does.
+    run("git", ["read-tree", snap], dir);
+    run("git", ["checkout-index", "-a", "-f"], dir);
+    run("git", ["clean", "-q", "-fd"], dir);
+    run("git", ["reset", "-q"], dir);
+    // The fixer's edits survive; the reviewer's addition is gone; the tree is unstaged.
+    expect(fs.readFileSync(path.join(dir, "a.ts"), "utf8")).toBe("const a = 2;\n");
+    expect(fs.readFileSync(path.join(dir, "b.ts"), "utf8")).toBe("const b = 1;\n");
+    expect(fs.existsSync(path.join(dir, "c.ts"))).toBe(false);
     const statusAfter = run("git", ["status", "--porcelain"], dir).output;
-    expect(diffAfter).toContain("const x = 2");
-    expect(statusAfter).toContain("src.ts");
-    expect(statusAfter).toContain("new-file.ts");
+    expect(statusAfter).toContain("a.ts");
+    expect(statusAfter).toContain("b.ts");
   });
 
   it("the restore is idempotent: running it twice leaves the tree at the snapshot state", () => {
-    fs.writeFileSync(path.join(dir, "src.ts"), "const x = 2;\n");
-    fs.writeFileSync(path.join(dir, "new-file.ts"), "const y = 1;\n");
+    fs.writeFileSync(path.join(dir, "a.ts"), "const a = 2;\n");
+    fs.writeFileSync(path.join(dir, "b.ts"), "const b = 1;\n");
     run("git", ["add", "-A"], dir);
-    const treeBefore = run("git", ["write-tree"], dir).output.trim();
+    const snap = run("git", ["write-tree"], dir).output.trim();
+    run("git", ["reset", "-q"], dir);
     for (let i = 0; i < 2; i++) {
-      run("git", ["read-tree", treeBefore], dir);
+      run("git", ["read-tree", snap], dir);
+      run("git", ["checkout-index", "-a", "-f"], dir);
       run("git", ["clean", "-q", "-fd"], dir);
-      run("git", ["checkout", "-q", "--", "."], dir);
       run("git", ["reset", "-q"], dir);
     }
-    expect(fs.readFileSync(path.join(dir, "src.ts"), "utf8")).toBe("const x = 2;\n");
-    expect(fs.existsSync(path.join(dir, "new-file.ts"))).toBe(true);
+    expect(fs.readFileSync(path.join(dir, "a.ts"), "utf8")).toBe("const a = 2;\n");
+    expect(fs.existsSync(path.join(dir, "b.ts"))).toBe(true);
   });
 });
 
-describe("runReviewer discards its verdict and restores the tree when the reviewer edits files", () => {
+describe("runReviewer guard (fake dsh backend, real diff-restore path)", () => {
   let dir: string;
+  let fakeDir: string;
   const savedEnv: Record<string, string | undefined> = {};
-  const fakeDir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-fake-dsh-"));
+  /** Write the fake `dsh` script: `edit` adds a file to the tree; `recordDiff` dumps the length
+   * of `git diff` it saw to a file the test can read. On Windows `dsh` resolves to a .cmd batch
+   * file (cross-spawn runs it directly, no cmd /c wrapper); on POSIX a shell script. The body
+   * prints the verdict JSON to stdout (runDsh takes the combined output as the agent's text). */
+  /** Write the fake `dsh` script: `edit=true` also creates `c.ts` in the repo dir (the reviewer's
+   * "rogue" edit). The script records the count of non-empty lines in the `git diff HEAD` it sees
+   * into a file in its OWN directory (`%~dp0` on Windows, `$0`'s dir on POSIX) — never the repo
+   * dir — so the no-edit case leaves the tree byte-identical, and prints the verdict JSON to
+   * stdout, which `runDsh` takes as the agent's final text. On Windows `dsh` resolves to a .cmd
+   * batch file that cross-spawn runs directly; on POSIX a sh script. `saw-len.txt` ends up in
+   * `fakeDir` and holds the line count of the diff the fake reviewer read. */
+  function writeFakeDsh(edit: boolean) {
+    if (process.platform === "win32") {
+      // `find /v /c ""` counts non-empty lines; `delims=*` makes %%g that whole count.
+      const lines = [
+        "@ECHO OFF",
+        "git diff HEAD > \"%~dp0saw-diff.txt\" 2>nul",
+        "set DLEN=0",
+        "for /f \"delims=*\" %%g in ('find /v /c \"\" \"%~dp0saw-diff.txt\"') do set DLEN=%%g",
+        "echo %DLEN% > \"%~dp0saw-len.txt\"",
+        'echo {"approve": true, "issues": []}',
+        edit ? `(type "" 2>nul & if not exist "c.ts" (echo const c = 1 > "c.ts"))` : "exit /b 0",
+      ];
+      fs.writeFileSync(path.join(fakeDir, "dsh.cmd"), lines.join("\r\n") + "\r\n");
+    } else {
+      const lines = [
+        "#!/bin/sh",
+        edit ? "[ -f c.ts ] || echo 'const c = 1' > c.ts" : "true",
+        "git diff HEAD > saw-diff.txt",
+        "awk 'NF { c++ } END { print c+0 }' saw-diff.txt > saw-len.txt",
+        'echo \'{"approve": true, "issues": []}\'',
+      ];
+      fs.writeFileSync(path.join(fakeDir, "dsh"), lines.join("\n") + "\n", { mode: 0o755 });
+    }
+  }
 
   beforeEach(() => {
     dir = setupRepo();
+    fakeDir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-fake-dsh-"));
     // Simulate the fixer's uncommitted work (the candidate diff the judge will score).
-    fs.writeFileSync(path.join(dir, "src.ts"), "const x = 2;\n");
-    fs.writeFileSync(path.join(dir, "new-file.ts"), "const y = 1;\n");
-    // Fake `dsh`: edit a file (simulating a reviewer that slips past the allowlist), then emit
-    // a valid verdict. dsh resolves to a .cmd batch file on Windows (cross-spawn runs it directly,
-    // no cmd /c wrapper) and a shell script on POSIX; the body writes hacked.txt in the cwd and
-    // prints the verdict JSON to stdout (runDsh takes the combined output as the agent's text).
-    const body = [
-      "(type \"\" 2>nul & if not exist \"hacked.txt\" (echo const hacked = 1 > \"hacked.txt\"))",
-      'echo {"approve": true, "issues": []}',
-    ];
-    const fake = path.join(fakeDir, "dsh");
-    if (process.platform === "win32") {
-      fs.writeFileSync(fake + ".cmd", `@ECHO OFF\r\n${body.join("\r\n")}\r\n`);
-    } else {
-      const sh = ["[ -f hacked.txt ] || echo 'const hacked = 1' > hacked.txt", "echo '{\"approve\": true, \"issues\": []}'"];
-      fs.writeFileSync(fake, `#!/bin/sh\n${sh.join("\n")}\n`, { mode: 0o755 });
-    }
-    // Put the fake dsh on PATH and select the dsh backend.
+    fs.writeFileSync(path.join(dir, "a.ts"), "const a = 2;\n");
+    fs.writeFileSync(path.join(dir, "b.ts"), "const b = 1;\n");
     for (const k of ["PATH", "SHIM_AGENT_BACKEND", "SHIM_SANDBOX", "SHIM_REVIEWER_MODEL"] as const)
       savedEnv[k] = process.env[k];
     process.env.PATH = `${fakeDir}${path.delimiter}${process.env.PATH ?? ""}`;
@@ -124,11 +146,12 @@ describe("runReviewer discards its verdict and restores the tree when the review
     fs.rmSync(fakeDir, { recursive: true, force: true });
   });
 
-  it("pre-review diff survives and the verdict is discarded (approve: false)", async () => {
+  it("reviewer that edits files: verdict discarded, pre-review diff survives", async () => {
+    writeFakeDsh(true);
     const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir).output;
     const statusBefore = run("git", ["status", "--porcelain"], dir).output;
-    expect(diffBefore).toContain("const x = 2"); // the fixer's edit
-    expect(statusBefore).toContain("new-file.ts"); // the fixer's new file
+    expect(diffBefore).toContain("const a = 2"); // the fixer's edit
+    expect(statusBefore).toContain("b.ts"); // the fixer's new file
 
     const review = await runReviewer(dir);
 
@@ -136,13 +159,36 @@ describe("runReviewer discards its verdict and restores the tree when the review
     expect(review.approve).toBe(false);
     expect(review.issues[0]).toBe("reviewer modified files; result discarded");
     // The fixer's pre-review diff and new file survive the restore.
-    const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir).output;
-    const statusAfter = run("git", ["status", "--porcelain"], dir).output;
-    expect(diffAfter).toBe(diffBefore);
-    expect(statusAfter).toBe(statusBefore);
-    expect(fs.readFileSync(path.join(dir, "src.ts"), "utf8")).toBe("const x = 2;\n");
-    expect(fs.existsSync(path.join(dir, "new-file.ts"))).toBe(true);
+    expect(run("git", ["diff", "HEAD", "--binary"], dir).output).toBe(diffBefore);
+    expect(run("git", ["status", "--porcelain"], dir).output).toBe(statusBefore);
+    expect(fs.readFileSync(path.join(dir, "a.ts"), "utf8")).toBe("const a = 2;\n");
+    expect(fs.existsSync(path.join(dir, "b.ts"))).toBe(true);
     // The reviewer's own addition is gone.
-    expect(fs.existsSync(path.join(dir, "hacked.txt"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "c.ts"))).toBe(false);
+  });
+
+  it("reviewer that makes no edits: verdict kept, tree unchanged, and it saw a non-empty diff", async () => {
+    writeFakeDsh(false);
+    const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir).output;
+    const statusBefore = run("git", ["status", "--porcelain"], dir).output;
+    expect(diffBefore).not.toBe(""); // the fixer's work is a real, non-empty diff
+
+    const review = await runReviewer(dir);
+
+    // Read-only reviewer: verdict is trusted, tree is untouched.
+    expect(review.approve).toBe(true);
+    expect(fs.readFileSync(path.join(dir, "a.ts"), "utf8")).toBe("const a = 2;\n");
+    expect(fs.existsSync(path.join(dir, "b.ts"))).toBe(true);
+    expect(run("git", ["diff", "HEAD", "--binary"], dir).output).toBe(diffBefore);
+    expect(run("git", ["status", "--porcelain"], dir).output).toBe(statusBefore);
+    // The fake reviewer recorded the line count of the `git diff` it read, in its own directory
+    // (never the repo dir, so the no-edit tree stayed byte-identical): it must be non-zero,
+    // i.e. the un-staged tree (not an empty staged one) is what the agent saw. `find /v /c`
+    // prints "---- <file>: N" so pull the number out of the tail.
+    const sawLenRaw = fs.readFileSync(path.join(fakeDir, "saw-len.txt"), "utf8").trim();
+    const m = sawLenRaw.match(/(\d+)\s*$/);
+    expect(m, `saw-len.txt was ${JSON.stringify(sawLenRaw)}`).not.toBeNull();
+    const sawLen = Number(m![1]);
+    expect(sawLen).toBeGreaterThan(0);
   });
 });
