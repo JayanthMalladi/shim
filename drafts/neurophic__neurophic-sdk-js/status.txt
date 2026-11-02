@@ -1,5 +1,5 @@
-ready
-all baseline gates still pass and no breaking findings remain
+needs-review
+all baseline gates still pass and no breaking findings remain; judge rejected the public-signature change, human call needed
 head: HEAD: 9e74f9d
 
 Gate table (ai@7, candidate):
@@ -9,7 +9,21 @@ Gate table (ai@7, candidate):
 | typecheck . | pass | pass |
 | typecheck packages/ai-sdk | pass | pass |
 
-Fix note: in ai@7 the `tool()` execute callbacks lost input inference under this package's strict tsconfig,
-so the two execute callbacks in packages/ai-sdk/src/tools.ts now type their `args` parameter inline
-(no public signature change on createTools, no new public type import). `since` stays `string`
-to match the z.iso schema. See pr.md "What changed and why".
+Fix note: in ai@7 the return type of `tool()` (ExecutableTool<Tool<…>> from @ai-sdk/provider-utils /
+@ai-sdk/provider) can't be named by a library that only depends on `ai`, so tsc reports:
+src/tools.ts(5,17): error TS2742: The inferred type of 'createTools' cannot be named without a reference to
+'.pnpm/@ai-sdk+provider-utils@5.0.72_zod@4.3.6/node_modules/@ai-sdk/provider-utils'. This is likely not portable.
+(a second identical error names @ai-sdk/provider). This fails the build (tsdown .d.ts) and both typecheck gates.
+The fix adds an explicit return type to createTools, spelling its two tools with `Tool<In, Out>` (Tool is re-exported
+by `ai`; In = the schema's field types, Out = { success: boolean; id: string; status: string } and { result: string }
+— the shape of RetrieveResponse from the neurophic client). The execute callbacks keep their original destructured
+parameters and the schemas are unchanged. Since the package tsconfig has declaration:true and no "paths" mapping,
+adding @ai-sdk/provider-utils as a devDependency instead would just re-export the same non-portable names; the
+public signature is what changes either way, so this one-line annotation is the smallest diff. See pr.md.
+
+Judge note (2026-11-02 rerun): the fixed judge rejected this form. Its rule "no added explicit type annotation on an
+exported function" fires on the createTools return annotation. The judge also claimed the annotation is not required,
+having tested only `tsc --noEmit` (typecheck passes without it) — but that is the typecheck gate, not the build gate:
+tsdown's .d.ts emit fails with TS2742 without the annotation (verified: build fails, typecheck passes). Both options
+cross the "pure upgrade" line; a human must choose which to ship: the annotation, or @ai-sdk/provider-utils as a
+devDependency + a tsconfig `paths` mapping.

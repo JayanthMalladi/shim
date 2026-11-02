@@ -12,47 +12,25 @@ index 33bd330..4521de3 100644
      "tsdown": "^0.21.0",
      "typescript": "^5.5.0",
 diff --git a/packages/ai-sdk/src/tools.ts b/packages/ai-sdk/src/tools.ts
-index 9ae01ff..27e7931 100644
+index 9ae01ff..a7f3a5d 100644
 --- a/packages/ai-sdk/src/tools.ts
 +++ b/packages/ai-sdk/src/tools.ts
-@@ -14,12 +14,12 @@ export function createTools(options: NeurophicToolOptions) {
- 				.optional()
- 				.describe("Optional topic used to categorise the memory"),
- 		}),
--		execute: async ({ content, topic }) => {
-+		execute: async (args: { content: string; topic?: "work" | "personal" }) => {
- 			const { id, status } = await client.ingest({
- 				identifier,
- 				name,
--				content,
--				metadata: topic ? { topic } : undefined,
-+				content: args.content,
-+				metadata: args.topic ? { topic: args.topic } : undefined,
- 			});
- 			return { success: true, id, status };
- 		},
-@@ -47,8 +47,19 @@ export function createTools(options: NeurophicToolOptions) {
- 				.optional()
- 				.describe("Maximum number of results (default 5)"),
- 		}),
--		execute: async ({ query, goal, since, limit }) => {
--			return client.retrieve({ identifier, query, goal, since, limit });
-+		execute: async (args: {
-+			query: string;
-+			goal?: string;
-+			since?: string;
-+			limit?: number;
-+		}) => {
-+			return client.retrieve({
-+				identifier,
-+				query: args.query,
-+				goal: args.goal,
-+				since: args.since,
-+				limit: args.limit,
-+			});
- 		},
- 	});
+@@ -1,8 +1,13 @@
+-import { tool } from "ai";
++import { tool, type Tool } from "ai";
+ import { z } from "zod";
+ import type { NeurophicToolOptions } from "./types";
  
+-export function createTools(options: NeurophicToolOptions) {
++export function createTools(
++	options: NeurophicToolOptions,
++): {
++	remember: Tool<{ content: string; topic?: "work" | "personal" }, { success: boolean; id: string; status: string }>;
++	recall: Tool<{ query: string; goal?: string; since?: string; limit?: number }, { result: string }>;
++} {
+ 	const { client, identifier, name } = options;
+ 
+ 	const remember = tool({
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
 index ff7d7d1..aa4c744 100644
 --- a/pnpm-lock.yaml

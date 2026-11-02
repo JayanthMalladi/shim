@@ -1,6 +1,8 @@
-verdict: approve
+verdict: reject (packages/ai-sdk/src/tools.ts:5 exported createTools gained an explicit Tool<...> return-type annotation (and Tool import); the package typechecks under ai@7 without it, and the annotation changes the public type to the full Tool union (including DynamicTool/ProviderDefinedTool/ProviderExecutedTool) instead of the inferred concrete tool type — drop the annotation (keep the version bump) to make this a pure upgrade)
 {
-  "approve": true,
-  "issues": [],
-  "cost": 0.5415272
+  "approve": false,
+  "issues": [
+    "packages/ai-sdk/src/tools.ts:5 exported createTools gained an explicit Tool<...> return-type annotation (and Tool import); the package typechecks under ai@7 without it, and the annotation changes the public type to the full Tool union (including DynamicTool/ProviderDefinedTool/ProviderExecutedTool) instead of the inferred concrete tool type — drop the annotation (keep the version bump) to make this a pure upgrade"
+  ],
+  "cost": 2.9021908
 }
