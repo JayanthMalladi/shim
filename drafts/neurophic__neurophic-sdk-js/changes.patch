@@ -12,21 +12,24 @@ index 33bd330..4521de3 100644
      "tsdown": "^0.21.0",
      "typescript": "^5.5.0",
 diff --git a/packages/ai-sdk/src/tools.ts b/packages/ai-sdk/src/tools.ts
-index 9ae01ff..a7f3a5d 100644
+index 9ae01ff..6062101 100644
 --- a/packages/ai-sdk/src/tools.ts
 +++ b/packages/ai-sdk/src/tools.ts
-@@ -1,8 +1,13 @@
+@@ -1,8 +1,16 @@
 -import { tool } from "ai";
 +import { tool, type Tool } from "ai";
  import { z } from "zod";
  import type { NeurophicToolOptions } from "./types";
  
 -export function createTools(options: NeurophicToolOptions) {
-+export function createTools(
-+	options: NeurophicToolOptions,
-+): {
-+	remember: Tool<{ content: string; topic?: "work" | "personal" }, { success: boolean; id: string; status: string }>;
-+	recall: Tool<{ query: string; goal?: string; since?: string; limit?: number }, { result: string }>;
++type RememberInput = { content: string; topic?: "work" | "personal" };
++type RememberOutput = { success: boolean; id: string; status: string };
++type RecallInput = { query: string; goal?: string; since?: string; limit?: number };
++type RecallOutput = { result: string };
++
++export function createTools(options: NeurophicToolOptions): {
++	remember: Tool<RememberInput, RememberOutput>;
++	recall: Tool<RecallInput, RecallOutput>;
 +} {
  	const { client, identifier, name } = options;
  

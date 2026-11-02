@@ -21,9 +21,18 @@ parameters and the schemas are unchanged. Since the package tsconfig has declara
 adding @ai-sdk/provider-utils as a devDependency instead would just re-export the same non-portable names; the
 public signature is what changes either way, so this one-line annotation is the smallest diff. See pr.md.
 
+Widening note: `Tool<In, Out>` in ai@7 declares `execute` optional, whereas the v6 inferred return type had it
+required. The annotation therefore widens the public type: `remember.execute` / `recall.execute` become optional.
+Flagged under "Please check before merging" in pr.md.
+
 Judge note (2026-11-02 rerun): the fixed judge rejected this form. Its rule "no added explicit type annotation on an
 exported function" fires on the createTools return annotation. The judge also claimed the annotation is not required,
 having tested only `tsc --noEmit` (typecheck passes without it) — but that is the typecheck gate, not the build gate:
 tsdown's .d.ts emit fails with TS2742 without the annotation (verified: build fails, typecheck passes). Both options
 cross the "pure upgrade" line; a human must choose which to ship: the annotation, or @ai-sdk/provider-utils as a
 devDependency + a tsconfig `paths` mapping.
+Option (c) — spelling `execute` as required via `Tool<In, Out> & { execute: ToolExecuteFunction<In, Out> }` — was
+tested and fails to compile under ai@7: `ToolExecuteFunction` in @ai-sdk/provider-utils@5.0.72 requires three type
+arguments (INPUT, OUTPUT, CONTEXT) and `Context` is not re-exported by `ai`. The judge rejected it on both the
+compile failure and the annotation rule. So option (a) above is the smallest compilable form that imports only from
+`ai` with no new dependency.
