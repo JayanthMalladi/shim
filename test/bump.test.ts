@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { allowsMajor, bumpAiSdk } from "../src/bump.js";
+import { allowsMajor, bumpAiSdk, bumpZod } from "../src/bump.js";
 
 describe("allowsMajor", () => {
   it.each([
@@ -40,6 +40,34 @@ describe("bumpAiSdk", () => {
     expect(read("packages/a/package.json")).toContain('"@ai-sdk/provider": "workspace:*"');
     // Already allows the target major, or isn't a range: untouched, formatting included.
     expect(read("packages/b/package.json")).toBe('{ "dependencies": { "@ai-sdk/google": "^4.1.0", "@ai-sdk/openai": "catalog:" } }');
+    expect(read("node_modules/x/package.json")).toContain("^3.0.0");
+  });
+});
+
+describe("bumpZod", () => {
+  it("bumps zod 3 ranges in dependencies and devDependencies only, in place", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bump-zod-"));
+    const write = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), text);
+    };
+    write("package.json", '{\n    "name": "root",\n    "dependencies": {\n        "zod": "^3.22.4"\n    }\n}\n');
+    write("packages/a/package.json", '{ "devDependencies": { "zod": "3.25.76" }, "peerDependencies": { "zod": "^3.22.0" } }');
+    write("packages/b/package.json", '{ "dependencies": { "zod": "^4.1.0" }, "devDependencies": { "zod-to-json-schema": "^3.24.0" } }');
+    write("packages/c/package.json", '{ "dependencies": { "zod": "^3.25.0 || ^4.0.0" } }');
+    write("packages/d/package.json", '{ "dependencies": { "zod": "catalog:" } }');
+    write("node_modules/x/package.json", '{ "dependencies": { "zod": "^3.0.0" } }');
+
+    expect(bumpZod(root).sort()).toEqual([
+      "zod (package.json, dependencies): ^3.22.4 -> ^4.0.0",
+      "zod (packages/a/package.json, devDependencies): 3.25.76 -> ^4.0.0",
+    ]);
+    const read = (rel: string) => fs.readFileSync(path.join(root, rel), "utf8");
+    expect(read("package.json")).toBe('{\n    "name": "root",\n    "dependencies": {\n        "zod": "^4.0.0"\n    }\n}\n');
+    expect(read("packages/a/package.json")).toBe('{ "devDependencies": { "zod": "^4.0.0" }, "peerDependencies": { "zod": "^3.22.0" } }');
+    expect(read("packages/b/package.json")).toBe('{ "dependencies": { "zod": "^4.1.0" }, "devDependencies": { "zod-to-json-schema": "^3.24.0" } }');
+    expect(read("packages/c/package.json")).toBe('{ "dependencies": { "zod": "^3.25.0 || ^4.0.0" } }');
+    expect(read("packages/d/package.json")).toBe('{ "dependencies": { "zod": "catalog:" } }');
     expect(read("node_modules/x/package.json")).toContain("^3.0.0");
   });
 });

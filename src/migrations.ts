@@ -2,7 +2,7 @@ import type { Project } from "ts-morph";
 import type { RuleContext } from "./rules/ai-sdk-v7.js";
 import { checkCiNodeVersions, checkPackageJsons, findAiPackages, findPackages } from "./scan.js";
 import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
-import { bumpAiSdk, bumpZod } from "./bump.js";
+import { allowsMajor, bumpAiSdk, bumpZod } from "./bump.js";
 import { applyAutoFixes } from "./rules/ai-sdk-v7.js";
 import { scanZodV4 } from "./rules/zod-v4.js";
 import { FIXER_RULES, REVIEWER_RULES } from "./arch.js";
@@ -86,7 +86,7 @@ export const ZOD_V4: Migration = {
   id: "zod-v4",
   title: "Zod 4",
   findPackages: (root) => findPackages(root, "zod"),
-  isOldMajor: (range) => /(^|[\^~>=\s])3(\.|$)/.test(range),
+  isOldMajor: (range) => allowsMajor(range, 3) && !allowsMajor(range, 4),
   bump: (root) => bumpZod(root),
   codemod: () => false, // community codemod zod-v3-to-v4, not wired yet; deterministic rules cover the silent breaks
   scan: scanZodV4,

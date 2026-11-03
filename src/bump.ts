@@ -56,14 +56,14 @@ export function bumpZod(root: string): string[] {
   for (const file of findPackageJsons(root)) {
     let text = fs.readFileSync(file, "utf8");
     const pkg = JSON.parse(text);
-    for (const field of DEP_FIELDS) {
+    // Not peerDependencies: a package with a zod peer is skipped before the bump (see zod-skips.ts).
+    for (const field of ["dependencies", "devDependencies"] as const) {
       for (const [name, range] of Object.entries<string>(pkg[field] ?? {})) {
         if (name !== "zod") continue;
         // workspace:, catalog:, npm:, file: and the like aren't ranges we can rewrite.
         if (range.includes(":")) continue;
-        // Never touch a range that already allows the target major (the "zod/v3" alias package
-        // stays on 3.x; the bump only rewrites the exact `zod` dependency).
-        if (!allowsMajor(range, 4)) continue;
+        // Only zod 3 ranges; never touch one that already allows 4.
+        if (allowsMajor(range, 4) || !allowsMajor(range, 3)) continue;
         const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
         if (!pattern.test(text)) continue;
         text = text.replace(pattern, `$1"^4.0.0"`);
