@@ -1,4 +1,5 @@
 import { DEFAULT_ARCH, REVIEWER_RULES, type Architecture } from "./arch.js";
+import { getMigration, type Migration } from "./migrations.js";
 import { costUnpriced, run, runAgentBackend, type ExecResult } from "./exec.js";
 import { resolveModel } from "./evolve-guard.js";
 import type { Finding } from "./types.js";
@@ -26,18 +27,20 @@ export interface FixBrief {
  * Hand what Shim can't fix deterministically to a headless Claude Code run.
  * The agent gets a narrow brief: fix exactly these sites, keep v6 behavior, touch nothing else.
  */
-export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFAULT_ARCH): Promise<ExecResult> {
+/**
+ * The fixer's prompt, word for word: the intro, the rules, the reference, the optional audit and checks, the findings.
+ */
+export function fixerPrompt(brief: FixBrief, arch: Architecture, m: Migration = getMigration()): string {
   const { findings, failures, reviewIssues = [] } = brief;
   const nothingListed = !findings.length && !failures && !reviewIssues.length;
-  const prompt = [
-    "You are finishing an AI SDK 6 -> 7 migration in this repository. Dependencies are already bumped",
-    "and the official codemod has run. Fix only what is listed below.",
+  return [
+    m.fixerIntro,
     "",
     arch.fixerRules,
     "",
-    "Reference: node_modules/ai/docs/08-migration-guides/23-migration-guide-7-0.mdx",
+    `Reference: ${m.reference}`,
     "",
-    ...(arch.audit
+    ...(arch.audit && m.id === "ai-sdk-v7"
       ? [
           "Also audit every generateText, streamText, generateObject, streamObject and Agent call in the repo's",
           "source (not node_modules). For each one that runs several steps (stopWhen or maxSteps set, or an Agent), check every",
@@ -58,7 +61,10 @@ export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFA
       ? ["", "A reviewer rejected your previous diff for these reasons. Fix each one, or undo the edit that caused it:", ...reviewIssues.map((i) => `- ${i}`)]
       : []),
   ].join("\n");
+}
 
+export function runFixer(dir: string, brief: FixBrief, arch: Architecture = DEFAULT_ARCH, m: Migration = getMigration()): Promise<ExecResult> {
+  const prompt = fixerPrompt(brief, arch, m);
   const args = [
     "-p", prompt,
     "--model", arch.fixerModel,
@@ -80,11 +86,25 @@ export interface Review {
   cost: number | null;
 }
 
+/** The reviewer's prompt, word for word: the task, the rules, the reference, the verdict format. */
+export function reviewerPrompt(rules: string, m: Migration = getMigration()): string {
+  return [
+    "Review the uncommitted diff in this repository (`git diff`, plus untracked files from `git status`).",
+    m.reviewerIntro,
+    "",
+    rules,
+    "",
+    `Reference: ${m.reference}`,
+    "Ignore package.json version ranges and lockfiles. Do not edit files.",
+    'End with one line of JSON and nothing after it: {"approve": true|false, "issues": ["file:line what is wrong"]}',
+  ].join("\n");
+}
+
 /**
  * A read-only agent that never saw the fixer's reasoning reviews the whole diff.
  * It looks for what the gates can't see: changed behavior, edits outside the migration, weakened tests.
  */
-export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: string): Promise<Review> {
+export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: string, m: Migration = getMigration()): Promise<Review> {
   const resolvedModel = model ?? resolveModel("reviewer", DEFAULT_ARCH.reviewerModel);
   // Snapshot the tree before the agent runs: the reviewer is read-only, so if its run ends with a
   // modified tree (a prompt-injection or a tool that slipped past the allowlist) we restore the
@@ -95,16 +115,7 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   // Snapshot the pre-review tree (including the fixer's uncommitted edits and new files) so the
   // restore can reset the tree to exactly that state without wiping the fixer's work.
   const treeBefore = snapshotTree(dir);
-  const prompt = [
-    "Review the uncommitted diff in this repository (`git diff`, plus untracked files from `git status`).",
-    "It upgrades the project from AI SDK 6 to 7. A maintainer will merge it only if it is a pure upgrade.",
-    "",
-    rules,
-    "",
-    "Reference: node_modules/ai/docs/08-migration-guides/23-migration-guide-7-0.mdx",
-    "Ignore package.json version ranges and lockfiles. Do not edit files.",
-    'End with one line of JSON and nothing after it: {"approve": true|false, "issues": ["file:line what is wrong"]}',
-  ].join("\n");
+  const prompt = reviewerPrompt(rules, m);
   // A run that errors out or ends without a verdict (API error, turn limit) gets one more try.
   const unpriced = costUnpriced();
   let cost: number | null = unpriced ? null : 0;
@@ -186,7 +197,7 @@ export const JUDGE_RULES = `${REVIEWER_RULES}
 - The diff leaves code that cannot compile, references names that do not exist, or renames anything this
   package exports.`;
 
-export const runJudge = (dir: string) => runReviewer(dir, JUDGE_RULES, judgeModel());
+export const runJudge = (dir: string, m: Migration = getMigration()) => runReviewer(dir, m.judgeRules, judgeModel(), m);
 
 /** The verdict is the last JSON line. Anything unparseable counts as a rejection. */
 export function parseReview(output: string): Omit<Review, "output" | "cost"> {

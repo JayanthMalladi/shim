@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { run } from "./exec.js";
 import type { Candidate } from "./discover.js";
-import { findAiPackages, scan } from "./scan.js";
+import { getMigration, type Migration } from "./migrations.js";
+import { scanWith } from "./scan.js";
 
 export interface TriageRow extends Candidate {
   break: number;
@@ -16,7 +17,7 @@ export interface TriageRow extends Candidate {
  * Shallow-clone each candidate and scan it. Read-only: nothing from the repo is
  * installed or executed. Rows with silent findings are where Shim beats the codemod.
  */
-export function triage(candidates: Candidate[], workDir: string): TriageRow[] {
+export function triage(candidates: Candidate[], workDir: string, m: Migration = getMigration()): TriageRow[] {
   fs.mkdirSync(workDir, { recursive: true });
   const rows: TriageRow[] = [];
   for (const c of candidates) {
@@ -27,9 +28,9 @@ export function triage(candidates: Candidate[], workDir: string): TriageRow[] {
         const clone = run("git", ["clone", "--depth", "1", "--quiet", `https://github.com/${c.repo}`, dir], workDir, 5 * 60_000);
         if (!clone.ok) throw new Error(`clone failed: ${clone.output.trim().split("\n").pop()}`);
       }
-      const { findings } = scan(dir).result;
+      const { findings } = scanWith(dir, m).result;
       for (const f of findings) row[f.severity]++;
-      row.aiPackages = findAiPackages(dir).length;
+      row.aiPackages = m.findPackages(dir).length;
     } catch (e) {
       row.error = (e as Error).message.slice(0, 200);
     }

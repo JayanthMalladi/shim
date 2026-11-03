@@ -1,4 +1,5 @@
 import type { MigrationReport } from "./pipeline.js";
+import { getMigration, type Migration } from "./migrations.js";
 import type { Finding } from "./types.js";
 
 const SEVERITY_LABEL = {
@@ -15,7 +16,7 @@ const MAX_LOCATIONS = 10;
  * `patch` is the change as a unified diff (any context size): it decides which findings the PR really fixed.
  * Without it, a finding counts as fixed if its file changed at all.
  */
-export function prBody(r: MigrationReport, patch?: string): string {
+export function prBody(r: MigrationReport, patch?: string, m: Migration = getMigration()): string {
   const changes = patch === undefined ? undefined : parsePatch(patch);
   const seen = new Set<string>();
   const unique = r.before.filter((f) => !seen.has(key(f)) && !!seen.add(key(f)));

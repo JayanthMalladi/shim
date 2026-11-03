@@ -3,6 +3,8 @@
  * package's latest manifest. Libraries with a GitHub repo and a recent release are
  * the best PR targets: active maintainers, and their users inherit the upgrade.
  */
+import { getMigration } from "./migrations.js";
+
 const REGISTRY = "https://registry.npmjs.org";
 const QUERIES = [
   "keywords:ai-sdk", "keywords:vercel-ai", "keywords:vercel-ai-sdk", "keywords:ai-sdk-provider",
@@ -48,7 +50,7 @@ function githubRepo(manifest: any): string | undefined {
 
 const isV6 = (range: string) => /(^|[\^~>=\s|])6(\.|$|\s)/.test(range) && !/(^|[\^~>=\s|])7(\.|$|\s)/.test(range);
 
-async function inspect(name: string, sinceMs: number): Promise<Candidate | undefined> {
+async function inspect(name: string, sinceMs: number, m: import("./migrations.js").Migration): Promise<Candidate | undefined> {
   const doc = await getJson(`${REGISTRY}/${name.replace("/", "%2F")}`);
   const version = doc["dist-tags"]?.latest;
   const manifest = doc.versions?.[version];
@@ -56,11 +58,15 @@ async function inspect(name: string, sinceMs: number): Promise<Candidate | undef
   if (!manifest || !published || Date.parse(published) < sinceMs) return undefined;
   const aiRange = manifest.dependencies?.ai ?? manifest.peerDependencies?.ai ?? manifest.devDependencies?.ai;
   const repo = githubRepo(manifest);
-  if (!aiRange || !isV6(aiRange) || !repo || repo.startsWith("vercel/")) return undefined;
+  // The default (AI SDK) migration keeps the original isV6 filter so --migration ai-sdk-v7 behaves
+  // exactly like today; a non-AI-SDK migration supplies its own old-major test.
+  const isOld = m.id === "ai-sdk-v7" ? isV6 : m.isOldMajor;
+  if (!aiRange || !isOld(aiRange) || !repo || repo.startsWith("vercel/")) return undefined;
   return { name, version, aiRange, repo, published };
 }
 
-export async function discover(days = 60, concurrency = 16): Promise<Candidate[]> {
+export async function discover(days = 60, concurrency = 16, m?: import("./migrations.js").Migration): Promise<Candidate[]> {
+  const mig = m ?? getMigration();
   const names = new Set<string>();
   for (const q of QUERIES) for (const n of await searchNames(q)) names.add(n);
   console.error(`[discover] ${names.size} packages to inspect`);
@@ -71,7 +77,7 @@ export async function discover(days = 60, concurrency = 16): Promise<Candidate[]
   await Promise.all(Array.from({ length: concurrency }, async () => {
     for (let n = queue.pop(); n; n = queue.pop()) {
       try {
-        const c = await inspect(n, sinceMs);
+        const c = await inspect(n, sinceMs, mig);
         // One PR per repo: keep the most recently published package of a monorepo.
         if (c && (!found.has(c.repo) || found.get(c.repo)!.published < c.published)) found.set(c.repo, c);
       } catch {

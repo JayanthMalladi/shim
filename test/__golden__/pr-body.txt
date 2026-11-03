@@ -1,0 +1,27 @@
+## Upgrade to AI SDK 7
+
+This PR moves the project from AI SDK 6 to 7 and keeps its current behavior, except where noted under "Needs your eyes".
+
+### Versions
+- `ai`: ^6.0.0 → ^7.0.0
+
+### What changed and why
+No code changes needed: only dependency versions changed.
+
+### Needs your eyes
+Shim did not change these. Please check them before merging.
+- `src/a.ts:3`: m
+
+### How it was checked
+| Check | Before | After |
+|---|---|---|
+| install | pass | pass |
+| typecheck . | pass | pass |
+
+Also ran `npx @ai-sdk/codemod v7` (official). Install ran with `--ignore-scripts`.
+
+### Rollback
+Revert this PR. No data or config migrations are involved.
+
+---
+Opened by [Shim](https://github.com/JayanthMalladi/shim), which turns API breaking changes into tested PRs. Not useful? Close it and we won't open another on this repo.
