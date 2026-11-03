@@ -1,6 +1,0 @@
-verdict: approve
-{
-  "approve": true,
-  "issues": [],
-  "cost": 0.5627352
-}
