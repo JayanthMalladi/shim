@@ -66,13 +66,15 @@ export function scanZodV4(project: Project, root: string): RuleContext {
   return ctx;
 }
 
-/** Local names of the named `z` import (and its alias) and namespace imports, from exactly "zod". */
+/** Local names of the named `z` import (and its alias), the default import and namespace imports, from exactly "zod". */
 function zodBindings(sf: SourceFile): ZodBindings {
   const names = new Set<string>();
   for (const decl of sf.getImportDeclarations()) {
     if (decl.getModuleSpecifierValue() !== "zod") continue; // "zod/v3" and "zod/v4" keep their own semantics
     const ns = decl.getNamespaceImport();
     if (ns) names.add(ns.getText());
+    const def = decl.getDefaultImport(); // Zod 3's default export is the same `z` object
+    if (def) names.add(def.getText());
     for (const spec of decl.getNamedImports()) {
       if (spec.getName() === "z") names.add(spec.getAliasNode()?.getText() ?? spec.getName());
     }
