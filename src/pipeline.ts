@@ -4,6 +4,7 @@ import { runReviewer } from "./agent.js";
 import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { getMigration, type Migration } from "./migrations.js";
 import { codemodExportFindings } from "./codemod-guard.js";
+import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
@@ -101,8 +102,14 @@ const emptyReport = (repo: string) => ({ repo, versionChanges: [], library: fals
 
 export async function prepare(dir: string, repo: string, m: Migration = getMigration()): Promise<{ prepared: Prepared } | { skip: string; baseline?: GateResults }> {
   const pkgs = m.findPackages(dir);
+  if (m.id === "zod-v4") {
+    const peer = zodPeerDependencySkip(dir);
+    if (peer) return { skip: peer };
+  }
   if (!pkgs.some((p) => m.isOldMajor(p.range))) {
-    return { skip: `not on ai@6 (${pkgs.map((p) => p.range).join(", ") || "no ai dependency"})` };
+    const ranges = pkgs.map((p) => p.range).join(", ");
+    if (m.id === "zod-v4") return { skip: ranges ? `already on zod 4 (${ranges})` : "no zod dependency" };
+    return { skip: `not on ai@6 (${ranges || "no ai dependency"})` };
   }
   const pm = detectPackageManager(dir);
   const pkgDirs = pkgs.map((p) => path.dirname(p.file));
@@ -114,6 +121,10 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
   log(`baseline gates (${pm})`);
   const baseline = runGates(dir, pm, true, pkgDirs);
   if (!baseline.install?.ok) return { skip: "baseline install fails", baseline };
+  if (m.id === "zod-v4") {
+    const peer = installedPeerSkip([...new Set([dir, ...pkgDirs])]);
+    if (peer) return { skip: peer, baseline };
+  }
 
   log("bumping dependencies");
   const versionChanges = m.bump(dir);
