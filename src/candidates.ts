@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { runFixer, runReviewer, type Review } from "./agent.js";
 import type { Architecture } from "./arch.js";
+import { getMigration, type Migration } from "./migrations.js";
 import { copyRepo, rmTree, unshareNodeModules } from "./copy.js";
 import { costUnpriced, run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
@@ -34,6 +35,8 @@ export interface FixContext {
   breaks: (dir: string) => Finding[];
   /** Shell commands equivalent to the gates, relative to the repo root. */
   checks?: string[];
+  /** Which migration the fixer and reviewer run under. */
+  m?: Migration;
 }
 
 const MANIFESTS = /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|pnpm-workspace\.yaml)$/;
@@ -51,6 +54,7 @@ export async function fixInParallel(dir: string, arch: Architecture, ctx: FixCon
 }
 
 async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext): Promise<Candidate> {
+  const m = ctx.m ?? getMigration();
   await rmTree(cdir);
   copyRepo(dir, cdir);
   // Snapshot so the candidate's own diff can be measured, then undone before review.
@@ -66,7 +70,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   const passing = () => !regressions(ctx.baseline, after).length && !remaining.length;
   const fix = async (reviewIssues?: string[]) => {
     const first = !agentRuns.length;
-    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch);
+    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch, m);
     agentRuns.push(res.text ?? res.output);
     if (!unpriced) cost = (cost ?? 0) + (res.cost ?? 0);
     // Reinstall only if the fixer touched a manifest; then drop the shared node_modules first.
@@ -82,7 +86,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   }
   if (arch.review) {
     for (let round = 0; passing(); round++) {
-      review = await runReviewer(cdir, arch.reviewerRules, arch.reviewerModel);
+      review = await runReviewer(cdir, arch.reviewerRules, arch.reviewerModel, m);
       if (!unpriced) cost = (cost ?? 0) + (review.cost ?? 0);
       if (review.approve || round >= arch.reviewRounds) break;
       await fix(review.issues);
