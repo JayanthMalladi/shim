@@ -1,6 +1,16 @@
 # Shim
 
-When an API you depend on changes, Shim opens a tested pull request that updates your code before it breaks.
+[![npm](https://img.shields.io/npm/v/getshim)](https://www.npmjs.com/package/getshim) [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+Shim is an upgrade agent for TypeScript apps: when an API you depend on changes, it opens one tested pull request that updates your code before it breaks.
+
+```sh
+npx getshim scan .
+```
+
+Needs Node 22 or later. Site and live PR list: [getshim.vercel.app](https://getshim.vercel.app/)
+
+![Shim scans an AI SDK 7 app, finds result.usage now counts every step, rewrites it to finalStep.usage, and reruns the checks](docs/assets/demo.gif)
 
 The first migration is **Vercel AI SDK 6 -> 7**. The official codemod handles renames. Shim handles the changes that still compile but behave differently. For example, on a multi-step call `result.usage` now counts every step, and `result.response.messages` holds only the last step's messages.
 
