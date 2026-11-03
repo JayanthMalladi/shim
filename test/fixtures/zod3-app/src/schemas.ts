@@ -5,8 +5,8 @@ export const a1 = z.string().default("a").optional(); // FLAG R1
 export const a2 = z.number().default(() => 1).nullish(); // FLAG R1
 export const a3 = z.object({ p: z.boolean().default(true).optional() }); // FLAG R1 (inside a z.object property)
 export const a4 = z.string().optional().default("a"); // OK R1 (.optional() before .default())
-const foo = { default: (v: unknown) => v, optional: (v: unknown) => v }; // OK R1 (a local, non-zod object with .default/.optional methods)
-export const a5 = foo.default(1).optional();
+const foo = { default: (v: unknown) => v, optional: (v: unknown) => v };
+export const a5 = foo.default(1).optional(); // OK R1 (a local, non-zod object with .default/.optional methods)
 
 // --- R2 zod-default-through-transform: .default() after transform/pipe/trim/... ---
 export const b1 = z.string().transform((s) => s.trim()).default("x"); // FLAG R2
@@ -22,8 +22,8 @@ export const c1 = z.string().uuid(); // FLAG R3
 export const c2 = z.string().uuid({ message: "bad" }); // FLAG R3
 export const c3 = z.string().min(1).uuid(); // FLAG R3
 export const c4 = z.string().email(); // OK R3 (.email is not .uuid)
-import * as lib from "some-uuid-lib"; // OK R3 (a library's own uuid, not a zod chain)
-export const c5 = lib.uuid();
+import * as lib from "some-uuid-lib";
+export const c5 = lib.uuid(); // OK R3 (a library's own uuid, not a zod chain)
 
 // --- R4 zod-record-exhaustive: z.record keyed by enum/nativeEnum/literal-union ---
 export const d1 = z.record(z.enum(["a", "b"]), z.number()); // FLAG R4

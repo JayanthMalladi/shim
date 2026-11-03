@@ -9,9 +9,9 @@ export const j4 = z.record(z.enum(["a", "b"]), z.number()); // OK R4
 export const j5 = z.object({ u: z.unknown() }); // OK R5
 export const j6 = z.object({ f: z.coerce.boolean() }); // OK R6
 export const j7 = z.intersection(z.object({}), z.object({})); // OK R7
-function j8(S, x) { // OK R8
+function j8(S, x) {
   const r = S.safeParse(x);
-  return r.error.errors;
+  return r.error.errors; // OK R8
 }
 
 export { j1, j2, j3, j4, j5, j6, j7, j8 };

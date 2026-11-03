@@ -9,9 +9,9 @@ export const k4 = z.record(z.enum(["a", "b"]), z.number()); // OK R4
 export const k5 = z.object({ u: z.unknown() }); // OK R5
 export const k6 = z.object({ f: z.coerce.boolean() }); // OK R6
 export const k7 = z.intersection(z.object({}), z.object({})); // OK R7
-function k8(S, x) { // OK R8
+function k8(S, x) {
   const r = S.safeParse(x);
-  return r.error.errors;
+  return r.error.errors; // OK R8
 }
 
 export { k1, k2, k3, k4, k5, k6, k7, k8 };

@@ -7,8 +7,8 @@ export const a1 = z.string().optional(); // FLAG R1
 export const a2 = z.number().nullish(); // FLAG R1
 export const a3 = z.object({ p: z.boolean().optional() }); // FLAG R1 (inside a z.object property)
 export const a4 = z.string().optional().default("a"); // OK R1 (.optional() before .default())
-const foo = { default: (v: unknown) => v, optional: (v: unknown) => v }; // OK R1 (a local, non-zod object with .default/.optional methods)
-export const a5 = foo.default(1).optional();
+const foo = { default: (v: unknown) => v, optional: (v: unknown) => v };
+export const a5 = foo.default(1).optional(); // OK R1 (a local, non-zod object with .default/.optional methods)
 
 // --- R2 zod-default-through-transform: .default() after a transform/pipe/trim/etc.
 //     would stop running the value through the schema in Zod 4; .prefault() keeps
@@ -27,8 +27,8 @@ export const c1 = z.string().guid(); // FLAG R3
 export const c2 = z.string().guid({ message: "bad" }); // FLAG R3
 export const c3 = z.string().min(1).guid(); // FLAG R3
 export const c4 = z.string().email(); // OK R3 (.email is not .uuid)
-import * as lib from "some-uuid-lib"; // OK R3 (a library's own uuid, not a zod chain)
-export const c5 = lib.uuid();
+import * as lib from "some-uuid-lib";
+export const c5 = lib.uuid(); // OK R3 (a library's own uuid, not a zod chain)
 
 // --- R4 zod-record-exhaustive: Zod 4 requires every key of an enum-keyed record;
 //     partialRecord() keeps the v3 optional-key behavior. ---

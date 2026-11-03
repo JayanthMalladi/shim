@@ -16,13 +16,13 @@ function rethrow(e) {
 export const h1 = z.intersection(z.object({}), z.object({})); // FLAG R7
 export const h2 = z.string().and(z.number()); // FLAG R7
 
-function okIssues(res) { // OK R8 (.issues is the Zod 4 property, not .errors)
-  return res.issues;
+function okIssues(res) {
+  return res.issues; // OK R8 (.issues is the Zod 4 property, not .errors)
 }
 
-async function okFetch() { // OK R8 (fetch responses have .errors too, but the receiver isn't a safeParse result)
+async function okFetch() {
   const res = await fetch("/x");
-  return res.errors;
+  return res.errors; // OK R8 (fetch responses have .errors too, but the receiver isn't a safeParse result)
 }
 
 export { validate, rethrow, okIssues, okFetch };
