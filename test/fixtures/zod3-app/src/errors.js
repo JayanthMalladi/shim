@@ -2,7 +2,7 @@ import { z, ZodError } from "zod";
 
 function validate(raw) {
   const S = z.object({ name: z.string(), age: z.coerce.number() });
-  const r = S.safeParse(raw); // FLAG R8
+  const r = S.safeParse(raw);
   if (!r.success) console.log(r.error.errors); // FLAG R8 (in a .js file ZodError.errors is undefined at runtime)
   return r;
 }
