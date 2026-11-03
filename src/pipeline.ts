@@ -5,7 +5,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { bumpAiSdk } from "./bump.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
-import { costUnpriced, run, runCapture } from "./exec.js";
+import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { findAiPackages, scan, scanAndFix } from "./scan.js";
@@ -53,6 +53,22 @@ export interface MigrationReport {
   /** null when the backend is unpriced (dsh or ANTHROPIC_BASE_URL). */
   cost?: number | null;
   fixMs?: number;
+  /** Which agent backend and models the fix stage was set up with; absent without the agent. */
+  agent?: AgentInfo;
+}
+
+export interface AgentInfo {
+  backend: AgentBackend;
+  /** Only for claude-cli: dsh picks its models from its own profile. */
+  fixerModel?: string;
+  reviewerModel?: string;
+}
+
+/** The backend and models an architecture's fix stage runs on, for report.json and cost tracking. */
+export function agentInfo(arch: Architecture): AgentInfo {
+  const backend = agentBackend();
+  if (backend === "dsh") return { backend };
+  return { backend, fixerModel: arch.fixerModel, ...(arch.review ? { reviewerModel: arch.reviewerModel } : {}) };
 }
 
 /** Everything up to the fix stage. Saved to disk so architectures can be compared on the same start. */
@@ -196,6 +212,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     diffStat, changedFiles, repairedChecks, agentRuns, candidates, review,
     failures: Object.fromEntries(regressed.map((g) => [g, after[g]?.output.slice(-1500) ?? ""])),
     arch: arch.id, cost, fixMs: Date.now() - started,
+    ...(opts.agent ? { agent: agentInfo(arch) } : {}),
   };
   writeReport(report, opts.outDir, runCapture("git", ["diff", "-U0"], dir).stdout);
   return report;

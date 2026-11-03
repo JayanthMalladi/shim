@@ -2,7 +2,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { discover } from "./discover.js";
-import { runJudge } from "./agent.js";
+import { judgeModel, runJudge } from "./agent.js";
+import { agentBackend, agentPreflight } from "./exec.js";
 import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { finish, migrate, prepare } from "./pipeline.js";
 import { execFileSync } from "node:child_process";
@@ -79,10 +80,12 @@ switch (cmd) {
     break;
   }
   case "migrate": {
+    const arch = loadArch();
+    if (rest.includes("--agent")) console.error(`[shim] ${agentPreflight({ fixer: arch.fixerModel, reviewer: arch.review ? arch.reviewerModel : undefined })}`);
     const report = await migrate(path.resolve(target), flag("--repo") ?? path.basename(target), {
       agent: rest.includes("--agent"),
       outDir: path.resolve(flag("--out") ?? path.join(target, "..", `${path.basename(target)}.shim`)),
-      arch: loadArch(),
+      arch,
     });
     console.log(JSON.stringify({ verdict: report.verdict, reason: report.reason, autoFixed: report.autoFixed, remaining: report.remaining.length }, null, 2));
     break;
@@ -98,13 +101,17 @@ switch (cmd) {
   case "finish": {
     const prep = JSON.parse(fs.readFileSync(flag("--prep")!, "utf8")).prepared;
     const out = path.resolve(flag("--out")!);
-    const report = await finish(path.resolve(target), prep, { agent: true, outDir: out, arch: loadArch() });
+    const arch = loadArch();
+    const judging = rest.includes("--judge");
+    console.error(`[shim] ${agentPreflight({ fixer: arch.fixerModel, reviewer: arch.review ? arch.reviewerModel : undefined, judge: judging ? judgeModel() : undefined })}`);
+    const report = await finish(path.resolve(target), prep, { agent: true, outDir: out, arch });
     let judge;
-    if (rest.includes("--judge") && report.verdict === "open-pr") {
+    if (judging && report.verdict === "open-pr") {
       const j = await runJudge(path.resolve(target));
       judge = { approve: j.approve, issues: j.issues, cost: j.cost };
     }
-    const result = { repo: report.repo, arch: report.arch, verdict: report.verdict, reason: report.reason.slice(0, 600), judge, cost: report.cost, fixMs: report.fixMs, candidates: report.candidates, diffStat: report.diffStat.split("\n").pop() };
+    const result = { repo: report.repo, arch: report.arch, verdict: report.verdict, reason: report.reason.slice(0, 600), judge, cost: report.cost,
+      agent: report.agent && { ...report.agent, ...(judge && agentBackend() !== "dsh" ? { judgeModel: judgeModel() } : {}) }, fixMs: report.fixMs, candidates: report.candidates, diffStat: report.diffStat.split("\n").pop() };
     fs.writeFileSync(path.join(out, "result.json"), JSON.stringify(result, null, 2));
     fs.writeFileSync(path.join(out, "changes.patch"), fullDiff(path.resolve(target)));
     console.log(JSON.stringify(result, null, 2));

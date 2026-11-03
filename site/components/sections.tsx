@@ -225,6 +225,10 @@ const faq = [
     a: "No. Installs always use --ignore-scripts, and commands in your repo run without API keys.",
   },
   {
+    q: "What runs the fix agent, and do I need an API key?",
+    a: "The scan needs no model or key. The fix agent runs on a model you provide: your own Claude login or API key, any Anthropic-compatible provider, or open-source models.",
+  },
+  {
     q: "Can I run it myself?",
     a: "Yes. The code is public on GitHub, and the scan runs with “npx getshim scan .” on Node 22 or later.",
   },

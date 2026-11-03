@@ -114,6 +114,37 @@ export async function runAgentBackend(args: string[], dir: string, timeoutMs: nu
 }
 
 /**
+ * Check, before any agent run, that the configured backend can start, and describe what will run:
+ * backend, auth source (never its value) and models. A missing backend then fails in seconds instead
+ * of after the baseline install. It can't tell whether a claude login is valid without a model call.
+ */
+export function agentPreflight(models: { fixer: string; reviewer?: string; judge?: string }): string {
+  const backend = agentBackend();
+  if (backend === "dsh" && process.env.SHIM_SANDBOX !== "1")
+    throw new Error("SHIM_AGENT_BACKEND=dsh needs SHIM_SANDBOX=1: only run dsh inside a throwaway container or VM with no credentials");
+  const bin = backend === "dsh" ? "dsh" : "claude";
+  if (!run(bin, ["--version"], process.cwd(), 30_000, agentEnv()).ok)
+    throw new Error(
+      backend === "dsh"
+        ? "SHIM_AGENT_BACKEND=dsh, but the dsh command was not found on PATH"
+        : "the fix agent needs the claude CLI (Claude Code), which was not found on PATH. Install it and log in, or set " +
+          "ANTHROPIC_API_KEY; or set SHIM_AGENT_BACKEND=dsh. `shim scan` and `shim fix` need no model.",
+    );
+  if (backend === "dsh") return "agent: dsh, models set by your dsh profile, cost unpriced";
+  const base = process.env.ANTHROPIC_BASE_URL;
+  let auth = process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : process.env.ANTHROPIC_AUTH_TOKEN ? "ANTHROPIC_AUTH_TOKEN" : "your Claude Code login";
+  if (base !== undefined) {
+    let host = base;
+    try {
+      host = new URL(base).host;
+    } catch {}
+    auth = `provider at ${host}, cost unpriced`;
+  }
+  const roles = Object.entries(models).filter(([, m]) => m).map(([role, m]) => `${role} ${m}`);
+  return `agent: claude-cli, ${auth} (${roles.join(", ")})`;
+}
+
+/**
  * Run a command without a shell. Output is truncated to the tail, which is where errors live.
  * The env defaults to the target-safe one, so a call that forgets to think about it still can't
  * leak a key; pass env explicitly for the rare command that needs something unusual.
