@@ -231,9 +231,6 @@ function writeReport(report: MigrationReport, outDir: string, diff?: string, m: 
   fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
   if (report.verdict !== "skip") {
     fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report, diff, m));
-    // status.txt carries the migration id to the `pr open` replay; HEAD is recorded here, not by the agent.
-    const head = run("git", ["rev-parse", "HEAD"], outDir, 60_000).output.trim();
-    fs.writeFileSync(path.join(outDir, "status.txt"), `${m.statusLine}\nHEAD: ${head}\n`);
   }
 }
 

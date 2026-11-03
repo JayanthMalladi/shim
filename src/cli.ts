@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { discover } from "./discover.js";
 import { judgeModel, runJudge } from "./agent.js";
-import { agentPreflight } from "./exec.js";
+import { agentBackend, agentPreflight } from "./exec.js";
 import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { getMigration } from "./migrations.js";
 import { finish, migrate, prepare } from "./pipeline.js";
@@ -17,30 +17,30 @@ import { prStatus } from "./pr-status.js";
 const USAGE = `shim <command>
 
   discover [days] [--migration <id>]
-                            Find npm packages on ai@6 published in the last N days (default 60)
+                           Find npm packages on ai@6 published in the last N days (default 60)
   triage <candidates.json> [--work <dir>] [--migration <id>]
-                            Shallow-clone and scan each candidate (read-only)
+                           Shallow-clone and scan each candidate (read-only)
   scan <dir> [--migration <id>]
-                            List AI SDK 6 -> 7 findings (no changes); --migration selects the rules
+                           List AI SDK 6 -> 7 findings (no changes); --migration selects the rules
   fix <dir> [--migration <id>]
-                            Apply the migration's deterministic, behavior-preserving fixes
+                           Apply Shim's deterministic, behavior-preserving fixes
   migrate <dir> [--agent] [--out <dir>] [--repo <owner/name>] [--arch <arch.json>] [--migration <id>]
-                            Full pipeline: baseline gates, bump, codemod, fixes,
-                            optional fixer agent, gates again, report + PR body
+                           Full pipeline: baseline gates, bump, codemod, fixes,
+                           optional fixer agent, gates again, report + PR body
   prepare <dir> --out <dir> [--repo <owner/name>] [--migration <id>]
-                            Everything before the fix stage; writes prepared.json
+                           Everything before the fix stage; writes prepared.json
   finish <dir> --prep <prepared.json> --out <dir> [--arch <arch.json>] [--judge] [--migration <id>]
-                            The fix stage on a prepared repo; --judge adds the fixed judge's verdict
+                           The fix stage on a prepared repo; --judge adds the fixed judge's verdict
   pr open <draft-dir> --fork <forkOwner> [--allow-drift]
-                            Replay the draft's changes.patch on a fresh shim/ai-sdk-7
-                            branch of the fork, push it, and print the compare URL
+                           Replay the draft's changes.patch on a fresh shim/ai-sdk-7
+                           branch of the fork, push it, and print the compare URL
   pr record <owner/repo> <pr-url>
-                            Record the opened PR in data/prs.csv
+                           Record the opened PR in data/prs.csv
   pr status [--write]      Refresh PR states from the GitHub API; print totals;
-                            --write updates data/prs.csv
+                           --write updates data/prs.csv
   stats [--csv <file>] [--out <file>]
-                            Regenerate site/lib/stats.json from data/prs.csv
-                            (the site's live numbers); commit it to redeploy`;
+                           Regenerate site/lib/stats.json from data/prs.csv
+                           (the site's live numbers); commit it to redeploy`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -123,7 +123,7 @@ switch (cmd) {
       const j = await runJudge(path.resolve(target), migOverride ?? getMigration(prep.migration));
       judge = { approve: j.approve, issues: j.issues, cost: j.cost };
     }
-    const result = { repo: report.repo, arch: report.arch, verdict: report.verdict, reason: report.reason.slice(0, 600), judge, cost: report.cost, fixMs: report.fixMs, candidates: report.candidates, diffStat: report.diffStat.split("\n").pop() };
+    const result = { repo: report.repo, arch: report.arch, verdict: report.verdict, reason: report.reason.slice(0, 600), judge, cost: report.cost, agent: report.agent && { ...report.agent, ...(judge && agentBackend() !== "dsh" ? { judgeModel: judgeModel() } : {}) }, fixMs: report.fixMs, candidates: report.candidates, diffStat: report.diffStat.split("\n").pop() };
     fs.writeFileSync(path.join(out, "result.json"), JSON.stringify(result, null, 2));
     fs.writeFileSync(path.join(out, "changes.patch"), fullDiff(path.resolve(target)));
     console.log(JSON.stringify(result, null, 2));

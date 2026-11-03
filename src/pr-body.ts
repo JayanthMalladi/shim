@@ -17,10 +17,6 @@ const MAX_LOCATIONS = 10;
  * Without it, a finding counts as fixed if its file changed at all.
  */
 export function prBody(r: MigrationReport, patch?: string, m: Migration = getMigration()): string {
-  if (m.id !== "ai-sdk-v7") {
-    // T4.6: the Zod PR body. The registry field keeps the AI SDK path above untouched until then.
-    return `TODO(T4.6): PR body for ${m.title} is not implemented yet; this placeholder is written by the pipeline so the run has a body.\n`;
-  }
   const changes = patch === undefined ? undefined : parsePatch(patch);
   const seen = new Set<string>();
   const unique = r.before.filter((f) => !seen.has(key(f)) && !!seen.add(key(f)));

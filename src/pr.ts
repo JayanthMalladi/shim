@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, agentEnv, type ExecResult } from "./exec.js";
-import { getMigration, type Migration } from "./migrations.js";
+import { AI_SDK_V7, getMigration, type Migration } from "./migrations.js";
 
 const log = (m: string) => console.error(`[pr] ${m}`);
 export const PR_BRANCH = "shim/ai-sdk-7";
@@ -25,14 +25,22 @@ export function recordedHead(statusTxt: string | undefined): string | undefined 
   return undefined;
 }
 
-/** The "migration: <id>" line recorded in status.txt; defaults to ai-sdk-v7 for pre-T1 drafts. */
-export function recordedMigration(statusTxt: string | undefined): Migration["id"] {
+/** The "migration: <id>" line in a draft's status.txt; when absent, the "migration" field of the
+ *  draft's prepared.json (written by `prepare`); defaults to ai-sdk-v7 for pre-T1 drafts. */
+export function recordedMigration(statusTxt: string | undefined, draftDir?: string): Migration["id"] {
   const lines = (statusTxt ?? "").trimEnd().split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const m = lines[i]!.match(/^migration:\s*(\S+)$/);
     if (m) return m[1]! as Migration["id"];
   }
-  return "ai-sdk-v7";
+  if (draftDir) {
+    const prep = path.join(draftDir, "prepared.json");
+    if (fs.existsSync(prep)) {
+      const migration = JSON.parse(fs.readFileSync(prep, "utf8")).prepared?.migration;
+      if (typeof migration === "string") return migration as Migration["id"];
+    }
+  }
+  return AI_SDK_V7.id;
 }
 
 /**
@@ -181,7 +189,7 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
     if (!def.ok || !head.ok) return fail("git-failed", def.output, `cannot read upstream HEAD: ${head.output.trim()}`);
     const statusTxt = fs.existsSync(path.join(draft, "status.txt")) ? fs.readFileSync(path.join(draft, "status.txt"), "utf8") : undefined;
     const recorded = recordedHead(statusTxt);
-    const m = getMigration(recordedMigration(statusTxt));
+    const m = getMigration(recordedMigration(statusTxt, draft));
     const branch = m.prBranch;
     const commitMsg = m.commitMessage;
     const upstreamHead = head.output.trim().toLowerCase();
