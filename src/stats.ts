@@ -20,7 +20,7 @@ export interface PrStats {
   /** PRs with at least one maintainer comment or review (replies are a first-class KPI). */
   replied: number;
   mergeRate: string;
-  /** merged ÷ opened, counting only PRs open for at least 3 days (the defensible YC number). */
+  /** merged ÷ opened, counting only PRs open for at least 3 days (the fairer number, since new PRs have had no time to merge). */
   mergeRate3d: string;
 }
 

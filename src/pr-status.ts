@@ -1,5 +1,5 @@
 /**
- * Regenerate the YC numbers from data/prs.csv: refresh each PR's state from the
+ * Regenerate the PR numbers from data/prs.csv: refresh each PR's state from the
  * GitHub API, print a table plus totals (opened / merged / closed / merge rate),
  * and with --write update the state, merged_at and comments columns in place.
  */
