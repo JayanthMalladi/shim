@@ -2,22 +2,14 @@
 // so NO rule flags it. One line of each R1-R8 pattern, all OK.
 import { z } from "zod/v3";
 
-// OK R1
-export const k1 = z.string().default("a").optional();
-// OK R2
-export const k2 = z.string().transform((s) => s.trim()).default("x");
-// OK R3
-export const k3 = z.string().uuid();
-// OK R4
-export const k4 = z.record(z.enum(["a", "b"]), z.number());
-// OK R5
-export const k5 = z.object({ u: z.unknown() });
-// OK R6
-export const k6 = z.object({ f: z.coerce.boolean() });
-// OK R7
-export const k7 = z.intersection(z.object({}), z.object({}));
-// OK R8
-function k8(S, x) {
+export const k1 = z.string().default("a").optional(); // OK R1
+export const k2 = z.string().transform((s) => s.trim()).default("x"); // OK R2
+export const k3 = z.string().uuid(); // OK R3
+export const k4 = z.record(z.enum(["a", "b"]), z.number()); // OK R4
+export const k5 = z.object({ u: z.unknown() }); // OK R5
+export const k6 = z.object({ f: z.coerce.boolean() }); // OK R6
+export const k7 = z.intersection(z.object({}), z.object({})); // OK R7
+function k8(S, x) { // OK R8
   const r = S.safeParse(x);
   return r.error.errors;
 }
