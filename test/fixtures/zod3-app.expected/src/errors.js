@@ -1,7 +1,7 @@
 import { z, ZodError } from "zod";
 
 function validate(raw) {
-  const S = z.object({ name: z.string(), age: z.coerce.number() });
+  const S = z.object({ name: z.string(), age: z.coerce.number() }); // FLAG R6 (unguarded coerce field)
   const r = S.safeParse(raw);
   if (!r.success) console.log(r.error.issues); // FLAG R8 (in a .js file ZodError.errors is undefined at runtime)
   return r;
@@ -12,7 +12,8 @@ function rethrow(e) {
   throw e;
 }
 
-// --- R7 zod-intersection-error (this file references ZodError, so the calls match) ---
+// --- R7 zod-intersection-error: this file imports ZodError and instanceof-checks it,
+// so its intersections/.and are flagged. ---
 export const h1 = z.intersection(z.object({}), z.object({})); // FLAG R7
 export const h2 = z.string().and(z.number()); // FLAG R7
 

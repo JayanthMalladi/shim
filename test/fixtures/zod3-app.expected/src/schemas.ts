@@ -47,11 +47,12 @@ export const f2 = z.object({ n: z.coerce.number() }); // FLAG R6
 export const f3 = z.object({ f: z.coerce.boolean().optional() }); // OK R6 (.optional() present)
 export const f4 = z.object({ f: z.coerce.boolean().default(false) }); // OK R6 (.default present)
 
-// --- R7 zod-intersection-error: z.intersection/.and in a file that checks ZodError ---
-export const g1 = z.intersection(z.object({}), z.object({})); // FLAG R7 (this file references ZodError further down)
-export const g2 = z.string().and(z.number()); // FLAG R7
-// (The OK R7 case, "intersection in a file with no ZodError reference", lives in
-//  v4-already.ts and aliased.ts, which import zod but never mention ZodError.)
+// --- R7 zod-intersection-error: z.intersection/.and in a file that checks ZodError. ---
+// The FLAG cases live in errors.js (the only fixture file that imports ZodError and
+// instanceof-checks it). This file never references ZodError, so its intersections are
+// not flagged; the OK case is the same shape in v4-already.ts and aliased.ts.
+export const g1 = z.intersection(z.object({}), z.object({})); // OK R7 (this file never checks ZodError)
+export const g2 = z.string().and(z.number()); // OK R7
 
 // R8 zod-errors-property: .error.errors / ZodError.errors — see src/errors.js.
 

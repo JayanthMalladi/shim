@@ -127,16 +127,24 @@ export function findPackageJsons(root: string): string[] {
   return out;
 }
 
-/** package.json files (including workspaces) that depend on ai@6. */
-export function findAiPackages(root: string): Array<{ file: string; range: string }> {
+/**
+ * package.json files (including workspaces) that depend on `dep`, with the version range from
+ * whichever of dependencies / devDependencies / peerDependencies declares it.
+ */
+export function findPackages(root: string, dep: string): Array<{ file: string; range: string }> {
   const out: Array<{ file: string; range: string }> = [];
   walk(root, (file) => {
     if (path.basename(file) !== "package.json") return;
     const pkg = readJson(file);
-    const range = pkg?.dependencies?.ai ?? pkg?.devDependencies?.ai ?? pkg?.peerDependencies?.ai;
+    const range = pkg?.dependencies?.[dep] ?? pkg?.devDependencies?.[dep] ?? pkg?.peerDependencies?.[dep];
     if (typeof range === "string") out.push({ file, range });
   });
   return out;
+}
+
+/** package.json files (including workspaces) that depend on ai@6. */
+export function findAiPackages(root: string): Array<{ file: string; range: string }> {
+  return findPackages(root, "ai");
 }
 
 /**
@@ -329,7 +337,7 @@ function walk(dir: string, visit: (file: string) => void) {
   }
 }
 
-function readJson(file: string): any {
+export function readJson(file: string): any {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
