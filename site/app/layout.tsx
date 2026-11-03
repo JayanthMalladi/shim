@@ -7,7 +7,7 @@ const bricolage = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "700
 
 const title = "Shim · Upgrades shouldn't wobble";
 const description =
-  "Shim upgrades AI SDK 6 apps to 7 and opens one tested pull request. It fixes the changes the codemod and tsc miss: code that still compiles but returns different data.";
+  "When an API you depend on changes, Shim opens one tested pull request. First up: AI SDK 6 to 7, including the changes the codemod and tsc miss.";
 
 export const metadata: Metadata = {
   title,

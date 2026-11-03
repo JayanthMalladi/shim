@@ -282,7 +282,7 @@ const changelog = [
     items: [
       "pnpm catalog: support, which blocked four repos so far",
       "Scan repos that already moved to v7 for the silent bugs they kept",
-      "More API migrations after AI SDK 7",
+      "Next migrations after AI SDK 7: other SDKs with silent breaking changes",
     ],
   },
 ];
