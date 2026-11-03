@@ -14,6 +14,9 @@ export function SiteFooter() {
           <a href={links.repo} className="underline-offset-4 hover:underline">
             GitHub
           </a>
+          <a href={links.email} className="underline-offset-4 hover:underline">
+            hello@getshim.dev
+          </a>
           <span>Not affiliated with Vercel</span>
         </span>
       </div>

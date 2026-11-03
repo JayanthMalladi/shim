@@ -1,0 +1,1 @@
+Shim: upgrades shouldn't wobble. When an API you depend on changes, Shim opens one tested pull request. First up: AI SDK 6 to 7.

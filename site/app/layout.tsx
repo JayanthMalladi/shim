@@ -10,6 +10,8 @@ const description =
   "When an API you depend on changes, Shim opens one tested pull request. First up: AI SDK 6 to 7, including the changes the codemod and tsc miss.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://getshim.dev"),
+  alternates: { canonical: "/" },
   title,
   description,
   openGraph: {
@@ -17,6 +19,7 @@ export const metadata: Metadata = {
     description,
     type: "website",
   },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
