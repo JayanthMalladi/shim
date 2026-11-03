@@ -4,11 +4,11 @@ import { z as zz } from "zod";
 import * as Z from "zod";
 import * as lib from "some-uuid-lib";
 
-export const i1 = zz.string().uuid(); // FLAG R3 (zz is an alias of z)
-export const i2 = Z.string().uuid(); // FLAG R3 (Z is a namespace import of zod)
+export const i1 = zz.string().guid(); // FLAG R3 (zz is an alias of z)
+export const i2 = Z.string().guid(); // FLAG R3 (Z is a namespace import of zod)
 export const i3 = lib.uuid(); // OK R3 (lib is not zod)
 
-export const i4 = zz.object({ u: zz.unknown() }); // FLAG R5 (a z.unknown() object property through the zz alias)
+export const i4 = zz.object({ u: zz.unknown().optional() }); // FLAG R5 (a z.unknown() object property through the zz alias)
 export const i5 = zz.object({ u: zz.unknown().optional() }); // OK R5 (already .optional())
 
 // R7 OK case: a .and() on a zod chain in a file that never mentions ZodError.
