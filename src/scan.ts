@@ -102,6 +102,22 @@ export async function scanAndFix(root: string) {
   return { result, applied };
 }
 
+/** Scan a repo with a specific migration's rules; the migration's scan does the whole job. */
+export function scanWith(root: string, m: import("./migrations.js").Migration): { result: ScanResult; project: Project; ctx: RuleContext } {
+  const abs = path.resolve(root);
+  const project = loadProject(abs);
+  const ctx = m.scan(project, abs);
+  ctx.findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+  return { result: { root: abs, filesScanned: project.getSourceFiles().length, findings: ctx.findings }, project, ctx };
+}
+
+/** Apply a migration's deterministic rewrites to a scanned project. */
+export async function scanAndFixWith(root: string, m: import("./migrations.js").Migration) {
+  const { result, project, ctx } = scanWith(root, m);
+  const applied = await m.applyAutoFixes(project, ctx);
+  return { result, applied };
+}
+
 /** Every package.json in the repo, workspace packages and the root included. */
 export function findPackageJsons(root: string): string[] {
   const out: string[] = [];
@@ -129,7 +145,7 @@ export function findAiPackages(root: string): Array<{ file: string; range: strin
  * (keeping quoting/indent), resolve a `matrix.<name>` expression to its inline list in the same job,
  * and flag `node-version-file:` values below 22 as manual (the file itself is never edited).
  */
-function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
+export function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
   const findings: Finding[] = [];
   for (const wf of findWorkflowFiles(root)) {
     const rel = path.relative(root, wf).split(path.sep).join("/");
@@ -284,7 +300,7 @@ function namesPrOrPush(lines: string[]): boolean {
   return false;
 }
 
-function checkPackageJsons(root: string): Finding[] {
+export function checkPackageJsons(root: string): Finding[] {
   const findings: Finding[] = [];
   for (const { file } of findAiPackages(root)) {
     const engine = readJson(file)?.engines?.node;

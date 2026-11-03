@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, agentEnv, type ExecResult } from "./exec.js";
+import { AI_SDK_V7, getMigration, type Migration } from "./migrations.js";
 
 const log = (m: string) => console.error(`[pr] ${m}`);
 export const PR_BRANCH = "shim/ai-sdk-7";
@@ -24,6 +25,24 @@ export function recordedHead(statusTxt: string | undefined): string | undefined 
   return undefined;
 }
 
+/** The "migration: <id>" line in a draft's status.txt; when absent, the "migration" field of the
+ *  draft's prepared.json (written by `prepare`); defaults to ai-sdk-v7 for pre-T1 drafts. */
+export function recordedMigration(statusTxt: string | undefined, draftDir?: string): Migration["id"] {
+  const lines = (statusTxt ?? "").trimEnd().split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i]!.match(/^migration:\s*(\S+)$/);
+    if (m) return m[1]! as Migration["id"];
+  }
+  if (draftDir) {
+    const prep = path.join(draftDir, "prepared.json");
+    if (fs.existsSync(prep)) {
+      const migration = JSON.parse(fs.readFileSync(prep, "utf8")).prepared?.migration;
+      if (typeof migration === "string") return migration as Migration["id"];
+    }
+  }
+  return AI_SDK_V7.id;
+}
+
 /**
  * The upstream repo a draft is for: the draft dir name (<owner>__<repo>) when it splits
  * on __, else the "repo" field of report.json.
@@ -35,9 +54,9 @@ export function draftRepo(draftDir: string, report?: { repo?: string } | null): 
   return report?.repo ?? "";
 }
 
-/** https://github.com/<owner>/<repo>/compare/<default>...<fork>:shim/ai-sdk-7?expand=1 */
-export function compareUrl(repo: string, defaultBranch: string, forkOwner: string): string {
-  return `https://github.com/${repo}/compare/${defaultBranch}...${forkOwner}:${PR_BRANCH}?expand=1`;
+/** https://github.com/<owner>/<repo>/compare/<default>...<fork>:<branch>?expand=1 */
+export function compareUrl(repo: string, defaultBranch: string, forkOwner: string, branch: string = PR_BRANCH): string {
+  return `https://github.com/${repo}/compare/${defaultBranch}...${forkOwner}:${branch}?expand=1`;
 }
 
 // --- data/prs.csv -----------------------------------------------------------
@@ -168,7 +187,11 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
     const def = git(["rev-parse", "--abbrev-ref", "HEAD"], up);
     const head = git(["rev-parse", "HEAD"], up);
     if (!def.ok || !head.ok) return fail("git-failed", def.output, `cannot read upstream HEAD: ${head.output.trim()}`);
-    const recorded = recordedHead(fs.existsSync(path.join(draft, "status.txt")) ? fs.readFileSync(path.join(draft, "status.txt"), "utf8") : undefined);
+    const statusTxt = fs.existsSync(path.join(draft, "status.txt")) ? fs.readFileSync(path.join(draft, "status.txt"), "utf8") : undefined;
+    const recorded = recordedHead(statusTxt);
+    const m = getMigration(recordedMigration(statusTxt, draft));
+    const branch = m.prBranch;
+    const commitMsg = m.commitMessage;
     const upstreamHead = head.output.trim().toLowerCase();
     if (recorded !== undefined && recorded !== upstreamHead && !opts.allowDrift) {
       log(`drift: draft was cut against ${recorded}, upstream HEAD is ${upstreamHead}`);
@@ -180,7 +203,7 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
     const forkName = repo.split("/").pop()!;
     const fork = path.join(work, "fork");
     if (git(["-c", "core.autocrlf=false", "clone", "-q", "--single-branch", opts.forkUrl ?? `https://github.com/${opts.forkOwner}/${forkName}`, fork], work).ok) {
-      if (!git(["checkout", "-q", "-b", PR_BRANCH], fork).ok) return fail("git-failed", undefined, `cannot create ${PR_BRANCH} on the fork`);
+      if (!git(["checkout", "-q", "-b", branch], fork).ok) return fail("git-failed", undefined, `cannot create ${branch} on the fork`);
       // Normalize to LF: a CRLF check-out of the drafts tree turns every patch line CRLF, and
       // git apply of a CRLF patch fails against the repo's LF blobs. No-op when already LF.
       const patch = fs.readFileSync(path.join(draft, "changes.patch"), "utf8").replace(/\r\n/g, "\n");
@@ -194,17 +217,17 @@ export function prOpen(opts: PrOpenOptions): PrOpenResult {
         return fail("conflict", apply.output, "conflict applying the patch; regenerate this draft against the current HEAD");
       }
       fs.rmSync(path.join(fork, "changes.patch"), { force: true });
-      if (!git(["add", "-A"], fork).ok || !git(["commit", "-q", "-m", "Upgrade to AI SDK 7"], fork).ok) {
+      if (!git(["add", "-A"], fork).ok || !git(["commit", "-q", "-m", commitMsg], fork).ok) {
         return fail("git-failed", undefined, "cannot commit the applied patch on the fork");
       }
-      const push = git(["push", "-q", "-u", "origin", PR_BRANCH], fork, 5 * 60_000);
-      if (!push.ok) return fail("git-failed", push.output, `cannot push ${PR_BRANCH} to the fork`);
+      const push = git(["push", "-q", "-u", "origin", branch], fork, 5 * 60_000);
+      if (!push.ok) return fail("git-failed", push.output, `cannot push ${branch} to the fork`);
       fs.rmSync(work, { recursive: true, force: true });
       const defaultBranch = def.output.trim();
       return {
-        ok: true, repo, forkOwner: opts.forkOwner, branch: PR_BRANCH,
+        ok: true, repo, forkOwner: opts.forkOwner, branch,
         upstreamHead,
-        compareUrl: compareUrl(repo, defaultBranch, opts.forkOwner),
+        compareUrl: compareUrl(repo, defaultBranch, opts.forkOwner, branch),
         prPath: prMd,
       };
     }

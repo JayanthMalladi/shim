@@ -2,13 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { runReviewer } from "./agent.js";
 import { DEFAULT_ARCH, type Architecture } from "./arch.js";
-import { bumpAiSdk } from "./bump.js";
+import { getMigration, type Migration } from "./migrations.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
-import { findAiPackages, scan, scanAndFix } from "./scan.js";
+import { scan, scanAndFix, scanWith, scanAndFixWith } from "./scan.js";
 import type { Finding } from "./types.js";
 
 export interface MigrateOptions {
@@ -17,6 +17,8 @@ export interface MigrateOptions {
   /** Where to write report.json and pr-body.md. */
   outDir: string;
   arch?: Architecture;
+  /** Which migration to run. Absent means the AI SDK 7 default. */
+  migration?: Migration;
 }
 
 export type Verdict = "open-pr" | "open-issue" | "skip";
@@ -86,6 +88,8 @@ export interface Prepared {
   pre: Finding[];
   /** Gates after the codemod and Shim's deterministic fixes. */
   after: GateResults;
+  /** Which migration produced this prepared.json; absent in files written before T1, and that means AI SDK. */
+  migration?: Migration["id"];
 }
 
 const gateSummary = (g: GateResults) =>
@@ -95,13 +99,13 @@ const log = (msg: string) => console.error(`[shim] ${msg}`);
 
 const emptyReport = (repo: string) => ({ repo, versionChanges: [], library: false, codemod: false, autoFixed: 0, before: [], remaining: [], baseline: {}, after: {}, regressions: [], failures: {}, agentRuns: [], candidates: [], diffStat: "", changedFiles: [], repairedChecks: [] });
 
-export async function prepare(dir: string, repo: string): Promise<{ prepared: Prepared } | { skip: string; baseline?: GateResults }> {
-  const aiPkgs = findAiPackages(dir);
-  if (!aiPkgs.some((p) => /(^|[\^~>=\s])6(\.|$)/.test(p.range))) {
-    return { skip: `not on ai@6 (${aiPkgs.map((p) => p.range).join(", ") || "no ai dependency"})` };
+export async function prepare(dir: string, repo: string, m: Migration = getMigration()): Promise<{ prepared: Prepared } | { skip: string; baseline?: GateResults }> {
+  const pkgs = m.findPackages(dir);
+  if (!pkgs.some((p) => m.isOldMajor(p.range))) {
+    return { skip: `not on ai@6 (${pkgs.map((p) => p.range).join(", ") || "no ai dependency"})` };
   }
   const pm = detectPackageManager(dir);
-  const pkgDirs = aiPkgs.map((p) => path.dirname(p.file));
+  const pkgDirs = pkgs.map((p) => path.dirname(p.file));
   const library = pkgDirs.some((d) => {
     const pkg = readPkg(d);
     return !!pkg?.name && !pkg.private;
@@ -112,26 +116,27 @@ export async function prepare(dir: string, repo: string): Promise<{ prepared: Pr
   if (!baseline.install?.ok) return { skip: "baseline install fails", baseline };
 
   log("bumping dependencies");
-  const versionChanges = bumpAiSdk(dir);
+  const versionChanges = m.bump(dir);
   log("running official codemod");
-  const codemod = run("npx", ["-y", "@ai-sdk/codemod@4", "v7", "."], dir).ok;
+  const codemod = m.codemod(dir);
   log("applying Shim auto-fixes");
-  const { result: pre, applied } = await scanAndFix(dir);
-  const guard = codemodExportFindings(dir);
+  const { result: pre, applied } = await scanAndFixWith(dir, m);
+  const guard = m.id === "ai-sdk-v7" ? codemodExportFindings(dir) : [];
   const after = runGates(dir, pm, false, pkgDirs);
   return {
     prepared: {
       repo, pm, pkgDirs: pkgDirs.map((d) => path.relative(dir, d) || "."), library, baseline,
-      versionChanges, codemod, applied, pre: [...pre.findings, ...guard], after,
+      versionChanges, codemod, applied, pre: [...pre.findings, ...guard], after, migration: m.id,
     },
   };
 }
 
 export async function migrate(dir: string, repo: string, opts: MigrateOptions): Promise<MigrationReport> {
-  const p = await prepare(dir, repo);
+  const m = opts.migration ?? getMigration();
+  const p = await prepare(dir, repo, m);
   if ("skip" in p) {
     const report: MigrationReport = { ...emptyReport(repo), verdict: "skip", reason: p.skip, baseline: gateSummary(p.baseline ?? {}) };
-    writeReport(report, opts.outDir);
+    writeReport(report, opts.outDir, undefined, m);
     return report;
   }
   return finish(dir, p.prepared, opts);
@@ -139,13 +144,15 @@ export async function migrate(dir: string, repo: string, opts: MigrateOptions): 
 
 /** The fix stage: fixer candidates, review, verdict, report. Varies by architecture. */
 export async function finish(dir: string, prep: Prepared, opts: MigrateOptions): Promise<MigrationReport> {
-  const arch = opts.arch ?? DEFAULT_ARCH;
+  const m = opts.migration ?? getMigration(prep.migration);
+  let arch = opts.arch ?? DEFAULT_ARCH;
+  if (m.id !== "ai-sdk-v7") arch = { ...arch, fixerRules: m.fixerRules, reviewerRules: m.reviewerRules, audit: false };
   const started = Date.now();
   const { repo, pm, baseline, versionChanges, library, codemod, applied } = prep;
   const pkgDirsIn = (root: string) => prep.pkgDirs.map((p) => path.join(root, p));
   const breaks = (d: string) => [
-    ...scan(d).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
-    ...codemodExportFindings(d),
+    ...scanWith(d, m).result.findings.filter((f) => f.severity === "break" && f.fix !== "manual"),
+    ...(m.id === "ai-sdk-v7" ? codemodExportFindings(d) : []),
   ];
 
   let after = prep.after;
@@ -175,6 +182,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
         if (kind === "typecheck") return `cd ${rel} && ${hasTypecheckScript(path.join(dir, rel)) ? `${pm} run typecheck` : "npx --no-install tsc --noEmit -p tsconfig.json"}`;
         return `cd ${rel} && ${pm} run test`;
       }),
+      m,
     });
     cost = unpriced ? null : (cost ?? 0) + cands.reduce((s, c) => s + (c.cost ?? 0), 0);
     candidates = cands.map((c) => ({ ok: c.ok, size: c.size, regressions: regressions(baseline, c.after), remaining: c.remaining.length, approved: c.review?.approve }));
@@ -186,12 +194,12 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     if (chosen.review) review = { approve: chosen.review.approve, issues: chosen.review.issues };
   } else if (opts.agent && arch.review && !brokenByUpgrade.length) {
     log("reviewing diff");
-    const r = await runReviewer(dir, arch.reviewerRules, arch.reviewerModel);
+    const r = await runReviewer(dir, arch.reviewerRules, arch.reviewerModel, m);
     if (!unpriced) cost = (cost ?? 0) + (r.cost ?? 0);
     review = { approve: r.approve, issues: r.issues };
   }
   formatChanged(dir);
-  addChangeset(dir, pkgDirsIn(dir));
+  addChangeset(dir, pkgDirsIn(dir), m);
 
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
@@ -214,14 +222,16 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     arch: arch.id, cost, fixMs: Date.now() - started,
     ...(opts.agent ? { agent: agentInfo(arch) } : {}),
   };
-  writeReport(report, opts.outDir, runCapture("git", ["diff", "-U0"], dir).stdout);
+  writeReport(report, opts.outDir, runCapture("git", ["diff", "-U0"], dir).stdout, m);
   return report;
 }
 
-function writeReport(report: MigrationReport, outDir: string, diff?: string) {
+function writeReport(report: MigrationReport, outDir: string, diff?: string, m: Migration = getMigration()) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
-  if (report.verdict !== "skip") fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report, diff));
+  if (report.verdict !== "skip") {
+    fs.writeFileSync(path.join(outDir, "pr-body.md"), prBody(report, diff, m));
+  }
 }
 
 function dedupe(findings: Finding[]): Finding[] {
@@ -300,7 +310,7 @@ function isPlaceholderName(n: string): boolean {
  * name, because the root may be an unchanged container (e.g. a monorepo root) and a major for
  * it would be wrong.
  */
-export function addChangeset(dir: string, pkgDirs: string[]) {
+export function addChangeset(dir: string, pkgDirs: string[], m: Migration = getMigration()) {
   if (!fs.existsSync(path.join(dir, ".changeset", "config.json"))) return;
   const names = [...new Set(pkgDirs.map(readPkg).filter((p) => p?.name && !p.private && !isPlaceholderName(p.name)).map((p) => p.name as string))];
   if (!names.length) {
@@ -316,5 +326,5 @@ export function addChangeset(dir: string, pkgDirs: string[]) {
     }
   }
   const header = names.map((n) => `"${n}": major`).join("\n");
-  fs.writeFileSync(path.join(dir, ".changeset", "upgrade-ai-sdk-7.md"), `---\n${header}\n---\n\nUpgrade to AI SDK 7. Requires ai@7 and Node.js 22 or later.\n`);
+  fs.writeFileSync(path.join(dir, ".changeset", m.changesetFile), `---\n${header}\n---\n\n${m.changesetText}\n`);
 }
