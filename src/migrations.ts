@@ -5,6 +5,7 @@ import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
 import { allowsMajor, bumpAiSdk, bumpZod } from "./bump.js";
 import { applyAutoFixes } from "./rules/ai-sdk-v7.js";
 import { scanZodV4 } from "./rules/zod-v4.js";
+import { runZodCodemod } from "./zod-codemod.js";
 import { FIXER_RULES, REVIEWER_RULES } from "./arch.js";
 import { JUDGE_RULES } from "./agent.js";
 import { run } from "./exec.js";
@@ -88,7 +89,7 @@ export const ZOD_V4: Migration = {
   findPackages: (root) => findPackages(root, "zod"),
   isOldMajor: (range) => allowsMajor(range, 3) && !allowsMajor(range, 4),
   bump: (root) => bumpZod(root),
-  codemod: () => false, // community codemod zod-v3-to-v4, not wired yet; deterministic rules cover the silent breaks
+  codemod: runZodCodemod,
   scan: scanZodV4,
   applyAutoFixes,
   fixerIntro: "You are finishing a Zod 3 -> 4 migration in this repository. (T4)",

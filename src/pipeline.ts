@@ -5,12 +5,13 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { getMigration, type Migration } from "./migrations.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
+import { zodCodemodGuard } from "./zod-codemod.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
 import { scan, scanAndFix, scanWith, scanAndFixWith } from "./scan.js";
-import type { Finding } from "./types.js";
+import type { Finding, ScanResult } from "./types.js";
 
 export interface MigrateOptions {
   /** Run the fixer agent on findings Shim can't fix deterministically. */
@@ -128,11 +129,21 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
 
   log("bumping dependencies");
   const versionChanges = m.bump(dir);
-  log("running official codemod");
-  const codemod = m.codemod(dir);
-  log("applying Shim auto-fixes");
-  const { result: pre, applied } = await scanAndFixWith(dir, m);
-  const guard = m.id === "ai-sdk-v7" ? codemodExportFindings(dir) : [];
+  let codemod: boolean, pre: ScanResult, applied: number, guard: Finding[];
+  if (m.id === "zod-v4") {
+    // Shim's rules match Zod 3 syntax, and the codemod's own `.uuid()` rewrite is the strict Zod 4 one: Shim goes first.
+    log("applying Shim auto-fixes");
+    ({ result: pre, applied } = await scanAndFixWith(dir, m));
+    log("running community codemod zod-v3-to-v4");
+    codemod = m.codemod(dir);
+    guard = zodCodemodGuard(dir);
+  } else {
+    log("running official codemod");
+    codemod = m.codemod(dir);
+    log("applying Shim auto-fixes");
+    ({ result: pre, applied } = await scanAndFixWith(dir, m));
+    guard = codemodExportFindings(dir);
+  }
   const after = runGates(dir, pm, false, pkgDirs);
   return {
     prepared: {
