@@ -268,6 +268,7 @@ const changelog = [
       `${prList.length} AI SDK 7 upgrade PRs opened on public repos`,
       `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
       "A guard for the official codemod when it renames your own exports",
+      "Found a bug in the official AI SDK 7 codemod; Vercel merged the fix and credited our report (vercel/ai#24438)",
       "Per test baseline: only checks green before the upgrade count after it",
       "Runs on macOS, Linux and Windows",
     ],
