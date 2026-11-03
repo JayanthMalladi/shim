@@ -1,9 +1,10 @@
 import type { Project } from "ts-morph";
 import type { RuleContext } from "./rules/ai-sdk-v7.js";
-import { checkCiNodeVersions, checkPackageJsons, findAiPackages } from "./scan.js";
+import { checkCiNodeVersions, checkPackageJsons, findAiPackages, findPackages } from "./scan.js";
 import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
-import { bumpAiSdk } from "./bump.js";
+import { bumpAiSdk, bumpZod } from "./bump.js";
 import { applyAutoFixes } from "./rules/ai-sdk-v7.js";
+import { scanZodV4 } from "./rules/zod-v4.js";
 import { FIXER_RULES, REVIEWER_RULES } from "./arch.js";
 import { JUDGE_RULES } from "./agent.js";
 import { run } from "./exec.js";
@@ -77,7 +78,36 @@ export const AI_SDK_V7: Migration = {
   statusLine: "migration: ai-sdk-v7",
 };
 
-export const MIGRATIONS: Partial<Record<Migration["id"], Migration>> = { "ai-sdk-v7": AI_SDK_V7 };
+/**
+ * The Zod 3 -> 4 migration. `scan` and `applyAutoFixes` are real; the agent
+ * prompt fields are placeholders T4 fills in (plan.md T3.3 / T3.4).
+ */
+export const ZOD_V4: Migration = {
+  id: "zod-v4",
+  title: "Zod 4",
+  findPackages: (root) => findPackages(root, "zod"),
+  isOldMajor: (range) => /(^|[\^~>=\s])3(\.|$)/.test(range),
+  bump: (root) => bumpZod(root),
+  codemod: () => false, // community codemod zod-v3-to-v4, not wired yet; deterministic rules cover the silent breaks
+  scan: scanZodV4,
+  applyAutoFixes,
+  fixerIntro: "You are finishing a Zod 3 -> 4 migration in this repository. (T4)",
+  reviewerIntro: "It upgrades the project from Zod 3 to 4. A maintainer will merge it only if it is a pure upgrade. (T4)",
+  reference: "node_modules/zod/v4/classic/README.md",
+  fixerRules: "T4: Zod 3 -> 4 fixer rules",
+  reviewerRules: "T4: Zod 3 -> 4 reviewer rules",
+  judgeRules: "T4: Zod 3 -> 4 judge rules",
+  prBranch: "shim/zod-4",
+  commitMessage: "Upgrade to Zod 4",
+  changesetFile: "upgrade-zod-4.md",
+  changesetText: "Upgrade to Zod 4.",
+  statusLine: "migration: zod-v4",
+};
+
+export const MIGRATIONS: Partial<Record<Migration["id"], Migration>> = {
+  "ai-sdk-v7": AI_SDK_V7,
+  "zod-v4": ZOD_V4,
+};
 
 export function getMigration(id?: Migration["id"]): Migration {
   if (id === undefined) return AI_SDK_V7;

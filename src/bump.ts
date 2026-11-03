@@ -47,6 +47,34 @@ export function bumpAiSdk(root: string, latest: (pkg: string, cwd: string) => st
   return changes;
 }
 
+/**
+ * Bump `zod` to ^4 in every package.json in the repo. Same in-place text rewrite as
+ * bumpAiSdk: the file's own formatting survives, each change reads "name (path, field): from -> to".
+ */
+export function bumpZod(root: string): string[] {
+  const changes: string[] = [];
+  for (const file of findPackageJsons(root)) {
+    let text = fs.readFileSync(file, "utf8");
+    const pkg = JSON.parse(text);
+    for (const field of DEP_FIELDS) {
+      for (const [name, range] of Object.entries<string>(pkg[field] ?? {})) {
+        if (name !== "zod") continue;
+        // workspace:, catalog:, npm:, file: and the like aren't ranges we can rewrite.
+        if (range.includes(":")) continue;
+        // Never touch a range that already allows the target major (the "zod/v3" alias package
+        // stays on 3.x; the bump only rewrites the exact `zod` dependency).
+        if (!allowsMajor(range, 4)) continue;
+        const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
+        if (!pattern.test(text)) continue;
+        text = text.replace(pattern, `$1"^4.0.0"`);
+        changes.push(`${name} (${path.relative(root, file).split(path.sep).join("/")}, ${field}): ${range} -> ^4.0.0`);
+      }
+    }
+    fs.writeFileSync(file, text);
+  }
+  return changes;
+}
+
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** True if the range's own text already admits the given major (^7.x, >=6, 6 || 7, *). */
