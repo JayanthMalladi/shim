@@ -8,7 +8,7 @@ Shim is an upgrade agent for TypeScript apps: when an API you depend on changes,
 npx getshim scan .
 ```
 
-Needs Node 22 or later. Site and live PR list: [getshim.vercel.app](https://getshim.vercel.app/)
+Needs Node 22 or later. Site and live PR list: [getshim.dev](https://getshim.dev). Questions: hello@getshim.dev
 
 ![Shim scans an AI SDK 7 app, finds result.usage now counts every step, rewrites it to finalStep.usage, and reruns the checks](docs/assets/demo.gif)
 
