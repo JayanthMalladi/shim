@@ -8,6 +8,13 @@ const SEVERITY_LABEL = {
   deprecated: "Fixed: deprecated in v7",
 } as const;
 
+/** The Zod 4 equivalents of SEVERITY_LABEL, so the same structure names Zod, not v7. */
+const ZOD_SEVERITY_LABEL = {
+  break: "Fixed: would fail at runtime on Zod 4",
+  silent: "Fixed: same code, different behavior on Zod 4",
+  deprecated: "Fixed: deprecated in Zod 4",
+} as const;
+
 const SOURCE_FILE = /\.(m|c)?[jt]sx?$/;
 const MAX_LOCATIONS = 10;
 
@@ -28,6 +35,23 @@ export function prBody(r: MigrationReport, patch?: string, m: Migration = getMig
   const forHuman = dedupe([...unique.filter((f) => f.fix === "manual"), ...unfixed, ...r.remaining]);
   const bySeverity = (s: Finding["severity"]) => fixed.filter((f) => f.severity === s);
 
+  const isZod = m.id !== "ai-sdk-v7";
+  const label = isZod ? ZOD_SEVERITY_LABEL : SEVERITY_LABEL;
+  const title = isZod ? "## Upgrade to Zod 4" : "## Upgrade to AI SDK 7";
+  const intro =
+    (isZod ? "This PR moves the project from Zod 3 to 4 and keeps its current behavior"
+      : "This PR moves the project from AI SDK 6 to 7 and keeps its current behavior")
+    + (forHuman.length ? ', except where noted under "Needs your eyes"' : "") + ".";
+  const introParagraph = [intro, ...(isZod ? [] : explain(fixed))].join("\n");
+  const libraryLine = isZod
+    ? "If this package's public types include Zod schemas, users will see Zod 4 types. That probably belongs in a new major version."
+    : "This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.";
+  // The AI SDK codemod always runs; the community Zod codemod is only claimed when the report says it did.
+  const codemodLine = isZod
+    ? [...(r.codemod ? ["Also ran `npx zod-v3-to-v4` (community codemod)."] : []),
+       `Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`].join(" ")
+    : `Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`;
+
   const sourceFiles = r.changedFiles.filter((f) => SOURCE_FILE.test(f));
   const fixedFiles = new Set(fixed.map((f) => f.file));
   const otherFiles = sourceFiles.filter((f) => !fixedFiles.has(f));
@@ -35,7 +59,7 @@ export function prBody(r: MigrationReport, patch?: string, m: Migration = getMig
   const whatChanged = [
     ...(["break", "silent", "deprecated"] as const)
       .filter((s) => bySeverity(s).length)
-      .map((s) => `**${SEVERITY_LABEL[s]}**\n${group(bySeverity(s))}`),
+      .map((s) => `**${label[s]}**\n${group(bySeverity(s))}`),
     ...(!sourceFiles.length ? ["No code changes needed: only dependency versions changed."] : []),
     ...(otherFiles.length
       ? [`${fixed.length ? "Other source files changed" : "Source files changed"} (${edits}): ${files(otherFiles)}.`]
@@ -50,17 +74,14 @@ export function prBody(r: MigrationReport, patch?: string, m: Migration = getMig
     .join("\n");
 
   return [
-    `## Upgrade to AI SDK 7`,
-    [
-      `This PR moves the project from AI SDK 6 to 7 and keeps its current behavior${forHuman.length ? ', except where noted under "Needs your eyes"' : ""}.`,
-      ...explain(fixed),
-    ].join("\n"),
+    title,
+    introParagraph,
     `### Versions\n${versionLines(r.versionChanges, patch)}`,
-    ...(r.library ? ["This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version."] : []),
+    ...(r.library ? [libraryLine] : []),
     `### What changed and why\n${whatChanged.join("\n\n")}`,
     ...(forHuman.length ? [`### Needs your eyes\nShim did not change these. Please check them before merging.\n${group(forHuman)}`] : []),
     `### How it was checked\n| Check | Before | After |\n|---|---|---|\n${gates}`,
-    `Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`,
+    codemodLine,
     `### Rollback\nRevert this PR. No data or config migrations are involved.`,
     `---\nOpened by [Shim](https://github.com/JayanthMalladi/shim), which turns API breaking changes into tested PRs. Not useful? Close it and we won't open another on this repo.`,
   ].join("\n\n") + "\n";

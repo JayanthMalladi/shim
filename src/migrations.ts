@@ -79,9 +79,47 @@ export const AI_SDK_V7: Migration = {
   statusLine: "migration: ai-sdk-v7",
 };
 
+/** The Zod fixer's rules, word for word. Behavior-preserving by design; no AI SDK words. */
+const ZOD_FIXER_RULES = `Rules:
+- Preserve the program's Zod 3 runtime behavior exactly: the same inputs must parse to the same outputs
+  and fail in the same cases. Known Zod 4 differences and their behavior-preserving fixes:
+  .default() before .optional()/.nullish() -> remove the .default(); .default() after a transform or
+  trim/toLowerCase/toUpperCase -> .prefault(); string().uuid() -> string().guid(); z.record with enum or
+  literal keys -> z.partialRecord(); a z.unknown()/z.any() object field -> add .optional();
+  ZodError.errors -> .issues.
+- Make the smallest edit at each site. No refactors, no formatting changes, no new dependencies.
+- Never change a function's signature or an exported schema's name.
+- The codemod's edits are in \`git diff\`. If one of them is wrong, revert that edit.
+- Error message text changed in Zod 4. If a test asserts an exact Zod error message, do not change the
+  assertion: leave the site and report it.
+- Never silence a type error with \`as any\`, \`as unknown as\`, \`@ts-ignore\` or \`@ts-expect-error\`.
+- If a site cannot be fixed safely, leave it and say why in your final message.
+- Finish by running \`npx --no-install tsc --noEmit -p tsconfig.json\` if a tsconfig.json exists.`;
+
+const ZOD_REVIEWER_RULES = `Reject it if any of these is true:
+- Runtime behavior changes beyond what Zod 4 forces. In Zod 4, \`.default()\` before \`.optional()\`,
+  \`.nullish()\` or a transform behaves differently; \`string().uuid()\` rejects non-RFC UUIDs;
+  \`z.record\` takes string keys only; a \`z.unknown()\`/\`z.any()\` object field is non-optional; and
+  \`ZodError.errors\` is \`.issues\`. A behavior-preserving fix for one of these is not a behavior
+  change and is not a reason to reject.
+- An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
+- A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
+  \`@ts-expect-error\` or a similar cast or suppression instead of fixed.
+- A test is deleted, skipped, or loosened, or an assertion changes (including an exact Zod error-message
+  assertion), unless the edit only reverts a wrong codemod edit or is a minimal type-only change the
+  new API requires.
+- A function's signature changes or an exported schema's name changes.`;
+
+/** Stricter than the reviewer, mirroring agent.ts's JUDGE_RULES: judgeRules extends reviewerRules. */
+const ZOD_JUDGE_RULES = `${ZOD_REVIEWER_RULES}
+- The diff leaves code that cannot compile, references names that do not exist, or renames anything this
+  package exports.
+- A site that cannot be fixed safely was forced anyway (a cast, a widened type, a loosened test)
+  instead of being left for the maintainer.`;
+
 /**
- * The Zod 3 -> 4 migration. `scan` and `applyAutoFixes` are real; the agent
- * prompt fields are placeholders T4 fills in (plan.md T3.3 / T3.4).
+ * The Zod 3 -> 4 migration. The agent prompts are Zod-specific on purpose: they never
+ * mention AI SDK, and the judge's rules strictly extend the reviewer's.
  */
 export const ZOD_V4: Migration = {
   id: "zod-v4",
@@ -92,16 +130,18 @@ export const ZOD_V4: Migration = {
   codemod: runZodCodemod,
   scan: scanZodV4,
   applyAutoFixes,
-  fixerIntro: "You are finishing a Zod 3 -> 4 migration in this repository. (T4)",
-  reviewerIntro: "It upgrades the project from Zod 3 to 4. A maintainer will merge it only if it is a pure upgrade. (T4)",
-  reference: "node_modules/zod/v4/classic/README.md",
-  fixerRules: "T4: Zod 3 -> 4 fixer rules",
-  reviewerRules: "T4: Zod 3 -> 4 reviewer rules",
-  judgeRules: "T4: Zod 3 -> 4 judge rules",
+  fixerIntro:
+    "You are finishing a Zod 3 -> 4 migration in this repository. Dependencies are already bumped\n" +
+    "and the community codemod (zod-v3-to-v4) has run. Fix only what is listed below.",
+  reviewerIntro: "It upgrades the project from Zod 3 to 4. A maintainer will merge it only if it is a pure upgrade.",
+  reference: "https://zod.dev/v4/changelog (you can't open it here; the rules above list every Zod 4 change that matters)",
+  fixerRules: ZOD_FIXER_RULES,
+  reviewerRules: ZOD_REVIEWER_RULES,
+  judgeRules: ZOD_JUDGE_RULES,
   prBranch: "shim/zod-4",
   commitMessage: "Upgrade to Zod 4",
   changesetFile: "upgrade-zod-4.md",
-  changesetText: "Upgrade to Zod 4.",
+  changesetText: "Upgrade to Zod 4. Requires zod@4.",
   statusLine: "migration: zod-v4",
 };
 
