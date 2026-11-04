@@ -13,6 +13,7 @@ import { prOpen, prRecord } from "./pr.js";
 import { writeStats } from "./stats.js";
 import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
+import { scoreTargets } from "./score-targets.js";
 
 const USAGE = `shim <command>
 
@@ -20,6 +21,9 @@ const USAGE = `shim <command>
                            Find npm packages on ai@6 published in the last N days (default 60)
   triage <candidates.json> [--work <dir>] [--migration <id>]
                            Shallow-clone and scan each candidate (read-only)
+  score <targets.json> [--prs <prs.csv>]
+                           Rank triaged targets by merge likelihood (read-only GitHub
+                           calls with GITHUB_TOKEN_READONLY); rewrites the file in place
   scan <dir> [--migration <id>]
                            List AI SDK 6 -> 7 findings (no changes); --migration selects the rules
   fix <dir> [--migration <id>]
@@ -133,6 +137,11 @@ switch (cmd) {
     const m = getMigration(migFlag());
     const rows = triage(JSON.parse(fs.readFileSync(target, "utf8")), path.resolve(flag("--work") ?? "work"), m);
     console.log(JSON.stringify(rows, null, 2));
+    break;
+  }
+  case "score": {
+    const rows = await scoreTargets(target, flag("--prs") ?? "data/prs.csv");
+    for (const r of rows.slice(0, 20)) console.log(`${r.score}\t${r.repo}\t${r.scoreReasons.join("; ")}`);
     break;
   }
   case "discover": {
