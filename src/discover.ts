@@ -1,16 +1,23 @@
 /**
- * Find public packages still on ai@6 via the npm registry: search, then read each
+ * Find public packages still on the old major via the npm registry: search, then read each
  * package's latest manifest. Libraries with a GitHub repo and a recent release are
  * the best PR targets: active maintainers, and their users inherit the upgrade.
  */
-import { getMigration } from "./migrations.js";
+import { getMigration, type Migration } from "./migrations.js";
 
 const REGISTRY = "https://registry.npmjs.org";
-const QUERIES = [
-  "keywords:ai-sdk", "keywords:vercel-ai", "keywords:vercel-ai-sdk", "keywords:ai-sdk-provider",
-  "keywords:ai-sdk-tools", "ai-sdk", "vercel ai sdk", "generateText", "streamText", "ai sdk agent",
-  "ai sdk tools", "ai sdk provider", "ai sdk mcp", "useChat",
-];
+/** Search queries keyed by migration: the AI SDK path keeps its "ai" keyword queries;
+ *  zod-v4 searches for packages that depend on zod. */
+const QUERIES: Record<Migration["id"], string[]> = {
+  "ai-sdk-v7": [
+    "keywords:ai-sdk", "keywords:vercel-ai", "keywords:vercel-ai-sdk", "keywords:ai-sdk-provider",
+    "keywords:ai-sdk-tools", "ai-sdk", "vercel ai sdk", "generateText", "streamText", "ai sdk agent",
+    "ai sdk tools", "ai sdk provider", "ai sdk mcp", "useChat",
+  ],
+  "zod-v4": ["zod"],
+};
+/** The dependency each migration reads off a manifest: "ai" for AI SDK, "zod" for Zod. */
+const DEP: Record<Migration["id"], string> = { "ai-sdk-v7": "ai", "zod-v4": "zod" };
 
 export interface Candidate {
   name: string;
@@ -18,6 +25,8 @@ export interface Candidate {
   aiRange: string;
   repo: string;
   published: string;
+  /** Set only for zod-v4 candidates: the package ships a CLI (public types rarely expose schemas). */
+  bin?: boolean;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -50,25 +59,40 @@ function githubRepo(manifest: any): string | undefined {
 
 const isV6 = (range: string) => /(^|[\^~>=\s|])6(\.|$|\s)/.test(range) && !/(^|[\^~>=\s|])7(\.|$|\s)/.test(range);
 
+/** A real test script: present and not npm's "no test specified" stub (same check as gates.ts). */
+const hasRealTest = (manifest: any) =>
+  typeof manifest.scripts?.test === "string" && !manifest.scripts.test.includes("no test specified");
+
+/** True when the package lists the dep as a peer: for zod, a library needing dual v3/v4 support. */
+function peerSkip(manifest: any, dep: string): boolean {
+  return (manifest.peerDependencies?.[dep] as string | undefined) !== undefined;
+}
+
 async function inspect(name: string, sinceMs: number, m: import("./migrations.js").Migration): Promise<Candidate | undefined> {
   const doc = await getJson(`${REGISTRY}/${name.replace("/", "%2F")}`);
   const version = doc["dist-tags"]?.latest;
   const manifest = doc.versions?.[version];
   const published = doc.time?.[version];
   if (!manifest || !published || Date.parse(published) < sinceMs) return undefined;
-  const aiRange = manifest.dependencies?.ai ?? manifest.peerDependencies?.ai ?? manifest.devDependencies?.ai;
+  const dep = DEP[m.id];
+  const aiRange = manifest.dependencies?.[dep] ?? manifest.peerDependencies?.[dep] ?? manifest.devDependencies?.[dep];
   const repo = githubRepo(manifest);
   // The default (AI SDK) migration keeps the original isV6 filter so --migration ai-sdk-v7 behaves
   // exactly like today; a non-AI-SDK migration supplies its own old-major test.
-  const isOld = m.id === "ai-sdk-v7" ? isV6 : m.isOldMajor;
+  const isZod = m.id !== "ai-sdk-v7";
+  const isOld = isZod ? m.isOldMajor : isV6;
+  // Zod-specific: skip peer-dep (dual v3/v4 libraries), require a real test script.
+  if (isZod && (peerSkip(manifest, dep) || !hasRealTest(manifest))) return undefined;
   if (!aiRange || !isOld(aiRange) || !repo || repo.startsWith("vercel/")) return undefined;
-  return { name, version, aiRange, repo, published };
+  const candidate: Candidate = { name, version, aiRange, repo, published };
+  if (isZod) candidate.bin = Boolean(manifest.bin);
+  return candidate;
 }
 
 export async function discover(days = 60, concurrency = 16, m?: import("./migrations.js").Migration): Promise<Candidate[]> {
   const mig = m ?? getMigration();
   const names = new Set<string>();
-  for (const q of QUERIES) for (const n of await searchNames(q)) names.add(n);
+  for (const q of QUERIES[mig.id]) for (const n of await searchNames(q)) names.add(n);
   console.error(`[discover] ${names.size} packages to inspect`);
 
   const sinceMs = Date.now() - days * 86_400_000;
@@ -85,5 +109,9 @@ export async function discover(days = 60, concurrency = 16, m?: import("./migrat
       }
     }
   }));
-  return [...found.values()].sort((a, b) => b.published.localeCompare(a.published));
+  // CLIs first (their public types rarely expose schemas), then most recently published.
+  // bin is only set on non-AI-SDK candidates, so the AI SDK path sorts by recency as before.
+  return [...found.values()].sort(
+    (a, b) => Number(b.bin ?? false) - Number(a.bin ?? false) || b.published.localeCompare(a.published),
+  );
 }
