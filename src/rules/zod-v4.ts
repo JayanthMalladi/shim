@@ -25,6 +25,8 @@ interface ZodBindings {
 
 /** R2: methods before a `.default()` that decide whether the value is parsed first. */
 const TRANSFORMS = new Set(["transform", "pipe", "trim", "toLowerCase", "toUpperCase", "normalize"]);
+/** R9: root calls whose `.default()` value Zod 3 parsed (filling inner defaults, stripping unknown keys) and Zod 4 does not. */
+const OBJECT_ROOTS = new Set(["object", "strictObject"]);
 /** R6: methods that already guard a z.coerce value against a missing key. */
 const GUARDS = new Set(["optional", "nullish", "default", "prefault", "catch"]);
 /** R8: calls whose result carries an `.error` that is a ZodError. */
@@ -37,6 +39,9 @@ const R1_MSG =
 const R2_MSG =
   "Zod 4's .default() returns the value without running it through the schema; Zod 3 parsed it " +
   "(so transforms applied). .prefault() keeps Zod 3 behavior.";
+const R9_MSG =
+  "Zod 4's .default() on an object returns the value as is; Zod 3 parsed it, which filled in the " +
+  "object's own field defaults. .prefault() keeps Zod 3 behavior.";
 const R3_MSG =
   "Zod 4's uuid() rejects UUIDs without RFC 9562 variant bits that Zod 3 accepted. " +
   "guid() keeps Zod 3's pattern.";
@@ -116,6 +121,20 @@ function keyRootCall(key: TmNode, names: Set<string>, inits: Map<string, TmNode>
   return chainMethods(target)[0];
 }
 
+/**
+ * The first method of a Zod chain: `z.object({...}).default({})` -> "object". When the chain starts at an
+ * identifier with a same-file `const` Zod-chain initializer (`S.default({})`), that initializer's first method.
+ * One level, no recursion.
+ */
+function chainRoot(expr: TmNode, names: Set<string>, inits: Map<string, TmNode>): string | undefined {
+  let base = expr;
+  while (Node.isCallExpression(base) || Node.isPropertyAccessExpression(base)) base = base.getExpression();
+  if (!Node.isIdentifier(base)) return undefined;
+  if (names.has(base.getText())) return chainMethods(expr)[0];
+  const init = inits.get(base.getText());
+  return init && isZodChain(init, names, inits) ? chainMethods(init)[0] : undefined;
+}
+
 /** Method names from the `z` binding to `n`, e.g. `z.string().default("a")` -> ["string", "default"]. */
 function chainMethods(n: TmNode): string[] {
   if (Node.isCallExpression(n)) {
@@ -168,6 +187,10 @@ function checkRules(ctx: RuleContext, sf: SourceFile, b: ZodBindings, inits: Map
         (chainMethods(e)[0] === "preprocess" || chainMethods(e).slice(0, -1).some((x) => TRANSFORMS.has(x)))
       ) {
         add(ctx, defCall, "zod-default-through-transform", "silent", "auto", R2_MSG);
+        ctx.edits.push({ node: e.getNameNode(), text: "prefault" });
+      } else if (!r1DefaultCalls.has(defCall) && OBJECT_ROOTS.has(chainRoot(e, names, inits) ?? "")) {
+        // R9: `.default(X)` on an object schema — rename to `.prefault(X)`.
+        add(ctx, defCall, "zod-object-default", "silent", "auto", R9_MSG);
         ctx.edits.push({ node: e.getNameNode(), text: "prefault" });
       }
       continue;

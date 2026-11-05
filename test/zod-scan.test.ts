@@ -36,6 +36,7 @@ const RULE_MARKER: Record<string, string[]> = {
   "zod-coerce-missing-key": ["R6"],
   "zod-intersection-error": ["R7"],
   "zod-errors-property": ["R8"],
+  "zod-object-default": ["R9"],
 };
 
 /** Scan a copy of the fixture with the Zod migration; findings normalised to /. */
@@ -104,6 +105,7 @@ describe("zod v4 scan", () => {
       ["zod-coerce-missing-key", "silent", "manual"],
       ["zod-intersection-error", "silent", "manual"],
       ["zod-errors-property", "break", "auto"],
+      ["zod-object-default", "silent", "auto"],
     ];
     for (const [id, sev, fix] of kinds) {
       expect(rule(id).length, `${id} found at least one`).toBeGreaterThan(0);
