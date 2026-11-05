@@ -68,6 +68,16 @@ function peerSkip(manifest: any, dep: string): boolean {
   return (manifest.peerDependencies?.[dep] as string | undefined) !== undefined;
 }
 
+/**
+ * Zod packages a Zod 4 PR can't help: codemods (they match Zod 3 syntax on purpose) and packages that
+ * generate JSON Schema with zod-to-json-schema (Zod 4's output differs, so every snapshot changes).
+ */
+function zodToolingSkip(manifest: any): boolean {
+  const keywords: unknown[] = Array.isArray(manifest.keywords) ? manifest.keywords : [];
+  const deps = { ...manifest.dependencies, ...manifest.devDependencies };
+  return keywords.includes("codemod") || deps["zod-to-json-schema"] !== undefined;
+}
+
 async function inspect(name: string, sinceMs: number, m: import("./migrations.js").Migration): Promise<Candidate | undefined> {
   const doc = await getJson(`${REGISTRY}/${name.replace("/", "%2F")}`);
   const version = doc["dist-tags"]?.latest;
@@ -81,8 +91,8 @@ async function inspect(name: string, sinceMs: number, m: import("./migrations.js
   // exactly like today; a non-AI-SDK migration supplies its own old-major test.
   const isZod = m.id !== "ai-sdk-v7";
   const isOld = isZod ? m.isOldMajor : isV6;
-  // Zod-specific: skip peer-dep (dual v3/v4 libraries), require a real test script.
-  if (isZod && (peerSkip(manifest, dep) || !hasRealTest(manifest))) return undefined;
+  // Zod-specific: skip peer-dep (dual v3/v4 libraries) and tooling, require a real test script.
+  if (isZod && (peerSkip(manifest, dep) || zodToolingSkip(manifest) || !hasRealTest(manifest))) return undefined;
   if (!aiRange || !isOld(aiRange) || !repo || repo.startsWith("vercel/")) return undefined;
   const candidate: Candidate = { name, version, aiRange, repo, published };
   if (isZod) candidate.bin = Boolean(manifest.bin);
