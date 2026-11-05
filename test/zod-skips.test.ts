@@ -79,6 +79,10 @@ describe("prepare skips before install", () => {
     const dir = tmpRepo({ "package.json": { name: "app", dependencies: { zod: "^4.1.0" } } });
     expect(await prepare(dir, "x/app", ZOD_V4)).toEqual({ skip: "already on zod 4 (^4.1.0)" });
   });
+  it("zod: catalog ranges are not reported as zod 4", async () => {
+    const dir = tmpRepo({ "package.json": { name: "app", dependencies: { zod: "catalog:" } } });
+    expect(await prepare(dir, "x/app", ZOD_V4)).toEqual({ skip: "zod version not in package.json (catalog:)" });
+  });
   it("zod: no zod dependency", async () => {
     const dir = tmpRepo({ "package.json": { name: "app" } });
     expect(await prepare(dir, "x/app", ZOD_V4)).toEqual({ skip: "no zod dependency" });

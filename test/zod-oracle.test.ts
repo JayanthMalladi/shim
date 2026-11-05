@@ -212,4 +212,17 @@ describe("zod oracle: v3 vs v4 behavior (T2)", () => {
     expect(z3.string().email().safeParse("a@b").success).toBe(false);
     expect(z4.string().email().safeParse("a@b").success).toBe(false);
   });
+
+  // Row 20: z.object({levels: S.default({})}).parse({}), where S's fields have their own defaults.
+  // v3 -> {levels:{error:"pass",debug:"drop"}} (the default ran through S) ; v4 -> {levels:{}} (returned as is).
+  // Fix: .prefault({}) -> the v3 result.
+  it("row 20: object .default() is no longer parsed in v4; .prefault() keeps v3 behavior", () => {
+    const S3 = z3.object({ error: z3.enum(["pass", "drop"]).default("pass"), debug: z3.enum(["pass", "drop"]).default("drop") });
+    const S4 = z4.object({ error: z4.enum(["pass", "drop"]).default("pass"), debug: z4.enum(["pass", "drop"]).default("drop") });
+    const v3Result = { levels: { error: "pass", debug: "drop" } };
+    expect(z3.object({ levels: S3.default({}) }).parse({})).toEqual(v3Result);
+    // @ts-expect-error -- v4 types .default()'s value as the output, so {} is a type error; it still runs.
+    expect(z4.object({ levels: S4.default({}) }).parse({})).toEqual({ levels: {} });
+    expect(z4.object({ levels: S4.prefault({}) }).parse({})).toEqual(v3Result);
+  });
 });

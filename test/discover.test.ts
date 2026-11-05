@@ -40,6 +40,8 @@ describe("discover, Zod", () => {
       "npm-default-test": doc("npm-default-test", { dependencies: { zod: "^3.22.0" }, scripts: { test: 'echo "Error: no test specified" && exit 1' } }),
       "no-repo": doc("no-repo", { dependencies: { zod: "^3.22.0" }, repository: undefined }),
       "stale": doc("stale", { dependencies: { zod: "^3.22.0" } }, stale),
+      "codemod-tool": doc("codemod-tool", { dependencies: { zod: "^3.22.0" }, keywords: ["zod", "codemod"] }),
+      "json-schema-gen": doc("json-schema-gen", { dependencies: { zod: "^3.22.0" }, devDependencies: { "zod-to-json-schema": "^3.25.2" } }),
     });
     const found = await discover(60, 1, ZOD_V4);
     expect(found.map((c) => [c.name, c.aiRange, c.bin])).toEqual([
