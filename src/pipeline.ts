@@ -109,7 +109,12 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
   }
   if (!pkgs.some((p) => m.isOldMajor(p.range))) {
     const ranges = pkgs.map((p) => p.range).join(", ");
-    if (m.id === "zod-v4") return { skip: ranges ? `already on zod 4 (${ranges})` : "no zod dependency" };
+    if (m.id === "zod-v4") {
+      if (!ranges) return { skip: "no zod dependency" };
+      // catalog:, workspace: and the like: the real version lives elsewhere, and bumpZod can't rewrite it.
+      if (pkgs.every((p) => p.range.includes(":"))) return { skip: `zod version not in package.json (${ranges})` };
+      return { skip: `already on zod 4 (${ranges})` };
+    }
     return { skip: `not on ai@6 (${ranges || "no ai dependency"})` };
   }
   const pm = detectPackageManager(dir);
