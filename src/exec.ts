@@ -164,7 +164,32 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
     env,
   });
   const output = `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? `\n${r.error.message}` : ""}`;
-  return { ok: r.status === 0, code: r.status, output: output.slice(-8000), ms: Date.now() - start };
+  const ok = r.status === 0;
+  return { ok, code: r.status, output: ok ? output.slice(-8000) : failureExcerpt(output), ms: Date.now() - start };
+}
+
+/** Lines that start a test failure: TAP `not ok`, mocha `1) name`, and the ✗/×/✖ marks of vitest, jest and node --test's spec reporter. */
+const FAILURE_LINE = /^\s*(not ok \d+|\d+\) \S|[✗×✖] \S)/;
+
+/**
+ * A failed command's output, cut to fit in 8000 characters. A long passing listing (2,500 `ok` lines)
+ * would push the one failure out of a plain tail, so when the output has failure lines, the last 1500
+ * characters are kept and each failure line follows with the 30 lines after it (its error and stack).
+ */
+export function failureExcerpt(output: string, max = 8000): string {
+  if (output.length <= max) return output;
+  const lines = output.split("\n");
+  const blocks: string[] = [];
+  let used = 0;
+  for (let i = 0; i < lines.length && used < max - 2000; i++) {
+    if (!FAILURE_LINE.test(lines[i]!)) continue;
+    const block = lines.slice(i, i + 31).join("\n");
+    blocks.push(block);
+    used += block.length + 1;
+    i += 30;
+  }
+  if (!blocks.length) return output.slice(-max);
+  return `${output.slice(-1500)}\n\n--- failing tests (from the full output) ---\n${blocks.join("\n").slice(0, max - 1600)}`;
 }
 
 /** Run with `input` on stdin and return all of stdout: `run` keeps only the tail, which can't be compared to a file. */
