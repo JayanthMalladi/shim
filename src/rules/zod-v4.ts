@@ -169,9 +169,11 @@ function checkRules(ctx: RuleContext, sf: SourceFile, b: ZodBindings, inits: Map
       const recv = e.getExpression();
       if (Node.isCallExpression(recv) && callMethod(recv) === "default" && isZodChain(recv, names, inits)) {
         r1DefaultCalls.add(recv);
-        add(ctx, call, "zod-default-then-optional", "silent", "auto", R1_MSG);
-        // Replace `<recv>.default(X)` with `<recv>`'s receiver (the chain before the default).
         const defPae = recv.getExpression();
+        // Report on the `.default` line: that is the line the edit removes in a multi-line chain.
+        const at = Node.isPropertyAccessExpression(defPae) ? defPae.getNameNode() : recv;
+        addAt(ctx, call, at, "zod-default-then-optional", "silent", "auto", R1_MSG);
+        // Replace `<recv>.default(X)` with `<recv>`'s receiver (the chain before the default).
         const receiver = Node.isPropertyAccessExpression(defPae) ? defPae.getExpression().getText() : defPae.getText();
         ctx.edits.push({ node: recv, text: unindentForReplace(recv, receiver) });
       }
