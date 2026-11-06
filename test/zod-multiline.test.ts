@@ -40,6 +40,24 @@ describe("multi-line Zod chains", () => {
     });
   }
 
+  // T14: after T13, R1's edit removes only the `.default` line, so its finding must sit there too.
+  it("R1's finding is on the .default line, where the edit lands", async () => {
+    const src = [
+      "import { z } from 'zod';",
+      "export const s = {",
+      "  view: z",
+      "    .literal('summary')",
+      "    .default('summary')",
+      "    .optional(),",
+      "  mode: z.string().default('a').optional(),",
+      "};",
+      "",
+    ].join("\n");
+    const { findings } = await fix(src);
+    const r1 = findings.filter((f) => f.ruleId === "zod-default-then-optional");
+    expect(r1.map((f) => f.line)).toEqual([5, 7]);
+  });
+
   it("R9's finding is on the .default line, where the edit lands", async () => {
     const src = [
       "import { z } from 'zod';",

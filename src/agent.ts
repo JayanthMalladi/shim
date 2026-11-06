@@ -133,7 +133,8 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
     ];
     const res = await runAgentBackend(args, dir, 20 * 60_000, p);
     if (!unpriced) cost = (cost ?? 0) + (res.cost ?? 0);
-    last = res.text ?? res.output;
+    // `||`, not `??`: claude can end with `"result": ""` (empty final message); keep the raw JSON (subtype, turns) then.
+    last = res.text || res.output;
     const verdict = parseReview(last);
     if (verdict.issues[0] !== NO_VERDICT) {
       // Restore the tree if the reviewer modified anything: its job is read-only, and a diff it
