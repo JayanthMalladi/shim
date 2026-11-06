@@ -125,7 +125,8 @@ switch (cmd) {
     let judge;
     if (judging && report.verdict === "open-pr") {
       const j = await runJudge(path.resolve(target), migOverride ?? getMigration(prep.migration));
-      judge = { approve: j.approve, issues: j.issues, cost: j.cost };
+      // Keep the end of a rejection's output: "reviewer gave no verdict" alone can't tell a turn limit from a crash.
+      judge = { approve: j.approve, issues: j.issues, cost: j.cost, ...(j.approve ? {} : { output: j.output.slice(-2000) }) };
     }
     const result = { repo: report.repo, arch: report.arch, verdict: report.verdict, reason: report.reason.slice(0, 600), judge, cost: report.cost, agent: report.agent && { ...report.agent, ...(judge && agentBackend() !== "dsh" ? { judgeModel: judgeModel() } : {}) }, fixMs: report.fixMs, candidates: report.candidates, diffStat: report.diffStat.split("\n").pop() };
     fs.writeFileSync(path.join(out, "result.json"), JSON.stringify(result, null, 2));

@@ -173,7 +173,7 @@ function checkRules(ctx: RuleContext, sf: SourceFile, b: ZodBindings, inits: Map
         // Replace `<recv>.default(X)` with `<recv>`'s receiver (the chain before the default).
         const defPae = recv.getExpression();
         const receiver = Node.isPropertyAccessExpression(defPae) ? defPae.getExpression().getText() : defPae.getText();
-        ctx.edits.push({ node: recv, text: receiver });
+        ctx.edits.push({ node: recv, text: unindentForReplace(recv, receiver) });
       }
       continue;
     }
@@ -186,11 +186,11 @@ function checkRules(ctx: RuleContext, sf: SourceFile, b: ZodBindings, inits: Map
         !r1DefaultCalls.has(defCall) &&
         (chainMethods(e)[0] === "preprocess" || chainMethods(e).slice(0, -1).some((x) => TRANSFORMS.has(x)))
       ) {
-        add(ctx, defCall, "zod-default-through-transform", "silent", "auto", R2_MSG);
+        addAt(ctx, defCall, e.getNameNode(), "zod-default-through-transform", "silent", "auto", R2_MSG);
         ctx.edits.push({ node: e.getNameNode(), text: "prefault" });
       } else if (!r1DefaultCalls.has(defCall) && OBJECT_ROOTS.has(chainRoot(e, names, inits) ?? "")) {
         // R9: `.default(X)` on an object schema — rename to `.prefault(X)`.
-        add(ctx, defCall, "zod-object-default", "silent", "auto", R9_MSG);
+        addAt(ctx, defCall, e.getNameNode(), "zod-object-default", "silent", "auto", R9_MSG);
         ctx.edits.push({ node: e.getNameNode(), text: "prefault" });
       }
       continue;
@@ -332,6 +332,20 @@ function referencesZodError(sf: SourceFile): boolean {
     if (bin.getOperatorToken().getText() === "instanceof" && Node.isIdentifier(bin.getRight()) && bin.getRight().getText() === "ZodError") return true;
   }
   return false;
+}
+
+/** replaceWithText indents every line after the first by the node's indentation level, so a multi-line
+ * chain like `z\n    .literal('x')` would gain an extra indent. Remove that indent up front. */
+function unindentForReplace(node: TmNode, text: string): string {
+  const added = node.getProject().manipulationSettings.getIndentationText().repeat(node.getIndentationLevel());
+  return text.split("\n").map((l, i) => (i > 0 && added && l.startsWith(added) ? l.slice(added.length) : l)).join("\n");
+}
+
+/** Like add, but the finding's line is where the edit lands (the `.default` name), not where a
+ * multi-line chain starts: the PR text decides "fixed" by matching that line against the diff. */
+function addAt(ctx: RuleContext, node: TmNode, at: TmNode, ruleId: string, severity: Severity, fix: FixKind, message: string) {
+  add(ctx, node, ruleId, severity, fix, message);
+  ctx.findings[ctx.findings.length - 1]!.line = at.getStartLineNumber();
 }
 
 function add(ctx: RuleContext, node: TmNode, ruleId: string, severity: Severity, fix: FixKind, message: string) {
