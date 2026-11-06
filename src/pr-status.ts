@@ -173,8 +173,9 @@ export async function prStatusText(
 ): Promise<PrStatusReport> {
   const fetcher = options.fetchFn ?? globalThis.fetch;
   const token = process.env.GITHUB_TOKEN;
-  const get = async (url: string): Promise<any> => {
+  const get = async (url: string, allow404 = false): Promise<any> => {
     const res = await fetcher(url, token ? { headers: { authorization: `Bearer ${token}` } } : undefined);
+    if (allow404 && res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${url}`);
     return res.json();
   };
@@ -208,7 +209,12 @@ export async function prStatusText(
       table.push({ repo: repoName, state: "open", mergedAt: null, comments: Number(row.cells[cComments] ?? 0) || 0, review: "none", daysOpen: -1 });
       continue;
     }
-    const pr = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.num}`);
+    const pr = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.num}`, true);
+    if (pr === null) {
+      // The repo was deleted or made private: keep its CSV row as it is and leave it out of the totals.
+      console.warn(`skip ${repoName}: ${url} returns 404 (repo deleted or private)`);
+      continue;
+    }
     const reviews: any[] = await get(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.num}/reviews`);
     // Bots (changeset-bot, socket-security, Copilot) and the PR author don't count as replies.
     const author = pr.user?.login;

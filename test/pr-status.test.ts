@@ -141,6 +141,22 @@ describe("prStatus (printed)", () => {
   });
 });
 
+describe("deleted repos", () => {
+  it("skips a PR whose repo returns 404 instead of crashing, and leaves its row alone", async () => {
+    const { fetchFn, csv } = fixture();
+    const gone = `gone/repo,,,https://github.com/gone/repo/pull/7,${daysAgo(9)},open,,0,"deleted upstream"`;
+    const withGone = csv.replace("\r\nlocal/none", `\r\n${gone}\r\nlocal/none`);
+    const f404 = vi.fn(async (url: string, init?: RequestInit) =>
+      url.includes("/gone/repo/") ? ({ ok: false, status: 404, json: async () => ({}) } as unknown as Response) : fetchFn(url, init),
+    );
+    let written = "";
+    const r = await prStatusText(withGone, { fetchFn: f404, write: true }, (t) => (written = t));
+    expect(r.opened).toBe(4);
+    expect(r.table.map((t) => t.repo)).not.toContain("gone/repo");
+    expect(written.split("\r\n")).toContain(gone);
+  });
+});
+
 describe("auth", () => {
   it("sends GITHUB_TOKEN as a Bearer header when set, no headers when unset", async () => {
     const { fetchFn, csv } = fixture();
