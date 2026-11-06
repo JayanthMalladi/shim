@@ -18,12 +18,16 @@ async function fix(src: string) {
 }
 
 describe("multi-line Zod chains", () => {
-  for (const ind of ["  ", "    "]) {
-    it(`R1 keeps the chain's indentation (${ind.length}-space indent)`, async () => {
+  // The second variant is log-10x's layout: another property above, so ts-morph computes a
+  // fractional indentation level (0.5) for a 2-space file.
+  for (const [ind, before] of [["  ", []], ["    ", []], ["  ", ["  environment: z.string().optional(),"]]] as const) {
+    it(`R1 keeps the chain's indentation (${ind.length}-space indent${before.length ? ", property above" : ""})`, async () => {
       const lines = (withDefault: boolean) =>
         [
           "import { z } from 'zod';",
+          "",
           "export const s = {",
+          ...before,
           `${ind}view: z`,
           `${ind}${ind}.literal('summary')`,
           ...(withDefault ? [`${ind}${ind}.default('summary')`] : []),

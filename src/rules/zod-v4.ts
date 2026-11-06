@@ -337,7 +337,11 @@ function referencesZodError(sf: SourceFile): boolean {
 /** replaceWithText indents every line after the first by the node's indentation level, so a multi-line
  * chain like `z\n    .literal('x')` would gain an extra indent. Remove that indent up front. */
 function unindentForReplace(node: TmNode, text: string): string {
-  const added = node.getProject().manipulationSettings.getIndentationText().repeat(node.getIndentationLevel());
+  // The level can be fractional (a 2-space file under the default 4-space setting gives 0.5), and
+  // ts-morph then writes level × the setting's width in spaces.
+  const unit = node.getProject().manipulationSettings.getIndentationText();
+  const level = node.getIndentationLevel();
+  const added = unit.startsWith(" ") ? " ".repeat(Math.round(level * unit.length)) : unit.repeat(Math.floor(level));
   return text.split("\n").map((l, i) => (i > 0 && added && l.startsWith(added) ? l.slice(added.length) : l)).join("\n");
 }
 
