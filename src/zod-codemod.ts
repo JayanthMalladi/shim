@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { run } from "./exec.js";
+import { run, runCapture } from "./exec.js";
 import { findPackages } from "./scan.js";
 import type { Finding } from "./types.js";
 
@@ -37,12 +37,13 @@ const ZOD_V3 = /["']zod\/v3["']/;
  */
 export function zodCodemodGuard(dir: string): Finding[] {
   const findings: Finding[] = [];
-  const changed = run("git", ["diff", "--name-only"], dir).output.split("\n").map((f) => f.trim()).filter((f) => CODE_FILE.test(f));
+  // runCapture, not run: run keeps only the last 8000 characters, which cuts the import off a long file.
+  const changed = runCapture("git", ["diff", "--name-only"], dir).stdout.split("\n").map((f) => f.trim()).filter((f) => CODE_FILE.test(f));
   for (const file of changed) {
-    const original = run("git", ["show", `HEAD:${file}`], dir);
+    const original = runCapture("git", ["show", `HEAD:${file}`], dir);
     if (!original.ok) continue; // not in HEAD: nothing to revert to
-    const removedV3 = run("git", ["diff", "--", file], dir).output.split("\n").some((l) => l.startsWith("-") && ZOD_V3.test(l));
-    const exact = EXACT_ZOD.test(original.output);
+    const removedV3 = runCapture("git", ["diff", "--", file], dir).stdout.split("\n").some((l) => l.startsWith("-") && ZOD_V3.test(l));
+    const exact = EXACT_ZOD.test(original.stdout);
     if (exact && !removedV3) continue;
     run("git", ["checkout", "--", file], dir);
     log(`zod codemod guard: reverted ${file}`);

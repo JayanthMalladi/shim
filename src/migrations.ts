@@ -84,9 +84,13 @@ const ZOD_FIXER_RULES = `Rules:
 - Preserve the program's Zod 3 runtime behavior exactly: the same inputs must parse to the same outputs
   and fail in the same cases. Known Zod 4 differences and their behavior-preserving fixes:
   .default() before .optional()/.nullish() -> remove the .default(); .default() after a transform or
-  trim/toLowerCase/toUpperCase -> .prefault(); string().uuid() -> string().guid(); z.record with enum or
-  literal keys -> z.partialRecord(); a z.unknown()/z.any() object field -> add .optional();
-  ZodError.errors -> .issues.
+  trim/toLowerCase/toUpperCase, or on an object schema -> .prefault(); string().uuid() -> string().guid();
+  z.record with enum or literal keys -> z.partialRecord(); a z.unknown()/z.any() object field -> add
+  .optional(); ZodError.errors -> .issues.
+- Code that reads Zod 3 internals must read Zod 4's instead, or it silently stops working: Zod 3's
+  \`_def.typeName\` ('ZodOptional', 'ZodNumber', ...) is Zod 4's \`_def.type\` ('optional', 'number', ...);
+  wrappers (optional, default, nullable) keep \`_def.innerType\`; an array's element is \`_def.element\`,
+  not \`_def.type\`. \`ZodIssue.path\` is \`PropertyKey[]\` in Zod 4.
 - Make the smallest edit at each site. No refactors, no formatting changes, no new dependencies.
 - Never change a function's signature or an exported schema's name.
 - The codemod's edits are in \`git diff\`. If one of them is wrong, revert that edit.
@@ -100,7 +104,8 @@ const ZOD_REVIEWER_RULES = `Reject it if any of these is true:
 - Runtime behavior changes beyond what Zod 4 forces. In Zod 4, \`.default()\` before \`.optional()\`,
   \`.nullish()\` or a transform behaves differently; \`string().uuid()\` rejects non-RFC UUIDs;
   \`z.record\` takes string keys only; a \`z.unknown()\`/\`z.any()\` object field is non-optional; and
-  \`ZodError.errors\` is \`.issues\`. A behavior-preserving fix for one of these is not a behavior
+  \`ZodError.errors\` is \`.issues\`. Zod 3 internals (\`_def.typeName\`) became Zod 4's (\`_def.type\`,
+  \`_def.element\`). A behavior-preserving fix for one of these is not a behavior
   change and is not a reason to reject.
 - An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
 - A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
