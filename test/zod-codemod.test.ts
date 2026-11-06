@@ -64,6 +64,16 @@ describe("zodCodemodGuard", () => {
     expect(read(dir, "mixed.ts")).toBe(before);
   });
 
+  it("keeps edits in a long file whose zod import is far from the end", () => {
+    const filler = "// filler line to push the import out of the last 8000 characters\n".repeat(200);
+    const dir = repo(
+      { "big.ts": `import { z } from "zod";\n${filler}export const s = z.string().email();\n` },
+      { "big.ts": `import { z } from "zod";\n${filler}export const s = z.email();\n` },
+    );
+    expect(zodCodemodGuard(dir)).toEqual([]);
+    expect(read(dir, "big.ts")).toContain("z.email()");
+  });
+
   it("ignores changes to non-code files", () => {
     const dir = repo({ "package.json": '{ "dependencies": { "zod": "^3.25.0" } }\n' }, { "package.json": '{ "dependencies": { "zod": "^4.0.0" } }\n' });
     expect(zodCodemodGuard(dir)).toEqual([]);

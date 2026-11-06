@@ -1,6 +1,6 @@
 import { DEFAULT_ARCH, REVIEWER_RULES, type Architecture } from "./arch.js";
 import { getMigration, type Migration } from "./migrations.js";
-import { costUnpriced, run, runAgentBackend, type ExecResult } from "./exec.js";
+import { costUnpriced, run, runAgentBackend, runCapture, type ExecResult } from "./exec.js";
 import { resolveModel } from "./evolve-guard.js";
 import type { Finding } from "./types.js";
 
@@ -110,8 +110,9 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   // modified tree (a prompt-injection or a tool that slipped past the allowlist) we restore the
   // original state and discard the verdict rather than let a reviewer's edits become part of the
   // candidate diff the judge then scores.
-  const diffBefore = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
-  const statusBefore = run("git", ["status", "--porcelain"], dir, 60_000).output;
+  // runCapture, not run: run keeps only the last 8000 characters, so an edit early in a long diff would go unseen.
+  const diffBefore = runCapture("git", ["diff", "HEAD", "--binary"], dir).stdout;
+  const statusBefore = runCapture("git", ["status", "--porcelain"], dir).stdout;
   // Snapshot the pre-review tree (including the fixer's uncommitted edits and new files) so the
   // restore can reset the tree to exactly that state without wiping the fixer's work.
   const treeBefore = snapshotTree(dir);
@@ -137,8 +138,8 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
     if (verdict.issues[0] !== NO_VERDICT) {
       // Restore the tree if the reviewer modified anything: its job is read-only, and a diff it
       // left behind would otherwise flow into the candidate's result and into the judge's score.
-      const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
-      const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
+      const diffAfter = runCapture("git", ["diff", "HEAD", "--binary"], dir).stdout;
+      const statusAfter = runCapture("git", ["status", "--porcelain"], dir).stdout;
       if (diffAfter !== diffBefore || statusAfter !== statusBefore) {
         restoreSnapshot(dir, treeBefore);
         return { approve: false, issues: ["reviewer modified files; result discarded"], output: last.slice(-2000), cost };
@@ -148,8 +149,8 @@ export async function runReviewer(dir: string, rules = REVIEWER_RULES, model?: s
   }
   // No verdict on either attempt: restore the tree to the pre-review snapshot too, in case a
   // partial run left edits behind.
-  const diffAfter = run("git", ["diff", "HEAD", "--binary"], dir, 60_000).output;
-  const statusAfter = run("git", ["status", "--porcelain"], dir, 60_000).output;
+  const diffAfter = runCapture("git", ["diff", "HEAD", "--binary"], dir).stdout;
+  const statusAfter = runCapture("git", ["status", "--porcelain"], dir).stdout;
   if (diffAfter !== diffBefore || statusAfter !== statusBefore) restoreSnapshot(dir, treeBefore);
   return { approve: false, issues: [NO_VERDICT], output: last.slice(-2000), cost };
 }

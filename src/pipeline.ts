@@ -231,7 +231,7 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   const regressed = regressions(baseline, after);
   const unresolvedBreaks = remaining.filter((f) => f.severity !== "deprecated");
   const diffStat = run("git", ["diff", "--stat"], dir).output.trim();
-  const changedFiles = run("git", ["diff", "--name-only"], dir).output.trim().split("\n").filter(Boolean);
+  const changedFiles = runCapture("git", ["diff", "--name-only"], dir).stdout.trim().split("\n").filter(Boolean);
   const repairedChecks = brokenByUpgrade.filter((g) => !regressed.includes(g));
 
   let verdict: Verdict = "open-pr";
@@ -275,7 +275,7 @@ function dedupe(findings: Finding[]): Finding[] {
  * rewrite code we never touched.
  */
 export function formatChanged(dir: string) {
-  const files = run("git", ["diff", "--name-only"], dir).output.split("\n")
+  const files = runCapture("git", ["diff", "--name-only"], dir).stdout.split("\n")
     .filter((f) => /\.(m|c)?[jt]sx?$/.test(f) && fs.existsSync(path.join(dir, f)));
   if (!files.length) return;
   const pkg = readPkg(dir);
