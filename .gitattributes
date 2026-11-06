@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# Deliberate CRLF fixtures: keep their bytes.
+test/fixtures/crlf-ci/** -text
