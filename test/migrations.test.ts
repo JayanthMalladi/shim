@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fixerPrompt, reviewerPrompt, JUDGE_RULES } from "../src/agent.js";
 import { DEFAULT_ARCH, REVIEWER_RULES } from "../src/arch.js";
 import { prBody } from "../src/pr-body.js";
-import { AI_SDK_V7, getMigration } from "../src/migrations.js";
+import { AI_SDK_V7, ZOD_V4, getMigration } from "../src/migrations.js";
 import type { MigrationReport } from "../src/pipeline.js";
 import type { Finding } from "../src/types.js";
 
@@ -37,5 +37,14 @@ describe("getMigration default", () => {
   it("getMigration(undefined) is the AI SDK migration (old prepared.json compatibility)", () => {
     expect(getMigration(undefined)).toBe(AI_SDK_V7);
     expect(getMigration("ai-sdk-v7")).toBe(AI_SDK_V7);
+  });
+});
+
+describe("Zod reviewer and judge prompt", () => {
+  // T15 Part C: the judge spent both 50-turn runs on denied tsc/npm calls and never gave a verdict.
+  it("says which tools work and that the gates already ran", () => {
+    const p = reviewerPrompt(ZOD_V4.judgeRules, ZOD_V4);
+    expect(p).toContain("only `git diff` and `git status`");
+    expect(p).toContain("do not try to run them");
   });
 });
