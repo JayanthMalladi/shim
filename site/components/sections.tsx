@@ -260,7 +260,28 @@ export function FaqSection() {
   );
 }
 
-const changelog = [
+const vercelFix = "https://github.com/vercel/ai/pull/24438";
+
+/** The strongest proof, right under the hero. Text only: a factual statement, not an endorsement. */
+export function ProofStrip() {
+  return (
+    <section aria-label="Merged upstream" className="px-4 pb-24 sm:px-8">
+      <div className="mx-auto flex max-w-[1184px] flex-wrap items-center justify-between gap-6 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
+        <div className="flex min-w-0 flex-[1_1_480px] flex-col items-start gap-3">
+          <span className="tag bg-mint">Merged upstream</span>
+          <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
+            We found a bug in the official AI SDK 7 codemod. Vercel merged the fix and credited our report.
+          </p>
+        </div>
+        <a href={vercelFix} className="btn btn-sm">
+          See vercel/ai#24438 →
+        </a>
+      </div>
+    </section>
+  );
+}
+
+const changelog: { label: string; bg: string; items: React.ReactNode[] }[] = [
   {
     label: "Shipped",
     bg: "bg-mint",
@@ -268,7 +289,13 @@ const changelog = [
       `${prList.length} AI SDK 7 upgrade PRs opened on public repos`,
       `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
       "A guard for the official codemod when it renames your own exports",
-      "Found a bug in the official AI SDK 7 codemod; Vercel merged the fix and credited our report (vercel/ai#24438)",
+      <span key="vercel-fix">
+        Found a bug in the official AI SDK 7 codemod; Vercel merged the fix and credited our report (
+        <a href={vercelFix} className="underline underline-offset-4">
+          vercel/ai#24438
+        </a>
+        )
+      </span>,
       "Per test baseline: only checks green before the upgrade count after it",
       "Runs on macOS, Linux and Windows",
     ],
@@ -304,8 +331,8 @@ export function ChangelogSection() {
             <div key={c.label} className={`card ${c.bg}`}>
               <span className="tag bg-paper">{c.label}</span>
               <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                {c.items.map((i) => (
-                  <li key={i} className="flex gap-3 text-base leading-6 font-medium">
+                {c.items.map((i, n) => (
+                  <li key={n} className="flex gap-3 text-base leading-6 font-medium">
                     <span aria-hidden="true" className="font-bold">
                       ▸
                     </span>
