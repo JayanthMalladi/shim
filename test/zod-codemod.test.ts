@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { zodCodemodGuard } from "../src/zod-codemod.js";
+import { undoCosmeticCodemodEdits, zodCodemodGuard } from "../src/zod-codemod.js";
 
 /** A committed temp repo; `edit` then simulates the codemod's changes on top. */
 function repo(files: Record<string, string>, edit: Record<string, string>): string {
@@ -78,5 +78,48 @@ describe("zodCodemodGuard", () => {
     const dir = repo({ "package.json": '{ "dependencies": { "zod": "^3.25.0" } }\n' }, { "package.json": '{ "dependencies": { "zod": "^4.0.0" } }\n' });
     expect(zodCodemodGuard(dir)).toEqual([]);
     expect(read(dir, "package.json")).toContain("^4.0.0");
+  });
+});
+
+describe("undoCosmeticCodemodEdits", () => {
+  // log-10x: the codemod turned about 30 `z.number().int()` chains into `z.int()`. Both act the same
+  // on Zod 4, so the rewrite only adds lines a maintainer has to read.
+  const before = [
+    'import { z } from "zod";',
+    "export const s = {",
+    "  keep_count: z",
+    "    .number()",
+    "    .int()",
+    "    .min(0),",
+    "  n: z.number().int().nonnegative(),",
+    "  name: z.string(),",
+    "  args: z.record(z.unknown()),",
+    "};",
+    "",
+  ].join("\n");
+  const codemodded = [
+    'import { z } from "zod";',
+    "export const s = {",
+    "  keep_count: z.int()",
+    "    .min(0),",
+    "  n: z.int().nonnegative(),",
+    "  name: z.string(),",
+    "  args: z.record(z.string(), z.unknown()),",
+    "};",
+    "",
+  ].join("\n");
+
+  it("puts z.number().int() back byte for byte and keeps the real change", () => {
+    const dir = repo({ "a.ts": before }, { "a.ts": codemodded });
+    expect(undoCosmeticCodemodEdits(dir)).toBe(2);
+    expect(read(dir, "a.ts")).toBe(before.replace("z.record(z.unknown())", "z.record(z.string(), z.unknown())"));
+  });
+
+  it("keeps a hunk that mixes the rewrite with a real change", () => {
+    const one = 'import { z } from "zod";\nexport const n = z.number().int().default(1).optional();\n';
+    const fixed = 'import { z } from "zod";\nexport const n = z.int().optional();\n';
+    const dir = repo({ "a.ts": one }, { "a.ts": fixed });
+    expect(undoCosmeticCodemodEdits(dir)).toBe(0);
+    expect(read(dir, "a.ts")).toBe(fixed);
   });
 });
