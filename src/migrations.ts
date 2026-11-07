@@ -102,11 +102,14 @@ const ZOD_FIXER_RULES = `Rules:
 
 const ZOD_REVIEWER_RULES = `Reject it if any of these is true:
 - Runtime behavior changes beyond what Zod 4 forces. In Zod 4, \`.default()\` before \`.optional()\`,
-  \`.nullish()\` or a transform behaves differently; \`string().uuid()\` rejects non-RFC UUIDs;
-  \`z.record\` takes string keys only; a \`z.unknown()\`/\`z.any()\` object field is non-optional; and
-  \`ZodError.errors\` is \`.issues\`. Zod 3 internals (\`_def.typeName\`) became Zod 4's (\`_def.type\`,
-  \`_def.element\`). A behavior-preserving fix for one of these is not a behavior
-  change and is not a reason to reject.
+  \`.nullish()\` or a transform behaves differently; \`.default()\` on an object schema no longer parses
+  the default, so the object's own field defaults are lost (\`.prefault()\` keeps Zod 3 behavior);
+  \`string().uuid()\` rejects non-RFC UUIDs; a \`z.record\` with enum or literal keys requires every key,
+  where Zod 3 allowed missing ones (\`z.partialRecord()\` keeps Zod 3 behavior; both versions reject
+  unknown keys); a one-argument \`z.record(value)\` needs a key schema; a \`z.unknown()\`/\`z.any()\`
+  object field is non-optional; and \`ZodError.errors\` is \`.issues\`. Zod 3 internals (\`_def.typeName\`)
+  became Zod 4's (\`_def.type\`, \`_def.element\`). A behavior-preserving fix for one of these is not a
+  behavior change and is not a reason to reject.
 - An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
 - A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
   \`@ts-expect-error\` or a similar cast or suppression instead of fixed.
