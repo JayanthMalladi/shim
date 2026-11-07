@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { run, type ExecResult } from "./exec.js";
+import { execFileSync } from "node:child_process";
+import { run, targetEnv, type ExecResult } from "./exec.js";
 
 export type PackageManager = "pnpm" | "yarn" | "bun" | "npm";
 /** "install", "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
@@ -41,6 +42,28 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
  * that depends on ai, plus the root.
  */
 export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean } = {}): GateResults {
+  const before = new Set(untracked(dir));
+  try {
+    return gates(dir, pm, frozen, pkgDirs, opts);
+  } finally {
+    // Build and test outputs a repo doesn't gitignore are not part of the change: drop them so they
+    // reach neither the reviewer nor changes.patch. Untracked files that were there before (the
+    // fixer's new files) stay.
+    for (const f of untracked(dir)) if (!before.has(f)) fs.rmSync(path.join(dir, f), { force: true });
+  }
+}
+
+/** Untracked files git doesn't ignore, relative to dir; none outside a git repo. node_modules is never listed. */
+function untracked(dir: string): string[] {
+  try {
+    return execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", ".", ":(exclude,glob)**/node_modules/**"], { cwd: dir, encoding: "utf8", env: targetEnv(), maxBuffer: 256 * 1024 * 1024 })
+      .split("\0").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function gates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean }): GateResults {
   const results: GateResults = {
     install: opts.install === false ? { ok: true, code: 0, output: "skipped: dependencies unchanged", ms: 0 } : install(dir, pm, frozen),
   };
