@@ -47,4 +47,11 @@ describe("Zod reviewer and judge prompt", () => {
     expect(p).toContain("only `git diff` and `git status`");
     expect(p).toContain("do not try to run them");
   });
+  // T14: the judge rejected log-10x's z.partialRecord and .prefault fixes, both checked on zod 3.25.76 and 4.6.7.
+  it("names the behavior-preserving record and object-default fixes", () => {
+    const p = reviewerPrompt(ZOD_V4.judgeRules, ZOD_V4);
+    expect(p).toContain("`z.partialRecord()` keeps Zod 3 behavior");
+    expect(p).toContain("`.prefault()` keeps Zod 3 behavior");
+    expect(p).not.toContain("takes string keys only");
+  });
 });
