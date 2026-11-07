@@ -5,7 +5,7 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { getMigration, type Migration } from "./migrations.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
-import { zodCodemodGuard } from "./zod-codemod.js";
+import { undoCosmeticCodemodEdits, zodCodemodGuard } from "./zod-codemod.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
@@ -141,6 +141,7 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
     ({ result: pre, applied } = await scanAndFixWith(dir, m));
     log("running community codemod zod-v3-to-v4");
     codemod = m.codemod(dir);
+    undoCosmeticCodemodEdits(dir);
     guard = zodCodemodGuard(dir);
   } else {
     log("running official codemod");

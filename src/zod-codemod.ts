@@ -56,3 +56,41 @@ export function zodCodemodGuard(dir: string): Finding[] {
   }
   return findings;
 }
+
+/** Codemod rewrites that act the same on Zod 4 and only add diff lines: the codemod's text, then Zod 3's. */
+const COSMETIC: [RegExp, string][] = [[/\bz\.int\(\)/g, "z.number().int()"]];
+const squash = (lines: string[]) => lines.map((l) => l.slice(1)).join("").replace(/\s+/g, "");
+
+/**
+ * Undo the codemod's cosmetic hunks (see COSMETIC). A hunk is undone only when its added lines,
+ * with the rewrite mapped back, equal its removed lines up to whitespace, so a hunk that also holds
+ * a real change is kept whole. Returns the number of hunks undone.
+ */
+export function undoCosmeticCodemodEdits(dir: string): number {
+  const diff = runCapture("git", ["diff", "-U0", "--no-color", "--no-ext-diff"], dir).stdout;
+  const patch: string[] = [];
+  let undone = 0;
+  for (const section of diff.split(/^(?=diff --git )/m)) {
+    const parts = section.split(/^(?=@@ )/m);
+    const header = parts.shift() ?? "";
+    if (!CODE_FILE.test(header.split("\n")[0] ?? "")) continue;
+    const hunks = parts.filter((hunk) => {
+      const lines = hunk.split("\n").slice(1);
+      const removed = lines.filter((l) => l.startsWith("-"));
+      const added = lines.filter((l) => l.startsWith("+"));
+      const mapped = COSMETIC.reduce((s, [re, to]) => s.replace(re, to), squash(added));
+      return mapped !== squash(added) && mapped === squash(removed);
+    });
+    if (!hunks.length) continue;
+    patch.push(header, ...hunks);
+    undone += hunks.length;
+  }
+  if (!undone) return 0;
+  const ok = runCapture("git", ["apply", "-R", "--unidiff-zero", "-"], dir, patch.join("")).ok;
+  if (!ok) {
+    log("zod codemod: could not undo cosmetic edits, kept them");
+    return 0;
+  }
+  log(`zod codemod: undid ${undone} cosmetic edit(s)`);
+  return undone;
+}
