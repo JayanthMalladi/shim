@@ -138,7 +138,10 @@ export const ZOD_V4: Migration = {
   fixerIntro:
     "You are finishing a Zod 3 -> 4 migration in this repository. Dependencies are already bumped\n" +
     "and the community codemod (zod-v3-to-v4) has run. Fix only what is listed below.",
-  reviewerIntro: "It upgrades the project from Zod 3 to 4. A maintainer will merge it only if it is a pure upgrade.",
+  reviewerIntro:
+    "It upgrades the project from Zod 3 to 4. A maintainer will merge it only if it is a pure upgrade.\n" +
+    "You can read files and run only `git diff` and `git status`; other commands are denied. The build, typecheck " +
+    "and tests already ran on this diff, so do not try to run them or install packages.",
   reference: "https://zod.dev/v4/changelog (you can't open it here; the rules above list every Zod 4 change that matters)",
   fixerRules: ZOD_FIXER_RULES,
   reviewerRules: ZOD_REVIEWER_RULES,
