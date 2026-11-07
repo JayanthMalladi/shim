@@ -24,6 +24,7 @@ function Scene() {
         <span className="sticker top-0 left-0 -rotate-[8deg] bg-paper">{prList.length} PRs open upstream</span>
         <span className="sticker top-6 right-0 rotate-6 bg-mint">{proof.headline} bad diffs caught</span>
         <span className="sticker top-[270px] left-10 rotate-[4deg] bg-paper">tests stay green</span>
+        <span className="sticker top-[190px] right-0 -rotate-[3deg] bg-wedge">fix merged by Vercel ✓</span>
       </div>
     </div>
   );

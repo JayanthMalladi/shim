@@ -5,6 +5,7 @@ import {
   FinalCta,
   HowSection,
   PrMarquee,
+  ProofStrip,
   ScanSection,
   WatchSection,
   WobblesSection,
@@ -24,6 +25,7 @@ export default function Home() {
       <SiteHeader />
       <main id="main">
         <Hero />
+        <ProofStrip />
         <PrMarquee />
         <WatchSection />
         <WobblesSection />
