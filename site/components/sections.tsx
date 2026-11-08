@@ -213,6 +213,10 @@ const faq = [
     a: "It handles renames. The v7 changes that matter still compile, so neither the codemod nor tsc flags them.",
   },
   {
+    q: "Which upgrades does it handle?",
+    a: "AI SDK 6 to 7 and Zod 3 to 4. For Zod, Shim runs the community codemod, then fixes what it misses, such as an object's .default({}) that Zod 4 no longer fills with the object's own defaults.",
+  },
+  {
     q: "Will it change how my app behaves?",
     a: "No. Every fix keeps the value your code read on v6, for example finalStep.usage in place of usage.",
   },
@@ -286,7 +290,8 @@ const changelog: { label: string; bg: string; items: React.ReactNode[] }[] = [
     label: "Shipped",
     bg: "bg-mint",
     items: [
-      `${prList.length} AI SDK 7 upgrade PRs opened on public repos`,
+      `${prList.length} upgrade PRs opened on public repos, for AI SDK 7 and Zod 4`,
+      "Zod 3 to 4, the second migration, on the same pipeline",
       `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
       "A guard for the official codemod when it renames your own exports",
       <span key="vercel-fix">
@@ -314,7 +319,7 @@ const changelog: { label: string; bg: string; items: React.ReactNode[] }[] = [
     items: [
       "pnpm catalog: support, which blocked four repos so far",
       "Scan repos that already moved to v7 for the silent bugs they kept",
-      "Next migrations after AI SDK 7: other SDKs with silent breaking changes",
+      "Next migration after Zod 4: another SDK with silent breaking changes",
     ],
   },
 ];
