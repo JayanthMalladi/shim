@@ -1,10 +1,10 @@
 {
-  "asOf": "2026-11-08T12:38:23.674Z",
+  "asOf": "2026-11-08T21:35:41.865Z",
   "prs": {
     "total": 16,
-    "open": 16,
+    "open": 15,
     "merged": 0,
-    "replied": 0,
+    "replied": 1,
     "mergeRate": "0%",
     "mergeRate3d": "0/14 (0%)"
   },
@@ -96,7 +96,7 @@
     {
       "repo": "log-10x/log10x-mcp",
       "url": "https://github.com/log-10x/log10x-mcp/pull/318",
-      "state": "open",
+      "state": "closed",
       "openedAt": "2026-11-07"
     },
     {
