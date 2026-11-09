@@ -1,8 +1,8 @@
 {
-  "asOf": "2026-11-09T04:12:45.387Z",
+  "asOf": "2026-11-09T14:56:38.516Z",
   "prs": {
-    "total": 16,
-    "open": 15,
+    "total": 17,
+    "open": 16,
     "merged": 0,
     "replied": 1,
     "mergeRate": "0%",
@@ -104,6 +104,12 @@
       "url": "https://github.com/starkeep-org/starkeep-core/pull/146",
       "state": "open",
       "openedAt": "2026-11-07"
+    },
+    {
+      "repo": "vas3k/TaxHacker",
+      "url": "https://github.com/vas3k/TaxHacker/pull/207",
+      "state": "open",
+      "openedAt": "2026-11-09"
     }
   ],
   "proof": {
