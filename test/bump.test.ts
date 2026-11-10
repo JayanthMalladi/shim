@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { allowsMajor, bumpAiSdk, bumpZod } from "../src/bump.js";
+import { allowsMajor, bumpAiSdk, bumpExpress, bumpZod } from "../src/bump.js";
 
 describe("allowsMajor", () => {
   it.each([
@@ -69,5 +69,37 @@ describe("bumpZod", () => {
     expect(read("packages/c/package.json")).toBe('{ "dependencies": { "zod": "^3.25.0 || ^4.0.0" } }');
     expect(read("packages/d/package.json")).toBe('{ "dependencies": { "zod": "catalog:" } }');
     expect(read("node_modules/x/package.json")).toContain("^3.0.0");
+  });
+});
+
+describe("bumpExpress", () => {
+  it("bumps express 4 ranges and the matching @types in dependencies and devDependencies only, in place", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bump-express-"));
+    const write = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), text);
+    };
+    write("package.json", '{\n    "name": "root",\n    "dependencies": {\n        "express": "^4.21.0",\n        "@types/express": "^4.17.21"\n    }\n}\n');
+    write("packages/a/package.json", '{ "devDependencies": { "express": "4.22.3", "@types/express-serve-static-core": "^4.17.40" }, "peerDependencies": { "express": "^4.18.0" } }');
+    write("packages/b/package.json", '{ "dependencies": { "express": "^5.0.0" }, "devDependencies": { "@types/express": "^5.0.0" } }');
+    write("packages/c/package.json", '{ "dependencies": { "express": "^4.0.0 || ^5.0.0" } }');
+    write("packages/d/package.json", '{ "dependencies": { "express": "catalog:" } }');
+    write("node_modules/x/package.json", '{ "dependencies": { "express": "^4.0.0" } }');
+
+    expect(bumpExpress(root).sort()).toEqual([
+      "@types/express (package.json, dependencies): ^4.17.21 -> ^5.0.0",
+      "@types/express-serve-static-core (packages/a/package.json, devDependencies): ^4.17.40 -> ^5.0.0",
+      "express (package.json, dependencies): ^4.21.0 -> ^5.0.0",
+      "express (packages/a/package.json, devDependencies): 4.22.3 -> ^5.0.0",
+    ]);
+    const read = (rel: string) => fs.readFileSync(path.join(root, rel), "utf8");
+    // express + the @types in the same field are rewritten; the file's own formatting survives.
+    expect(read("package.json")).toBe('{\n    "name": "root",\n    "dependencies": {\n        "express": "^5.0.0",\n        "@types/express": "^5.0.0"\n    }\n}\n');
+    expect(read("packages/a/package.json")).toBe('{ "devDependencies": { "express": "^5.0.0", "@types/express-serve-static-core": "^5.0.0" }, "peerDependencies": { "express": "^4.18.0" } }');
+    // Already on 5, already-allows-5, catalog: and node_modules are untouched.
+    expect(read("packages/b/package.json")).toBe('{ "dependencies": { "express": "^5.0.0" }, "devDependencies": { "@types/express": "^5.0.0" } }');
+    expect(read("packages/c/package.json")).toBe('{ "dependencies": { "express": "^4.0.0 || ^5.0.0" } }');
+    expect(read("packages/d/package.json")).toBe('{ "dependencies": { "express": "catalog:" } }');
+    expect(read("node_modules/x/package.json")).toContain("^4.0.0");
   });
 });

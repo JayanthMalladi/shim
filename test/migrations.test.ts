@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fixerPrompt, reviewerPrompt, JUDGE_RULES } from "../src/agent.js";
 import { DEFAULT_ARCH, REVIEWER_RULES } from "../src/arch.js";
 import { prBody } from "../src/pr-body.js";
-import { AI_SDK_V7, ZOD_V4, getMigration } from "../src/migrations.js";
+import { AI_SDK_V7, ZOD_V4, EXPRESS_V5, getMigration } from "../src/migrations.js";
 import type { MigrationReport } from "../src/pipeline.js";
 import type { Finding } from "../src/types.js";
 
@@ -37,6 +37,19 @@ describe("getMigration default", () => {
   it("getMigration(undefined) is the AI SDK migration (old prepared.json compatibility)", () => {
     expect(getMigration(undefined)).toBe(AI_SDK_V7);
     expect(getMigration("ai-sdk-v7")).toBe(AI_SDK_V7);
+  });
+});
+
+describe("getMigration express", () => {
+  it("resolves the express-v5 entry and its git/PR text", () => {
+    expect(getMigration("express-v5")).toBe(EXPRESS_V5);
+    expect(EXPRESS_V5.prBranch).toBe("shim/express-5");
+    expect(EXPRESS_V5.commitMessage).toBe("Upgrade to Express 5");
+    expect(EXPRESS_V5.changesetFile).toBe("upgrade-express-5.md");
+  });
+  it("the express judge rules contain the reviewer rules", () => {
+    expect(EXPRESS_V5.judgeRules.startsWith(EXPRESS_V5.reviewerRules)).toBe(true);
+    expect(EXPRESS_V5.judgeRules.length).toBeGreaterThan(EXPRESS_V5.reviewerRules.length);
   });
 });
 
