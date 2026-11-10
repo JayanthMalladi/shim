@@ -75,6 +75,40 @@ export function bumpZod(root: string): string[] {
   return changes;
 }
 
+/**
+ * Bump `express` to ^5 and, in the same package.json, `@types/express` and
+ * `@types/express-serve-static-core` to ^5, wherever they are present. Same in-place text
+ * rewrite as bumpZod: the file's own formatting survives, each change reads "name (path, field):
+ * from -> to". Not peerDependencies: a package with an express peer is skipped before the bump
+ * (see express-skips.ts). The types packages only matter to the type checker, so they are bumped
+ * on their own (no express range needed in the file).
+ */
+export function bumpExpress(root: string): string[] {
+  const changes: string[] = [];
+  const targets = ["express", "@types/express", "@types/express-serve-static-core"];
+  for (const file of findPackageJsons(root)) {
+    let text = fs.readFileSync(file, "utf8");
+    const pkg = JSON.parse(text);
+    const rel = path.relative(root, file).split(path.sep).join("/");
+    for (const field of ["dependencies", "devDependencies"] as const) {
+      for (const [name, range] of Object.entries<string>(pkg[field] ?? {})) {
+        if (!targets.includes(name)) continue;
+        // workspace:, catalog:, npm:, file: and the like aren't ranges we can rewrite.
+        if (range.includes(":")) continue;
+        // express: only a v4 range; the types packages: anything that doesn't already allow 5.
+        if (name === "express" && (allowsMajor(range, 5) || !allowsMajor(range, 4))) continue;
+        if (name !== "express" && allowsMajor(range, 5)) continue;
+        const pattern = new RegExp(`("${escape(name)}"\\s*:\\s*)"${escape(range)}"`);
+        if (!pattern.test(text)) continue;
+        text = text.replace(pattern, `$1"^5.0.0"`);
+        changes.push(`${name} (${rel}, ${field}): ${range} -> ^5.0.0`);
+      }
+    }
+    fs.writeFileSync(file, text);
+  }
+  return changes;
+}
+
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** True if the range's own text already admits the given major (^7.x, >=6, 6 || 7, *). */

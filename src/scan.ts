@@ -9,10 +9,11 @@ import type { Finding, FixKind, ScanResult } from "./types.js";
 const NODE_REQUIRED = 22;
 
 /** One stable message per outcome so pr-body's group() buckets every location into a single line. */
-const CI_NODE_AUTO_MSG =
-  "CI runs on a Node version below 22; AI SDK 7 requires Node 22 — the Node version was updated to 22.";
-const CI_NODE_FILE_MSG =
-  "CI pins its Node version in a file that is below 22; AI SDK 7 requires Node 22 — update the file.";
+/** Parametrized by the floor and the migration's label; at floor 22 / "AI SDK 7" these match the old constants. */
+const ciNodeAutoMsg = (major: number, label: string) =>
+  `CI runs on a Node version below ${major}; ${label} requires Node ${major} — the Node version was updated to ${major}.`;
+const ciNodeFileMsg = (major: number, label: string) =>
+  `CI pins its Node version in a file that is below ${major}; ${label} requires Node ${major} — update the file.`;
 
 const IGNORED_DIRS = ["node_modules", "dist", "build", ".next", ".turbo", "out", "coverage", ".git"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
@@ -153,7 +154,9 @@ export function findAiPackages(root: string): Array<{ file: string; range: strin
  * (keeping quoting/indent), resolve a `matrix.<name>` expression to its inline list in the same job,
  * and flag `node-version-file:` values below 22 as manual (the file itself is never edited).
  */
-export function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
+export function checkCiNodeVersions(root: string, ctx: RuleContext, opts: { major?: number; label?: string } = {}): Finding[] {
+  const major = opts.major ?? NODE_REQUIRED;
+  const label = opts.label ?? "AI SDK 7";
   const findings: Finding[] = [];
   for (const wf of findWorkflowFiles(root)) {
     const rel = path.relative(root, wf).split(path.sep).join("/");
@@ -172,8 +175,8 @@ export function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
       if (nfv) {
         const fname = nfv[2]?.trim();
         if (fname && !fname.startsWith("#")) {
-          const major = readNodeFileMajor(root, fname);
-          if (major !== null && major < NODE_REQUIRED) flag(i + 1, line.trim().slice(0, 160), "manual", CI_NODE_FILE_MSG);
+          const fileMajor = readNodeFileMajor(root, fname);
+          if (fileMajor !== null && fileMajor < major) flag(i + 1, line.trim().slice(0, 160), "manual", ciNodeFileMsg(major, label));
         }
         continue;
       }
@@ -187,22 +190,22 @@ export function checkCiNodeVersions(root: string, ctx: RuleContext): Finding[] {
       // The matrix list it references is itself a `node-version:` line earlier in the job and is
       // rewritten in its own pass, so the expression stays untouched here.
       if (value === "") {
-        handleBlockList(lines, edits, flag, i, indent.length, at, line);
+        handleBlockList(lines, edits, flag, i, indent.length, at, line, major, label);
         continue;
       }
       if (value.startsWith("[")) {
         const entries = splitList(value.slice(1, value.lastIndexOf("]")));
-        if (!entries.some((e) => below(e))) continue;
-        const kept = entries.filter((e) => !below(e));
-        edits.push({ line: at, text: `${indent}node-version: [${(kept.length ? kept : ["22"]).join(", ")}]` });
-        flag(at, line.trim().slice(0, 160), "auto", CI_NODE_AUTO_MSG);
+        if (!entries.some((e) => below(e, major))) continue;
+        const kept = entries.filter((e) => !below(e, major));
+        edits.push({ line: at, text: `${indent}node-version: [${(kept.length ? kept : [String(major)]).join(", ")}]` });
+        flag(at, line.trim().slice(0, 160), "auto", ciNodeAutoMsg(major, label));
         continue;
       }
       const mj = parseMajor(value);
-      if (mj !== null && mj < NODE_REQUIRED) {
-        const w = rewriteScalar(value);
+      if (mj !== null && mj < major) {
+        const w = rewriteScalar(value, major);
         edits.push({ line: at, text: `${indent}node-version: ${w}` });
-        flag(at, line.trim().slice(0, 160), "auto", CI_NODE_AUTO_MSG);
+        flag(at, line.trim().slice(0, 160), "auto", ciNodeAutoMsg(major, label));
       }
     }
 
@@ -220,6 +223,8 @@ function handleBlockList(
   base: number,
   at: number,
   line: string,
+  major: number = NODE_REQUIRED,
+  label: string = "AI SDK 7",
 ): void {
   const entries: Array<{ idx: number; ind: number; val: string }> = [];
   for (let j = i + 1; j < lines.length; j++) {
@@ -227,21 +232,21 @@ function handleBlockList(
     if (!em || (em[1]?.length ?? 0) <= base) break;
     entries.push({ idx: j, ind: em[1]!.length, val: em[2]!.trim() });
   }
-  if (!entries.some((e) => below(e.val))) return;
-  const kept = entries.filter((e) => !below(e.val));
-  // A rewritten `- 22` line replaces the first entry; deleted lines are dropped whole.
+  if (!entries.some((e) => below(e.val, major))) return;
+  const kept = entries.filter((e) => !below(e.val, major));
+  // A rewritten `- <major>` line replaces the first entry; deleted lines are dropped whole.
   if (kept.length === 0) {
     const first = entries[0]!;
-    edits.push({ line: first.idx + 1, text: `${" ".repeat(first.ind)}- 22` });
+    edits.push({ line: first.idx + 1, text: `${" ".repeat(first.ind)}- ${major}` });
     for (let k = 1; k < entries.length; k++) edits.push({ line: entries[k]!.idx + 1, delete: true });
   } else for (const e of entries) if (!kept.includes(e)) edits.push({ line: e.idx + 1, delete: true });
-  flag(at, line.trim().slice(0, 160), "auto", CI_NODE_AUTO_MSG);
+  flag(at, line.trim().slice(0, 160), "auto", ciNodeAutoMsg(major, label));
 }
 
-/** True for a `node-version` value below 22; null-ish (lts, latest, node, expressions) is never below. */
-function below(raw: string): boolean {
+/** True for a `node-version` value below `major`; null-ish (lts, latest, node, expressions) is never below. */
+function below(raw: string, major: number = NODE_REQUIRED): boolean {
   const mj = parseMajor(raw);
-  return mj !== null && mj < NODE_REQUIRED;
+  return mj !== null && mj < major;
 }
 
 /** A below-22 `node-version` value. null (lts, latest, node, an expression) is never treated as below. */
@@ -255,13 +260,13 @@ function parseMajor(raw: string): number | null {
   return m ? Number(m[0]) : null;
 }
 
-/** `20` -> `22`, `20.x` -> `22.x`, `'20'` -> `'22'`, `"20.x"` -> `"22.x"`: keep the original quoting. */
-function rewriteScalar(value: string): string {
+/** `20` -> `18`, `20.x` -> `18.x`, `'20'` -> `'18'`, `"20.x"` -> `"18.x"`: keep the original quoting. */
+function rewriteScalar(value: string, major: number = NODE_REQUIRED): string {
   const s = value.trim();
   const q = s[0];
   const quoted = q === "'" || q === '"';
   const inner = quoted ? s.slice(1, -1) : s;
-  const base = /\.(x|\*)/.test(inner) ? "22.x" : "22";
+  const base = /\.(x|\*)/.test(inner) ? `${major}.x` : String(major);
   return quoted ? `${q}${base}${q}` : base;
 }
 
@@ -308,20 +313,39 @@ function namesPrOrPush(lines: string[]): boolean {
   return false;
 }
 
-export function checkPackageJsons(root: string): Finding[] {
+/**
+ * The digit classes whose 2-digit major is at or above `major`, for the "engines.node floor is
+ * already high enough" test. At major 22 this yields `2[2-9]|[3-9]\d` — exactly the old hard-coded
+ * regex, so the AI SDK path is byte-identical.
+ */
+function nodeFloorClass(major: number): string {
+  const t0 = Math.floor(major / 10);
+  const u0 = major % 10;
+  const first = `${t0}${u0 === 0 ? "[0-9]" : `[${u0}-9]`}`;
+  const higher = t0 < 9 ? `[${t0 + 1}-9]\\d` : "";
+  return [first, higher].filter(Boolean).join("|");
+}
+
+export function checkPackageJsons(root: string, opts: { major?: number; label?: string; dep?: string } = {}): Finding[] {
+  const major = opts.major ?? NODE_REQUIRED;
+  const label = opts.label ?? "AI SDK 7";
+  const dep = opts.dep ?? "ai";
   const findings: Finding[] = [];
-  for (const { file } of findAiPackages(root)) {
+  const pkgs = dep === "ai" ? findAiPackages(root) : findPackages(root, dep);
+  const cls = nodeFloorClass(major);
+  const re = new RegExp(`(>=?\\s*(${cls}))|(^\\s*\\^?(${cls}))`);
+  for (const { file } of pkgs) {
     const engine = readJson(file)?.engines?.node;
-    if (typeof engine === "string" && !/(>=?\s*(2[2-9]|[3-9]\d))|(^\s*\^?(2[2-9]|[3-9]\d))/.test(engine)) {
+    if (typeof engine === "string" && !re.test(engine)) {
       findings.push({
-        ruleId: "node-22",
+        ruleId: dep === "ai" ? "node-22" : "express-node-floor",
         severity: "break",
         fix: "manual",
         // Forward slashes: the documented finding-path convention, so Windows output matches Linux.
         file: path.relative(root, file).split(path.sep).join("/"),
         line: 1,
         snippet: `"engines": { "node": "${engine}" }`,
-        message: "AI SDK 7 requires Node.js 22 or later.",
+        message: `${label} requires Node.js ${major} or later.`,
       });
     }
   }

@@ -15,9 +15,10 @@ const QUERIES: Record<Migration["id"], string[]> = {
     "ai sdk tools", "ai sdk provider", "ai sdk mcp", "useChat",
   ],
   "zod-v4": ["zod"],
+  "express-v5": ["express", "keywords:express", "express middleware", "express router"],
 };
-/** The dependency each migration reads off a manifest: "ai" for AI SDK, "zod" for Zod. */
-const DEP: Record<Migration["id"], string> = { "ai-sdk-v7": "ai", "zod-v4": "zod" };
+/** The dependency each migration reads off a manifest: "ai" for AI SDK, "zod" for Zod, "express" for Express. */
+const DEP: Record<Migration["id"], string> = { "ai-sdk-v7": "ai", "zod-v4": "zod", "express-v5": "express" };
 
 export interface Candidate {
   name: string;
