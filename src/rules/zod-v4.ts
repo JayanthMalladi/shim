@@ -21,6 +21,8 @@ import type { FixKind, Severity } from "../types.js";
 interface ZodBindings {
   /** Local names that bind the `z` export or a namespace import of "zod". */
   names: Set<string>;
+  /** Local names of a `ZodError` named import from exactly "zod" (including its alias). */
+  errorNames: Set<string>;
 }
 
 /** R2: methods before a `.default()` that decide whether the value is parsed first. */
@@ -43,7 +45,8 @@ const R9_MSG =
   "Zod 4's .default() on an object returns the value as is; Zod 3 parsed it, which filled in the " +
   "object's own field defaults. .prefault() keeps Zod 3 behavior.";
 const R3_MSG =
-  "Zod 4's uuid() rejects UUIDs without RFC 9562 variant bits that Zod 3 accepted. " +
+  "Zod 4's uuid() rejects UUIDs without RFC 9562 variant bits that Zod 3 accepted; only such variant-less " +
+  "UUIDs are affected, so values from crypto.randomUUID() and v4 uuid libraries still pass. " +
   "guid() keeps Zod 3's pattern.";
 const R4_MSG =
   "Zod 4 requires every key of an enum-keyed z.record(); Zod 3 treated them as optional. " +
@@ -65,26 +68,34 @@ export function scanZodV4(project: Project, root: string): RuleContext {
   const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   for (const sf of project.getSourceFiles()) {
     const b = zodBindings(sf);
-    if (b.names.size === 0) continue; // no exact "zod" import: nothing Zod-4-shaped to flag
+    if (b.names.size === 0 && b.errorNames.size === 0)
+      continue; // no exact "zod" import: nothing Zod-4-shaped to flag
     checkRules(ctx, sf, b, constInitializerMap(sf));
   }
   return ctx;
 }
 
-/** Local names of the named `z` import (and its alias), the default import and namespace imports, from exactly "zod". */
+/**
+ * From exactly "zod": the local names of the `z` import (and alias), the default import and
+ * namespace imports, plus the local names of a `ZodError` named import (and its alias). "zod/v3"
+ * and "zod/v4" keep their own semantics and are ignored.
+ */
 function zodBindings(sf: SourceFile): ZodBindings {
   const names = new Set<string>();
+  const errorNames = new Set<string>();
   for (const decl of sf.getImportDeclarations()) {
-    if (decl.getModuleSpecifierValue() !== "zod") continue; // "zod/v3" and "zod/v4" keep their own semantics
+    if (decl.getModuleSpecifierValue() !== "zod") continue;
     const ns = decl.getNamespaceImport();
     if (ns) names.add(ns.getText());
     const def = decl.getDefaultImport(); // Zod 3's default export is the same `z` object
     if (def) names.add(def.getText());
     for (const spec of decl.getNamedImports()) {
-      if (spec.getName() === "z") names.add(spec.getAliasNode()?.getText() ?? spec.getName());
+      const local = spec.getAliasNode()?.getText() ?? spec.getName();
+      if (spec.getName() === "z") names.add(local);
+      if (spec.getName() === "ZodError") errorNames.add(local);
     }
   }
-  return { names };
+  return { names, errorNames };
 }
 
 /** `const id = <expr>` initializers in this file, for the one-level identifier rule in isZodChain. */
@@ -103,12 +114,18 @@ function constInitializerMap(sf: SourceFile): Map<string, TmNode> {
  * initialized to a Zod chain one level up in the same file (`const Keys = z.enum([...])`).
  * No recursion beyond that one level.
  */
-function isZodChain(expr: TmNode, names: Set<string>, inits: Map<string, TmNode>): boolean {
+function isZodChain(expr: TmNode, names: Set<string>, inits: Map<string, TmNode>, depth = 0): boolean {
   let e = expr;
   while (Node.isCallExpression(e) || Node.isPropertyAccessExpression(e)) e = e.getExpression();
   if (!Node.isIdentifier(e)) return false;
   if (names.has(e.getText())) return true;
-  return Node.isIdentifier(expr) && isZodChain(inits.get(expr.getText()) ?? expr, names, inits);
+  // One level, no recursion beyond that: only a same-file const initializer is looked up, and only
+  // once. An identifier with no initializer (an import, e.g. `uuidId`) is not provable, and a pair
+  // of consts pointing at each other (`a = b; b = a`) would otherwise loop forever.
+  if (depth >= 1 || !Node.isIdentifier(expr)) return false;
+  const init = inits.get(expr.getText());
+  if (!init) return false;
+  return isZodChain(init, names, inits, 1);
 }
 
 /**
@@ -155,7 +172,7 @@ function checkRules(ctx: RuleContext, sf: SourceFile, b: ZodBindings, inits: Map
   const names = b.names;
   const zodErrorText = referencesZodError(sf);
   const safeParseIds = safeParseResultIds(inits, names);
-  const narrowedIds = zodErrorNarrowedIds(sf);
+  const narrowedIds = zodErrorNarrowedIds(sf, names, b.errorNames);
 
   // R1 rewrites replace `.default(...)` calls; R2 must not rename the same calls.
   const r1DefaultCalls = new Set<TmNode>();
@@ -297,16 +314,30 @@ function safeParseResultIds(inits: Map<string, TmNode>, names: Set<string>): Set
   return out;
 }
 
-/** Binding names narrowed by an enclosing `if (<id> instanceof ZodError)`. */
-function zodErrorNarrowedIds(sf: SourceFile): Set<string> {
+/**
+ * Binding names narrowed by an enclosing `if (<id> instanceof <ZodError>)`, where the RHS is a
+ * bare `ZodError`, an aliased ZodError named import (`ZodError as ZE`), or a `<zodBinding>.ZodError`
+ * property access (`z.ZodError`). A `.ZodError` on anything else is not a Zod 4 error type.
+ */
+function zodErrorNarrowedIds(sf: SourceFile, names: Set<string>, errorNames: Set<string>): Set<string> {
+  const errorIds = new Set<string>(["ZodError", ...errorNames]);
   const out = new Set<string>();
   for (const ifStmt of sf.getDescendantsOfKind(SyntaxKind.IfStatement)) {
     const cond = ifStmt.getExpression();
-    if (Node.isBinaryExpression(cond) && cond.getOperatorToken().getText() === "instanceof") {
-      const rhs = cond.getRight();
-      const lhs = cond.getLeft();
-      if (Node.isIdentifier(rhs) && rhs.getText() === "ZodError" && Node.isIdentifier(lhs)) out.add(lhs.getText());
-    }
+    if (!(Node.isBinaryExpression(cond) && cond.getOperatorToken().getText() === "instanceof")) continue;
+    const rhs = cond.getRight();
+    let isZodError = false;
+    if (Node.isIdentifier(rhs)) isZodError = errorIds.has(rhs.getText());
+    else if (
+      Node.isPropertyAccessExpression(rhs) &&
+      rhs.getName() === "ZodError" &&
+      Node.isIdentifier(rhs.getExpression()) &&
+      names.has(rhs.getExpression().getText())
+    )
+      isZodError = true;
+    if (!isZodError) continue;
+    const lhs = cond.getLeft();
+    if (Node.isIdentifier(lhs)) out.add(lhs.getText());
   }
   return out;
 }
