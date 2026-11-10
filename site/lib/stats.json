@@ -1,12 +1,12 @@
 {
-  "asOf": "2026-11-09T14:56:38.516Z",
+  "asOf": "2026-11-10T01:05:26.848Z",
   "prs": {
     "total": 17,
-    "open": 16,
+    "open": 15,
     "merged": 0,
-    "replied": 1,
+    "replied": 2,
     "mergeRate": "0%",
-    "mergeRate3d": "0/14 (0%)"
+    "mergeRate3d": "0/16 (0%)"
   },
   "list": [
     {
@@ -102,7 +102,7 @@
     {
       "repo": "starkeep-org/starkeep-core",
       "url": "https://github.com/starkeep-org/starkeep-core/pull/146",
-      "state": "open",
+      "state": "closed",
       "openedAt": "2026-11-07"
     },
     {
