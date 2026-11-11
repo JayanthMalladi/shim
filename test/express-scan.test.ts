@@ -152,3 +152,53 @@ describe("express v5 scan", () => {
     expect(read("tsconfig.json")).toBe(fs.readFileSync(path.join(expected, "tsconfig.json"), "utf8"));
   });
 });
+
+/**
+ * E6.1: the query-parser insert must only follow a call to the express default/namespace binding
+ * (`const app = express()`), whose `.set` exists. A bare `Router()` / `express.Router()` has no `.set`
+ * (express 5.3.0: `typeof Router().set === "undefined"`), so the insert must not be queued there —
+ * it is reported as manual instead.
+ */
+describe("query-parser insert is app-creation-only (no router.set crash)", () => {
+  const m = getMigration("express-v5");
+  const scanDir = (files: Record<string, string>) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-e6-qp-"));
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    for (const [rel, text] of Object.entries(files)) {
+      if (rel.startsWith("src/")) fs.writeFileSync(path.join(dir, rel), text);
+      else fs.writeFileSync(path.join(dir, rel), text);
+    }
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true, dependencies: { express: "^4.21.0" } }));
+    const { result } = scanWith(dir, m);
+    return { dir, findings: result.findings };
+  };
+
+  it("a Router-only file reports manual and queues no .set edit", async () => {
+    const routerOnly = `import { Router } from "express";
+const router = Router();
+router.get("/search", (req, res) => res.json(req.query.q));
+module.exports = router;
+`;
+    const { dir, findings } = scanDir({ "src/route.js": routerOnly });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp).toHaveLength(1);
+    expect(qp[0]!.fix).toBe("manual");
+    // No edit is queued: applying auto fixes leaves the router file byte-identical.
+    await scanAndFixWith(dir, m);
+    expect(fs.readFileSync(path.join(dir, "src/route.js"), "utf8")).toBe(routerOnly);
+  });
+
+  it("a const app = express() file still gets the .set insert", async () => {
+    const appFile = `import express from "express";
+const app = express();
+app.get("/search", (req, res) => res.json(req.query.q));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/app.js": appFile });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp).toHaveLength(1);
+    expect(qp[0]!.fix).toBe("auto");
+    await scanAndFixWith(dir, m);
+    expect(fs.readFileSync(path.join(dir, "src/app.js"), "utf8")).toContain("app.set('query parser', 'extended');");
+  });
+});

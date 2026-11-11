@@ -270,11 +270,41 @@ function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
 }
 
 /**
- * The first `const app = express()` statement in the file (a bare call to an express binding, not
- * `.Router`/`.Application`), so the query-parser option can be set right after app creation. Returns
- * the VariableStatement and the app variable name.
+ * The identifiers bound to the express module itself: the default import, a namespace import, or a
+ * plain `const express = require("express")`. Calling any of them with no argument returns an app
+ * that has `.set`; a `Router` named import or `express.Router()` returns a Router with no `.set`, so
+ * those are deliberately not in this set (a Router must be configured on the app that mounts it).
  */
-function appCreation(sf: SourceFile, routers: Set<string>) {
+function expressAppBindings(sf: SourceFile): Set<string> {
+  const names = new Set<string>();
+  for (const decl of sf.getImportDeclarations()) {
+    if (decl.getModuleSpecifierValue() !== "express") continue;
+    const def = decl.getDefaultImport();
+    if (def) names.add(def.getText());
+    const ns = decl.getNamespaceImport();
+    if (ns) names.add(ns.getText());
+  }
+  for (const c of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    if (c.getExpression().getText() !== "require") continue;
+    const a = c.getArguments()[0];
+    if (Node.isStringLiteral(a) && a.getLiteralValue() === "express") {
+      const decl = c.getParent();
+      if (Node.isVariableDeclaration(decl)) {
+        const nn = decl.getNameNode();
+        if (Node.isIdentifier(nn)) names.add(nn.getText()); // a destructuring is not the app binding
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * The first `const app = express()` statement whose callee is the express default/namespace binding
+ * (verified against expressAppBindings, so `const router = Router()` never matches: a Router has no
+ * `.set` and the insert would crash at startup). Returns the VariableStatement and the app variable
+ * name.
+ */
+function appCreation(sf: SourceFile, appBindings: Set<string>) {
   for (const stmt of sf.getStatements()) {
     if (!Node.isVariableStatement(stmt)) continue;
     for (const decl of stmt.getDeclarations()) {
@@ -282,7 +312,7 @@ function appCreation(sf: SourceFile, routers: Set<string>) {
       if (!init || !Node.isCallExpression(init)) continue;
       const callee = init.getExpression();
       const calleeName = Node.isIdentifier(callee) ? callee.getText() : null;
-      if (calleeName && routers.has(calleeName)) return { stmt, appName: decl.getNameNode().getText() };
+      if (calleeName && appBindings.has(calleeName)) return { stmt, appName: decl.getNameNode().getText() };
     }
   }
   return undefined;
@@ -360,7 +390,7 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
     if (pae.getExpression().getText() === "req") firstQuery ??= pae;
   }
   if (!firstQuery) return;
-  const app = appCreation(sf, routers);
+  const app = appCreation(sf, expressAppBindings(sf));
   if (app) {
     add(ctx, firstQuery, "express-query-parser", "silent", "auto",
       "Express 5's default query parser is 'simple' (flat keys); Express 4 used 'extended' (nested/array). " +
@@ -373,7 +403,7 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   } else {
     add(ctx, firstQuery, "express-query-parser", "silent", "manual",
       "Express 5's default query parser is 'simple' (flat keys); Express 4 used 'extended' (nested/array). " +
-      "Add app.set('query parser', 'extended') on the app that serves this route.");
+      "Set app.set('query parser', 'extended') on the app that mounts this router.");
   }
 }
 
