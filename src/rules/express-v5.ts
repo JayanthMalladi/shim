@@ -246,16 +246,25 @@ function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
       }
       continue;
     }
+    // F6: a regex-constrained named param. In v4 a non-match fell through to the next route, so the
+    // guard must next('route'), never an error.
     if (hasCustomRegexParam(route)) {
+      const name = route.match(/:([a-zA-Z_]\w*)\(/)?.[1] ?? "id";
       add(ctx, r.node, "express-regex-param", "break", "agent",
-        "path-to-regexp 8 has no form for a named param constrained by a regex; this route REG-THROWS in Express 5. " +
-        "Use a plain ':name' and enforce the constraint inside the handler/middleware, preserving the capture semantics.");
+        "path-to-regexp 8 has no form for a regex-constrained named param; this route REG-THROWS in Express 5. " +
+        "Use a plain ':name' and enforce the constraint in the handler; when the value does not match, " +
+        "return next('route') (never next() with an error), because Express 4 fell through to the next route. " +
+        "e.g. if (!/^\\d+$/.test(req.params." + name + ")) return next('route');");
       continue;
     }
+    // F7: literal '+'/'?'/'()' were regex metacharacters in Express 4, so these were patterns, not
+    // literal paths.
     if (hasLiteralSpecial(route)) {
       add(ctx, r.node, "express-literal-special", "break", "agent",
-        "In Express 5, '+'/'?'/'()' inside a route are path-to-regexp modifiers, so this literal path REG-THROWS. " +
-        "There is no exact v8 spelling; escape or rename the literal path.");
+        "In Express 4, '+'/'?'/'()' inside a route were regex metacharacters (a pattern, e.g. '/ab+cd' matched " +
+        "'/abbcd'), not literal path characters; path-to-regexp 8 treats them as token modifiers, so this route " +
+        "REG-THROWS in Express 5. Replace it with a RegExp route that matches the same paths, or leave it for the " +
+        "maintainer.");
     }
   }
 }
