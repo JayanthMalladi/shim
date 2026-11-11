@@ -75,14 +75,24 @@ describe("ai-sdk v7 scan", () => {
       "src/messages.ts:26", // generateObject
       "src/messages.ts:46", // agent whose .generate() takes variable messages
       "src/messages.ts:55", // exported agent: calls not visible
+      "src/system-option.ts:12", // `system` set, but an inline `role: "system"` message is still flagged
+      "src/system-option.ts:27", // no `system` option, `messages` built elsewhere: still flagged
     ]);
     expect(result.findings.filter((f) => f.ruleId === "system-in-messages").every((f) => f.fix === "auto")).toBe(true);
     // Not flagged: user/assistant literals, string prompts, allowSystemInMessages already set, string-only agent.
     expect(at("system-in-messages")).not.toContain("src/messages.ts:32");
+    // A top-level `system` option already puts the system prompt in its place, so `messages`/`prompt`
+    // built elsewhere are not flagged: a non-string prompt (line 17) and a variable (line 22).
+    expect(at("system-in-messages")).not.toContain("src/system-option.ts:17");
+    expect(at("system-in-messages")).not.toContain("src/system-option.ts:22");
   });
 
   it("sends system-message checks on opaque options to the agent", () => {
-    expect(at("maybe-system-in-messages")).toEqual(["src/agent.ts:50", "src/messages.ts:42"]);
+    expect(at("maybe-system-in-messages")).toEqual([
+      "src/agent.ts:50",
+      "src/messages.ts:42",
+      "src/system-option.ts:33", // `system` set + `convertToModelMessages`: can carry a system role, so maybe
+    ]);
     expect(result.findings.find((f) => f.ruleId === "maybe-system-in-messages")?.fix).toBe("agent");
   });
 
@@ -119,6 +129,29 @@ describe("ai-sdk v7 scan", () => {
     // Not flagged: the `.execute` literal that already passes context (line 18), and the typed literal that does (line 28).
     expect(ctx()).not.toContain("src/tools.ts:18");
     expect(ctx()).not.toContain("src/tools.ts:28");
+    // Not flagged: literals that carry `toolCallId` but no `messages` are custom/virtual-CLI execute
+    // signatures, not ai's ToolExecutionOptions (lines 36 and 42).
+    expect(ctx()).not.toContain("src/tools.ts:36");
+    expect(ctx()).not.toContain("src/tools.ts:42");
+  });
+
+  it("flags flat usage.reasoningTokens / usage.cachedInputTokens reads in ai-importing files only", () => {
+    const flat = () => at("usage-flat-token-fields").map((l) => l.replace(/\\/g, "/"));
+    const findings = result.findings.filter((f) => f.ruleId === "usage-flat-token-fields");
+    expect(flat()).toEqual([
+      "src/usage.ts:9",  // result.usage.reasoningTokens
+      "src/usage.ts:14", // (await result.usage).cachedInputTokens
+      "src/usage.ts:19", // result.usage?.reasoningTokens (optional chain kept)
+      "src/usage.ts:23", // event.usage.reasoningTokens (onFinish/onStepFinish event)
+      "src/usage.ts:27", // step.usage.cachedInputTokens
+    ]);
+    // Silent and auto: a deterministic rewrite, no agent.
+    expect(findings.every((f) => f.severity === "silent" && f.fix === "auto")).toBe(true);
+    // Not flagged: the nested fields (already correct in v6 and v7) and OpenAI's flat snake_case shape.
+    expect(flat()).not.toContain("src/usage.ts:33");
+    expect(flat()).not.toContain("src/usage.ts:38");
+    // Not flagged: a flat read in a file that does not import `ai` is the repo's own object.
+    expect(flat()).not.toContain("src/usage-other.ts:5");
   });
 });
 
@@ -127,8 +160,11 @@ describe("auto fixes", () => {
     const dir = copyFixture();
     const { applied } = await scanAndFix(dir);
     const src = fs.readFileSync(path.join(dir, "src/agent.ts"), "utf8");
-    // 12 code rewrites + 2 CI node-version rewrites (scalar '20'->'22', matrix [18,20,22]->[22]).
-    expect(applied).toBe(5 + 7 + 2);
+    // 12 code rewrites + 2 CI node-version rewrites (scalar '20'->'22', matrix [18,20,22]->[22])
+    // + 2 allowSystemInMessages insertions in system-option.ts (lines 12 and 27; the convertToModelMessages
+    //   case on line 33 is a "maybe" finding — agent, no auto edit)
+    // + 5 flat usage-token rewrites in usage.ts.
+    expect(applied).toBe(5 + 7 + 2 + 2 + 5);
     expect(src).toContain("bill(event.finalStep.usage.totalTokens)");
     expect(src).toContain("bill(result.finalStep.usage.totalTokens)");
     expect(src).toContain("const calls = result.finalStep.toolCalls");
@@ -139,6 +175,22 @@ describe("auto fixes", () => {
     // Hidden options and the repo's own totalUsage field untouched.
     expect(src).toContain("return result.toolCalls;\n}\n\ndeclare const billing");
     expect(src).toContain("return billing.totalUsage;");
+  });
+
+  it("rewrites the flat usage token fields to the nested shape, keeping `?.`", async () => {
+    const dir = copyFixture();
+    await scanAndFix(dir);
+    const usage = fs.readFileSync(path.join(dir, "src/usage.ts"), "utf8");
+    expect(usage).toContain("return result.usage.outputTokenDetails.reasoningTokens;");
+    expect(usage).toContain("return (await result.usage).inputTokenDetails.cacheReadTokens;");
+    expect(usage).toContain("return result.usage?.outputTokenDetails?.reasoningTokens;"); // `?.` kept
+    expect(usage).toContain("return event.usage.outputTokenDetails.reasoningTokens;");
+    expect(usage).toContain("return step.usage.inputTokenDetails.cacheReadTokens;");
+    // The nested read (line 33) is already the correct v7 shape and is untouched; OpenAI's snake_case
+    // shape (line 38) is not an AI SDK read and is untouched.
+    expect(usage).toContain("return completion.usage.reasoning_tokens;");
+    // And nothing is left to flag on a second run.
+    expect((await scanAndFix(dir)).result.findings.filter((f) => f.ruleId === "usage-flat-token-fields")).toEqual([]);
   });
 
   it("rewrites CI node versions to 22, keeps quoting and leaves clean workflows alone", async () => {
