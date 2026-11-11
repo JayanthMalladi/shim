@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 
 declare const model: any;
 
@@ -36,4 +36,13 @@ export async function nestedRead() {
 // OpenAI's flat snake_case shape: a different field name, not an AI SDK read. Not flagged.
 export function openaiShape(completion: any) {
   return completion.usage.reasoning_tokens;
+}
+
+// A multi-step call that reads a flat usage field: BOTH the `multi-step-result` rewrite
+// (`result.usage` -> `result.finalStep.usage`) and the `usage-flat-token-fields` rewrite
+// (`reasoningTokens` -> `outputTokenDetails.reasoningTokens`) must apply. The flat-tokens fix
+// edits only the field name, so it never clobbers the `finalStep` insert.
+export async function multiStepFlat() {
+  const result = await generateText({ model, prompt: 'hi', stopWhen: stepCountIs(3) });
+  return result.usage.reasoningTokens;
 }

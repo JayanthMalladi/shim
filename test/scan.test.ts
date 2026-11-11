@@ -33,6 +33,7 @@ describe("ai-sdk v7 scan", () => {
       "src/agent.ts:31",
       "src/agent.ts:45",
       "src/typed.ts:51", // streamText result declared with a type: reported once, by this rule
+      "src/usage.ts:47", // flat usage read on a multi-step result: also flagged by usage-flat-token-fields
     ]);
   });
 
@@ -144,6 +145,7 @@ describe("ai-sdk v7 scan", () => {
       "src/usage.ts:19", // result.usage?.reasoningTokens (optional chain kept)
       "src/usage.ts:23", // event.usage.reasoningTokens (onFinish/onStepFinish event)
       "src/usage.ts:27", // step.usage.cachedInputTokens
+      "src/usage.ts:47", // flat read on a multi-step result: also a multi-step-result finding
     ]);
     // Silent and auto: a deterministic rewrite, no agent.
     expect(findings.every((f) => f.severity === "silent" && f.fix === "auto")).toBe(true);
@@ -163,8 +165,9 @@ describe("auto fixes", () => {
     // 12 code rewrites + 2 CI node-version rewrites (scalar '20'->'22', matrix [18,20,22]->[22])
     // + 2 allowSystemInMessages insertions in system-option.ts (lines 12 and 27; the convertToModelMessages
     //   case on line 33 is a "maybe" finding — agent, no auto edit)
-    // + 5 flat usage-token rewrites in usage.ts.
-    expect(applied).toBe(5 + 7 + 2 + 2 + 5);
+    // + 5 flat usage-token rewrites in usage.ts + 1 flat-token rewrite on the multi-step flat read
+    // (usage.ts:47); its multi-step-result rewrite is folded into that one, so it is not applied twice.
+    expect(applied).toBe(5 + 7 + 2 + 2 + 5 + 1);
     expect(src).toContain("bill(event.finalStep.usage.totalTokens)");
     expect(src).toContain("bill(result.finalStep.usage.totalTokens)");
     expect(src).toContain("const calls = result.finalStep.toolCalls");
@@ -191,6 +194,20 @@ describe("auto fixes", () => {
     expect(usage).toContain("return completion.usage.reasoning_tokens;");
     // And nothing is left to flag on a second run.
     expect((await scanAndFix(dir)).result.findings.filter((f) => f.ruleId === "usage-flat-token-fields")).toEqual([]);
+  });
+
+  it("composes the multi-step and flat-token rewrites on one read without clobbering either", async () => {
+    const dir = copyFixture();
+    const { result } = await scanAndFix(dir);
+    // Both findings fire on the multi-step flat read (usage.ts:47), as distinct rules.
+    const at47 = result.findings.filter((f) => f.file === "src/usage.ts" && f.line === 47);
+    expect(at47.map((f) => f.ruleId).sort()).toEqual(["multi-step-result", "usage-flat-token-fields"]);
+    // The `finalStep` insert (multi-step) and the nested-shape rewrite (flat) compose into one line.
+    const line = fs.readFileSync(path.join(dir, "src/usage.ts"), "utf8")
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.startsWith("return") && l.includes("finalStep"));
+    expect(line).toBe("return result.finalStep.usage.outputTokenDetails.reasoningTokens;");
   });
 
   it("rewrites CI node versions to 22, keeps quoting and leaves clean workflows alone", async () => {

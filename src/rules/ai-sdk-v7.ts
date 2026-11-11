@@ -539,6 +539,12 @@ const USAGE_FLAT_MSG =
   "Use usage.outputTokenDetails.reasoningTokens / usage.inputTokenDetails.cacheReadTokens.";
 
 function checkUsageFlatTokens(ctx: RuleContext, sf: SourceFile) {
+  // A `result.usage` / `result.totalUsage` receiver may carry a pending rewrite of its own
+  // (multi-step-result: `.usage` -> `.finalStep.usage`, total-usage: `.totalUsage` -> `.usage`).
+  // Fold that rewrite into the text and drop the inner edit, so the whole-access replacement
+  // composes instead of clobbering it. (Replacing the leaf field name on its own is a
+  // property-access in a name slot, which ts-morph's replacer rejects in batched application.)
+  const folded = new Map<Node, string>();
   for (const access of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
     const prop = access.getName();
     if (prop !== "reasoningTokens" && prop !== "cachedInputTokens") continue;
@@ -546,9 +552,19 @@ function checkUsageFlatTokens(ctx: RuleContext, sf: SourceFile) {
     while (Node.isParenthesizedExpression(receiver) || Node.isAwaitExpression(receiver)) receiver = receiver.getExpression();
     if (!Node.isPropertyAccessExpression(receiver)) continue;
     if (receiver.getName() !== "usage" && receiver.getName() !== "totalUsage") continue;
-    // Keep `?.` if the original read used an optional chain; detect it from the access text.
-    const base = access.getExpression().getText();
-    const op = access.getText() === `${base}?.${prop}` ? "?." : ".";
+    let base = access.getExpression().getText();
+    if (!folded.has(receiver)) {
+      const i = ctx.edits.findIndex((e) => e.node === receiver);
+      if (i >= 0) {
+        const pending = ctx.edits[i]!;
+        ctx.edits.splice(i, 1);
+        folded.set(receiver, pending.text);
+      }
+    }
+    const fold = folded.get(receiver);
+    if (fold !== undefined) base = base.replace(receiver.getText(), fold);
+    // Keep `?.` if the original read used an optional chain.
+    const op = access.hasQuestionDotToken() ? "?." : ".";
     const text = prop === "reasoningTokens"
       ? `${base}${op}outputTokenDetails${op}reasoningTokens`
       : `${base}${op}inputTokenDetails${op}cacheReadTokens`;
