@@ -596,6 +596,29 @@ const RELATED_PACKAGE_BUMPS: Array<{ name: string; target: string; note: string 
   { name: "http-proxy-middleware", target: "2", note: "needs a major bump for Express 5" },
 ];
 
+/**
+ * The highest major version a range can resolve to, or Infinity when it is unbounded above
+ * (`*`, `latest`, `>=n`, `>n`). `^n`/`~n` cap just below n+1; `<n`/`<=n` cap just below / at n; a bare
+ * `n` or `n.x` caps at n. A range is only a problem when this highest major is below the target:
+ * `^8.7.1` (caps at 8) and `>=7` (unbounded) are both fine for a target of 7, but `^6` (caps at 6) is not.
+ */
+function highestAllowedMajor(range: string): number {
+  let max = 0;
+  for (const part of range.split("||")) {
+    const p = part.trim();
+    if (!p || p === "*" || p === "latest") return Infinity;
+    const base = Number(p.match(/[\^~=v]*(\d+)/)?.[1] ?? NaN);
+    let top: number;
+    if (p.startsWith("^") || p.startsWith("~")) top = base; // ^8 / ~8 both cap below 9 -> highest is 8
+    else if (p.match(/<=\s*\d/)) top = Number(p.match(/<=\s*(\d+)/)![1]);
+    else if (p.match(/<\s*\d/)) top = Number(p.match(/<\s*(\d+)/)![1]) - 1;
+    else if (p.match(/>=?\s*\d/)) top = Infinity; // >=n / >n: no upper bound
+    else top = base; // a bare "8" or "8.x" caps at major 8
+    max = Math.max(max, top);
+  }
+  return max;
+}
+
 export function checkExpressRelatedPackages(root: string): Finding[] {
   const findings: Finding[] = [];
   const push = (file: string, name: string, message: string) =>
@@ -609,8 +632,9 @@ export function checkExpressRelatedPackages(root: string): Finding[] {
     const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
     for (const { name, target, note } of RELATED_PACKAGE_BUMPS) {
       const range = deps[name];
-      if (typeof range === "string" && !range.includes(":") && allowsMajor(range, Number(target))) continue; // already allows the target
-      if (typeof range === "string") push(file, name, `${name} ${note}: ${range} does not allow ${target}.`);
+      if (typeof range !== "string" || range.includes(":")) continue; // not a range we can read (catalog:, workspace:)
+      if (highestAllowedMajor(range) < Number(target))
+        push(file, name, `${name} ${note}: ${range} allows only majors below ${target} (needs ${target}+ for Express 5).`);
     }
     // express-async-errors is redundant on Express 5 (the router already forwards async rejections).
     if (typeof deps["express-async-errors"] === "string") {

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Finding } from "../src/types.js";
 import { getMigration } from "../src/migrations.js";
 import { scanAndFixWith, scanWith } from "../src/scan.js";
+import { checkExpressRelatedPackages } from "../src/rules/express-v5.js";
 
 /** The fixture and its expected (post-auto-fix) tree. */
 const fixture = path.join(import.meta.dirname, "fixtures/express4-app");
@@ -234,5 +235,32 @@ export default app;
     await scanAndFixWith(dir, m);
     expect(fs.readFileSync(path.join(dir, "src", "main.ts"), "utf8")).toContain("/{*splat}");
     expect(fs.readFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), "utf8")).toBe(SPLAT);
+  });
+});
+
+/**
+ * E6.5: E9 flags a related package only when the highest major its range allows is BELOW the
+ * target. `^8.7.1` (highest 8) and `>=7` (unbounded) are both fine for a target of 7; `^6` is not.
+ */
+describe("E9 related packages: flag only below the target major", () => {
+  const repo = (deps: Record<string, string>) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-e6-e9-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true, dependencies: deps }));
+    return dir;
+  };
+  const flagged = (dir: string) => checkExpressRelatedPackages(dir).map((f) => f.snippet);
+
+  it("does not flag a range that already allows the target major or higher", () => {
+    // express-rate-limit target is 7: ^8.7.1 caps at 8 (>= 7), >=7 is unbounded, ~8 caps at 8.
+    expect(flagged(repo({ "express-rate-limit": "^8.7.1" }))).toEqual([]);
+    expect(flagged(repo({ "express-rate-limit": ">=7.0.0" }))).toEqual([]);
+    expect(flagged(repo({ "http-proxy-middleware": "^2.0.0" }))).toEqual([]); // target 2, caps at 2: fine
+  });
+
+  it("flags a range whose highest allowed major is below the target", () => {
+    // express-rate-limit target 7: ^6 caps at 6; http-proxy-middleware target 2: ^1 caps at 1.
+    expect(flagged(repo({ "express-rate-limit": "^6.0.0" }))).toContain('"express-rate-limit"');
+    expect(flagged(repo({ "http-proxy-middleware": "^1.0.0" }))).toContain('"http-proxy-middleware"');
+    expect(flagged(repo({ "express-rate-limit": "^6.0.0 || ^5.0.0" }))).toContain('"express-rate-limit"'); // caps at 6
   });
 });
