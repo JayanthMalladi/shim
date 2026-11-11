@@ -260,7 +260,11 @@ function parseMajor(raw: string): number | null {
   return m ? Number(m[0]) : null;
 }
 
-/** `20` -> `18`, `20.x` -> `18.x`, `'20'` -> `'18'`, `"20.x"` -> `"18.x"`: keep the original quoting. */
+/**
+ * Rewrite a below-floor scalar `node-version` to the floor (`major`), keeping the original
+ * quoting. E.g. at floor 18: `16` -> `18`, `16.x` -> `18.x`, `'16'` -> `'18'`. A value at or
+ * above the floor is never rewritten (the caller gates on `mj < major`).
+ */
 function rewriteScalar(value: string, major: number = NODE_REQUIRED): string {
   const s = value.trim();
   const q = s[0];

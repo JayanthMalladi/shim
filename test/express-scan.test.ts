@@ -10,9 +10,14 @@ import { scanAndFixWith, scanWith } from "../src/scan.js";
 const fixture = path.join(import.meta.dirname, "fixtures/express4-app");
 const expected = path.join(import.meta.dirname, "fixtures/express4-app.expected");
 
-/** Rule id -> the marker ids that belong to it. */
+/**
+ * Rule id -> the marker ids that belong to it. express-async-errors has no marker: the finding lands
+ * on the bare `require(...)` statement, and the fixture keeps that line comment-free (ts-morph's
+ * replaceWithText("") chokes on a statement that carries a trailing comment), so its FLAG E8 sits on
+ * the line ABOVE and is never captured by the trailing-comment scan.
+ */
 const RULE_MARKER: Record<string, string[]> = {
-  "express-splat-param": ["E1", "E1-param"],
+  "express-splat-param": ["E1", "E1-dead", "E1-ref", "E1-constrained"],
   "express-optional-param": ["E1-optional"],
   "express-regex-param": ["E1-regex"],
   "express-literal-special": ["E1-literal"],
@@ -22,6 +27,8 @@ const RULE_MARKER: Record<string, string[]> = {
   "express-status-code": ["E5"],
   "express-req-host": ["E6"],
   "express-clearcookie-maxage": ["E7"],
+  "express-sendfile": ["E11"],
+  "express-async-errors": [],
 };
 
 /** Scan a copy of the fixture with the Express migration; findings normalised to /. */
@@ -33,15 +40,19 @@ function expressScan(): Finding[] {
   return result.findings.map((f) => ({ ...f, file: f.file.replace(/\\/g, "/") }));
 }
 
-/** Every "file:line -> marker id" expectation, read from the trailing FLAG/OK markers. */
+/**
+ * Every "file:line -> marker id" expectation, read from the trailing FLAG/OK markers. A marker only
+ * counts when there is code before the `//` on that line; a marker on a bare comment line (the
+ * express-async-errors `// FLAG E8` sits above the require it annotates) is not machine-captured.
+ */
 function markers(kind: "FLAG" | "OK"): Array<{ file: string; line: number; id: string }> {
   const out: Array<{ file: string; line: number; id: string }> = [];
   for (const d of fs.readdirSync(path.join(fixture, "src"), { withFileTypes: true })) {
     if (!d.isFile()) continue;
     const text = fs.readFileSync(path.join(fixture, "src", d.name), "utf8");
     text.split("\n").forEach((line, i) => {
-      const m = line.match(new RegExp(`//\\s*${kind}\\s+(E\\d(?:-[a-z]+)?)`));
-      if (m) out.push({ file: `src/${d.name}`, line: i + 1, id: m[1] });
+      const m = line.match(new RegExp(`//\\s*${kind}\\s+(E\\d+(?:-[a-z]+)?)`));
+      if (m && line.slice(0, m.index).trim()) out.push({ file: `src/${d.name}`, line: i + 1, id: m[1] });
     });
   }
   return out;
@@ -51,6 +62,7 @@ describe("express v5 scan", () => {
   it("asserts exact (file, line) findings per rule: no extras, none missing", async () => {
     const findings = await expressScan();
     for (const [ruleId, markerIds] of Object.entries(RULE_MARKER)) {
+      if (!markerIds.length) continue; // markerless rule (express-async-errors): asserted in the kinds test below
       const expected = new Set(
         markers("FLAG")
           .filter((m) => markerIds.includes(m.id))
@@ -81,10 +93,18 @@ describe("express v5 scan", () => {
   it("carries the severity + fix kind from the E-rule table", async () => {
     const findings = await expressScan();
     const rule = (id: string) => findings.filter((f) => f.ruleId === id);
+    // The bare splats auto-rewrite; a referenced handler, a dead route, or a ':name(*)' constraint does not.
+    const splatFix: Record<string, Finding["fix"]> = {
+      "src/app.ts:14": "auto", // bare '*'
+      "src/app.ts:15": "auto", // '/x/*'
+      "src/app.ts:16": "manual", // '/(.*)' dead route: leave it
+      "src/app.ts:17": "agent", // '/api/*' referenced handler
+      "src/routes.js:10": "auto", // bare '*'
+      "src/routes.js:13": "agent", // '/files/:path(*)' constrained splat
+    };
     const kinds: Array<[string, Finding["severity"], Finding["fix"]]> = [
-      // E1 splats: auto only when the handler does not read the splat param, else agent.
-      ["express-splat-param", "break", "agent"], // mixed; assert the per-line kind below
-      ["express-optional-param", "break", "agent"],
+      ["express-splat-param", "break", "agent"], // mixed auto/agent/manual; assert the per-line kind below
+      ["express-optional-param", "break", "auto"], // a standard '/user/:id?/edit' auto-rewrites to '{/:id}'
       ["express-regex-param", "break", "agent"],
       ["express-literal-special", "break", "agent"],
       ["express-urlencoded-extended", "silent", "auto"],
@@ -93,23 +113,20 @@ describe("express v5 scan", () => {
       ["express-status-code", "silent", "manual"],
       ["express-req-host", "silent", "manual"],
       ["express-clearcookie-maxage", "silent", "manual"],
+      ["express-sendfile", "break", "agent"],
+      // express-async-errors has no trailing marker (the require line stays comment-free), so it is
+      // not in RULE_MARKER and is asserted marker-free here.
+      ["express-async-errors", "break", "auto"],
     ];
     for (const [id, sev, fix] of kinds) {
       expect(rule(id).length, `${id} found at least one`).toBeGreaterThan(0);
       for (const f of rule(id)) {
         expect(f.severity, `${id} severity`).toBe(sev);
-        if (id === "express-splat-param") {
-          // The bare `'*'` splats are auto; the one that reads req.params[0] is agent.
-          expect(f.fix === "auto" || f.fix === "agent", `${id} fix`).toBe(true);
-        } else {
-          expect(f.fix, `${id} fix`).toBe(fix);
-        }
+        const key = `${f.file}:${f.line}`;
+        if (id === "express-splat-param") expect(splatFix[key], `splat ${key} fix kind is asserted`).toBe(f.fix);
+        else expect(f.fix, `${id} fix`).toBe(fix);
       }
     }
-    // The splat that reads req.params[0] must be agent, not auto.
-    const splat = rule("express-splat-param");
-    expect(splat.some((f) => f.fix === "agent")).toBe(true);
-    expect(splat.some((f) => f.fix === "auto")).toBe(true);
   });
 
   it("E9 and E10 flag the package.json (related packages + Node floor)", async () => {

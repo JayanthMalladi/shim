@@ -1,5 +1,9 @@
 import express from "express";
 
+// A referenced (non-inline) handler: a splat route handed to it is agent, because the function
+// might read req.params[0] in another file the scan cannot see.
+const controller = { get: (req, res) => res.json(req.params[0]) };
+
 const app = express();
 app.set('query parser', 'extended');
 app.use(express.urlencoded({ extended: true })); // FLAG E3 (no options object: Express 4 defaulted to extended=true -> add { extended: true })
@@ -9,14 +13,19 @@ app.use(express.json());
 
 // --- E1: route strings that REG-THROW under path-to-regexp 8 (Express 5) ---
 app.get('*splat', (req, res) => res.json({ ok: true }));                       // FLAG E1 (bare splat, no params read -> auto: '*splat')
-app.get("/api/*", (req, res) => res.json(req.params[0]));                 // FLAG E1-param (handler reads req.params[0] -> agent)
-app.get("/user/:id?/edit", (req, res) => res.json(req.params.id));       // FLAG E1-optional (optional param -> two routes, agent)
+app.get('/x/{*splat}', (req, res) => res.json({ ok: true }));                   // FLAG E1 (prefix splat, no params read -> auto: '/x/{*splat}')
+app.get("/(.*)", (req, res) => res.json({ ok: true }));                  // FLAG E1-dead (dead route: matches nothing -> manual, unchanged)
+app.get("/api/*", controller.get);                                        // FLAG E1-ref (referenced handler -> agent, unchanged)
+app.get('/user{/:id}/edit', (req, res) => res.json(req.params.id));       // FLAG E1-optional (optional param -> '/user{/:id}/edit', auto)
 app.get("/user/:id(\\d+)", (req, res) => res.json(req.params.id));       // FLAG E1-regex (regex-constrained param -> agent)
 app.get("/a(bc)?d", (req, res) => res.json({ ok: true }));               // FLAG E1-literal (literal ()/? in a path -> agent)
 // Not flagged: a plain named param, a RegExp route, and an array route all match identically in Express 5.
 app.get("/user/:id", (req, res) => res.json(req.params.id));             // OK E1 (plain named param)
 app.get(/\/legacy\/\d+/, (req, res) => res.json({ ok: true }));          // OK E1 (RegExp route: unchanged)
 app.get(["/a", "/b"], (req, res) => res.json({ ok: true }));             // OK E1 (array route: unchanged)
+
+// --- E11: res.sendfile removed in Express 5 (a bare rename 500s on relative paths) ---
+app.get("/f", (req, res) => res.sendfile("f.txt"));                      // FLAG E11 (sendfile -> agent)
 
 // --- E2: req.query read, no app.set('query parser', ...) in this file ---
 app.get("/search", (req, res) => res.json({ q: req.query.q }));         // FLAG E2 (insert app.set('query parser','extended') after app creation)
