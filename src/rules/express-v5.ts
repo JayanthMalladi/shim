@@ -483,6 +483,43 @@ function add(ctx: RuleContext, node: TmNode, ruleId: string, severity: Severity,
 }
 
 /**
+ * F9: `express-async-errors` is redundant on Express 5 (the router already routes async rejections to
+ * error handlers) and, with Express 5 installed, `require('express-async-errors')` throws at startup
+ * ("Cannot find module 'express/lib/router/layer'"). A bare side-effect import/require is auto-deleted;
+ * any other usage (a named import, passing it to app.use) is manual.
+ */
+function checkAsyncErrors(ctx: RuleContext, sf: SourceFile) {
+  const manualMsg =
+    "express-async-errors is unnecessary on Express 5 (the router already routes async rejections to error " +
+    "handlers) and it throws at startup with 'Cannot find module express/lib/router/layer'. Drop the package " +
+    "from package.json and remove this usage.";
+  // ESM: a bare side-effect `import "express-async-errors";` (no import clause) is auto-deleted.
+  for (const imp of sf.getImportDeclarations()) {
+    if (imp.getModuleSpecifierValue() !== "express-async-errors") continue;
+    const hasClause = imp.getNamedImports().length > 0 || imp.getDefaultImport() !== undefined || imp.getNamespaceImport() !== undefined;
+    if (!hasClause) removeStatement(ctx, imp);
+    else add(ctx, imp, "express-async-errors", "break", "manual", manualMsg);
+  }
+  // CJS: a bare side-effect `require("express-async-errors");` statement is auto-deleted.
+  for (const c of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    if (c.getExpression().getText() !== "require") continue;
+    const a = c.getArguments()[0];
+    if (!Node.isStringLiteral(a) || a.getLiteralValue() !== "express-async-errors") continue;
+    const stmt = c.getFirstAncestorByKind(SyntaxKind.ExpressionStatement);
+    if (stmt) removeStatement(ctx, stmt);
+  }
+}
+
+/** Push the finding and queue a deletion of the whole statement (ts-morph replaceWithText("")). */
+function removeStatement(ctx: RuleContext, stmt: TmNode) {
+  add(ctx, stmt, "express-async-errors", "break", "auto",
+    "express-async-errors is unnecessary on Express 5 (the router already routes async rejections to error " +
+    "handlers) and it throws at startup with 'Cannot find module express/lib/router/layer'. Removed the " +
+    "side-effect import; also drop the package from package.json.");
+  ctx.edits.push({ node: stmt, text: "" });
+}
+
+/**
  * E9: related packages that commonly break alongside an Express 5 upgrade (from the catalog's
  * tooling notes). Report-only (manual): name the package and the bump it needs. The @types
  * lockstep is handled by the bump itself, so only the runtime packages are reported here.
@@ -529,6 +566,7 @@ export function scanExpressV5(project: Project, root: string): RuleContext {
     checkStatus(ctx, sf);
     checkHost(ctx, sf);
     checkClearCookie(ctx, sf);
+    checkAsyncErrors(ctx, sf);
   }
   return ctx;
 }
