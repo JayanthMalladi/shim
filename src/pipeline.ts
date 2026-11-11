@@ -7,7 +7,7 @@ import { codemodExportFindings } from "./codemod-guard.js";
 import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
 import { installedExpressPeerSkip, expressPeerDependencySkip } from "./express-skips.js";
 import { undoCosmeticCodemodEdits, zodCodemodGuard } from "./zod-codemod.js";
-import { expressCodemodGuard } from "./express-codemod.js";
+import { expressCodemodGuard, expressCodemodUnexpressRestore } from "./express-codemod.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
@@ -165,6 +165,7 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
     ({ result: pre, applied } = await scanAndFixWith(dir, m));
     log("running official codemod @expressjs/codemod");
     codemod = m.codemod(dir);
+    expressCodemodUnexpressRestore(dir);
     guard = expressCodemodGuard(dir);
   } else {
     log("running official codemod");

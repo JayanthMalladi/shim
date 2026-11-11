@@ -26,6 +26,32 @@ export function runExpressCodemod(dir: string): boolean {
 }
 
 /**
+ * The codemod's prettier pass also rewrites files that never import express (parens around `await`,
+ * stray semicolons) — style churn, not an upgrade. Like zodCodemodGuard, restore every file the
+ * codemod changed that has no `express` import or require in its committed text: it is not part of
+ * this PR. runCapture (not run): run keeps only the tail, which could cut the import off a long file.
+ * Returns the list of files restored.
+ */
+export function expressCodemodUnexpressRestore(dir: string): string[] {
+  const log = (msg: string) => console.error(`[shim] ${msg}`);
+  const CODE_FILE = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs|vue)$/;
+  // A committed file "uses express" when it carries the exact "express" module specifier (import or
+  // require). ["']express["'] is not fooled by "express-rate-limit" or "@expressjs/codemod".
+  const USES_EXPRESS = /["']express["']/;
+  const changed = runCapture("git", ["diff", "--name-only"], dir).stdout.split("\n").map((f) => f.trim()).filter((f) => CODE_FILE.test(f));
+  const restored: string[] = [];
+  for (const file of changed) {
+    const original = runCapture("git", ["show", `HEAD:${file}`], dir);
+    if (!original.ok) continue; // not in HEAD: nothing to restore to
+    if (USES_EXPRESS.test(original.stdout)) continue; // the file's committed text uses express: keep the codemod's edits
+    run("git", ["checkout", "--", file], dir);
+    restored.push(file);
+    log(`express codemod: restored ${file} (no express import; style churn only)`);
+  }
+  return restored;
+}
+
+/**
  * The official codemod gets two things wrong (verified against @expressjs/codemod@0.0.5, see
  * C-tooling.md in the catalog):
  *  1. `magic-redirect` rewrites `res.redirect('back')`/`res.location('back')` to
