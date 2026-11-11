@@ -1,7 +1,7 @@
 /**
  * Express 4 -> 5 rules that the official codemod (@expressjs/codemod) and the type checker do not
  * cover. Most of the route-string breaks are startup throws (path-to-regexp 0.1 -> 8); the rest are
- * silent runtime deltas (query parser, clearCookie, host, status, body). See docs/CATALOG (A-routing,
+ * silent runtime deltas (query parser, clearCookie, host, status). See docs/CATALOG (A-routing,
  * B-runtime, C-tooling). Static only: no type-checker calls, matching scanZodV4's shape.
  *
  * Only files that import/require "express" (or are handed an Express Router) are scanned, mirroring
@@ -442,53 +442,6 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   }
 }
 
-/** E4: req.body.<x> read in a file that creates a router but mounts no body parser -> manual report. */
-function checkBody(ctx: RuleContext, sf: SourceFile) {
-  const routers = expressRouters(sf);
-  // Only apply to a file that actually creates an app or router (express(), Router(), or an express
-  // default/namespace binding used as `express.json()`). A pure handler-definition file that just
-  // receives `req` does not mount a parser and is not flagged.
-  // express() with no args, or Router() / express.Router() with no args.
-  let createsRouter = false;
-  for (const c of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
-    if (c.getArguments().length > 0) continue;
-    const e = c.getExpression();
-    if (Node.isIdentifier(e) && routers.has(e.getText()) && (e.getText() === "express" || e.getText() === "Router")) createsRouter = true;
-    else if (Node.isPropertyAccessExpression(e) && e.getName() === "Router" && Node.isIdentifier(e.getExpression()) && routers.has(e.getExpression().getText())) createsRouter = true;
-  }
-  if (!createsRouter) return;
-  const parserNames = new Set(["json", "urlencoded", "raw", "text"]);
-  // A parser is mounted when express.json()/bodyParser.json() (etc.) appears, or is passed to .use().
-  // The receiver must be a parser host, NOT `res`/`response`: res.json(...) sends a response and is
-  // not a body-parser mount.
-  const parserHost = (recv: string) => recv === "express" || recv === "bodyParser" || recv === "body";
-  const mountsParser = sf
-    .getDescendantsOfKind(SyntaxKind.CallExpression)
-    .some((c) => {
-      const e = c.getExpression();
-      if (!Node.isPropertyAccessExpression(e)) return false;
-      const method = e.getName();
-      const recv = e.getExpression().getText();
-      if (parserNames.has(method) && parserHost(recv)) return true;
-      if (method === "use" && JSON.stringify(c.getText()).match(/\b(express|bodyParser)\.(json|urlencoded|raw|text)\(/)) return true;
-      return false;
-    });
-  if (mountsParser) return;
-  let first: TmNode | undefined;
-  for (const pae of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
-    if (pae.getName() !== "body") continue;
-    // The receiver is the bare identifier `req` (req.body).
-    if (pae.getExpression().getText() === "req") {
-      first ??= pae;
-      break;
-    }
-  }
-  if (first)
-    add(ctx, first, "express-body-parser", "silent", "manual",
-      "No body parser is mounted on this app/router, so req.body.<field> is undefined in Express 5 (Express 4 gave {} " +
-      "for a missing body). Mount express.json()/express.urlencoded() or handle the empty-body case.");
-}
-
 /** E5: res.status(x) with a non-integer or out-of-range argument -> manual report. */
 function checkStatus(ctx: RuleContext, sf: SourceFile) {
   for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
@@ -663,7 +616,6 @@ export function scanExpressV5(project: Project, root: string): RuleContext {
     checkRouteStrings(ctx, sf);
     checkUrlencoded(ctx, sf);
     checkQueryParser(ctx, sf);
-    checkBody(ctx, sf);
     checkStatus(ctx, sf);
     checkHost(ctx, sf);
     checkClearCookie(ctx, sf);

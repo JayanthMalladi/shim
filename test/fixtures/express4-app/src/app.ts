@@ -29,9 +29,6 @@ app.get("/f", (req, res) => res.sendfile("f.txt"));                      // FLAG
 // --- E2: req.query read, no app.set('query parser', ...) in this file ---
 app.get("/search", (req, res) => res.json({ q: req.query.q }));         // FLAG E2 (insert app.set('query parser','extended') after app creation)
 
-// --- E4: req.body read while a body parser IS mounted on this app ---
-app.get("/profile", (req, res) => res.json({ name: req.body.name }));   // OK E4 (a parser is mounted; not flagged)
-
 // --- E5: res.status with a non-integer argument ---
 app.get("/s1", (req, res) => res.status("200").send("x"));              // FLAG E5 (string status: throws at request time)
 app.get("/s2", (req, res) => res.status(200).send("x"));               // OK E5 (integer literal in range)
