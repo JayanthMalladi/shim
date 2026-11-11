@@ -99,6 +99,23 @@ function splatHandlersAreInlineAndParamsFree(call: CallExpression): boolean {
 }
 
 /**
+ * F5: the deterministic optional-param rewrite. A standard `/:name?` segment (the `?` followed by
+ * `/` or end-of-route) becomes a braced `{/:name}`. `'/user/:id?/edit'` -> `'/user{/:id}/edit'`,
+ * `'/p/:slug?'` -> `'/p{/:slug}'`. Returns undefined when a `?` is present but not in that standard
+ * segment position (the agent handles the non-standard placement).
+ */
+function optionalParamRewrite(route: string): string | undefined {
+  const segRe = /\/:([a-zA-Z_]\w*)\?(?=\/|$)/g;
+  let found = false;
+  const out = route.replace(segRe, (_all, name) => {
+    found = true;
+    return `{/:${name}}`;
+  });
+  if (!found) return undefined; // no standard segment (either no '?', or a non-standard placement)
+  return out;
+}
+
+/**
  * Identifiers that refer to an Express app or Router: the default/namespace `express` import or
  * `require`, a `Router` import, and any variable initialized to `express()`, `express.Router()`,
  * `Router()` or a prior router. Plus the conventional `app`/`router` names so `mountRouter(r)`-
@@ -213,10 +230,20 @@ function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
         "(it becomes an array, or undefined on the bare prefix), keeping the matched paths identical.");
       continue;
     }
+    // F5: a standard optional param ':name?' auto-rewrites to a single '{/:name}' route.
     if (hasOptionalParam(route)) {
-      add(ctx, r.node, "express-optional-param", "break", "agent",
-        "path-to-regexp 8 dropped the optional ':' param modifier; this route REG-THROWS in Express 5. " +
-        "Register two routes with the same handler (the path with and without the param) to keep the matched set.");
+      const rewrite = optionalParamRewrite(route);
+      if (rewrite !== undefined) {
+        add(ctx, r.node, "express-optional-param", "break", "auto",
+          "path-to-regexp 8 dropped the optional ':' param modifier; this route REG-THROWS in Express 5. Rewrote " +
+          "the optional segment to a single '{/:name}' route so the matched set is unchanged.");
+        ctx.edits.push({ node: r.node, text: `'${rewrite}'` });
+      } else {
+        add(ctx, r.node, "express-optional-param", "break", "agent",
+          "path-to-regexp 8 dropped the optional ':' param modifier; this route REG-THROWS in Express 5 and its " +
+          "'?' is not in the standard single-segment position, so register two routes with the same handler " +
+          "(the path with and without the param) to keep the matched set.");
+      }
       continue;
     }
     if (hasCustomRegexParam(route)) {
