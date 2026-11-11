@@ -202,3 +202,39 @@ export default app;
     expect(fs.readFileSync(path.join(dir, "src/app.js"), "utf8")).toContain("app.set('query parser', 'extended');");
   });
 });
+
+/**
+ * E6.2: a sub-package already on Express 5 keeps its v5 behavior, so neither scan nor auto-fix may
+ * touch its files. A sibling package still on express 4 is upgraded as usual.
+ */
+describe("express-v5 scan skips files whose nearest package.json is already on v5", () => {
+  const m = getMigration("express-v5");
+  const SPLAT = `import express from "express";
+const app = express();
+app.use(express.json());
+app.get("/*", (req, res) => res.json({ ok: true })); // FLAG E1 (splat: would auto-rewrite)
+export default app;
+`;
+  const monorepo = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-e6-subpkg-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "root", private: true, dependencies: { express: "^4.21.0" } }));
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "main.ts"), SPLAT);
+    fs.mkdirSync(path.join(dir, "packages", "v5pkg", "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "packages", "v5pkg", "package.json"), JSON.stringify({ name: "v5pkg", dependencies: { express: "^5.3.0" } }));
+    fs.writeFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), SPLAT);
+    return dir;
+  };
+
+  it("flags and auto-fixes the v4 package, leaves the v5 sub-package untouched", async () => {
+    const dir = monorepo();
+    const { result } = scanWith(dir, m);
+    const flagged = result.findings.map((f) => f.file.replace(/\\/g, "/"));
+    expect(flagged).toContain("src/main.ts"); // the v4 root package is upgraded
+    expect(flagged).not.toContain("packages/v5pkg/src/routes.ts"); // already on v5: no findings
+    // Apply the auto-fixes: the v4 file gets the splat rewrite, the v5 file is byte-identical.
+    await scanAndFixWith(dir, m);
+    expect(fs.readFileSync(path.join(dir, "src", "main.ts"), "utf8")).toContain("/{*splat}");
+    expect(fs.readFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), "utf8")).toBe(SPLAT);
+  });
+});

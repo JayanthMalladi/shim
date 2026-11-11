@@ -7,6 +7,7 @@
  * Only files that import/require "express" (or are handed an Express Router) are scanned, mirroring
  * scanZodV4's "import from exactly zod" gate.
  */
+import fs from "node:fs";
 import path from "node:path";
 import {
   Node,
@@ -172,6 +173,40 @@ function importsExpress(sf: SourceFile): boolean {
     }
   }
   return false;
+}
+
+/**
+ * The nearest package.json (walking up from the file) and the `express` range it depends on, across
+ * dependencies / devDependencies / peerDependencies.
+ */
+function nearestExpressRange(file: string, root: string): string | undefined {
+  let dir = path.dirname(path.resolve(file));
+  const base = path.resolve(root);
+  while (true) {
+    const pj = path.join(dir, "package.json");
+    if (fs.existsSync(pj)) {
+      const pkg = readJson(pj);
+      const range = pkg?.dependencies?.express ?? pkg?.devDependencies?.express ?? pkg?.peerDependencies?.express;
+      if (typeof range === "string") return range;
+    }
+    if (dir === base) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+
+/**
+ * True when the file's nearest express-depending package.json is already on Express 5. Those files
+ * are not part of the upgrade — they keep their current v5 behavior — so neither a finding nor an
+ * auto-fix may be written into them (a v4-only repo would still be scanned and fixed as usual).
+ */
+function alreadyOnExpress5(file: string, root: string): boolean {
+  const range = nearestExpressRange(file, root);
+  if (range === undefined) return false; // no package.json depending on express: part of the main upgrade
+  const isOldMajor = (r: string) => allowsMajor(r, 4) && !allowsMajor(r, 5);
+  return !isOldMajor(range);
 }
 
 /** The route-string argument of a route call, when it is a plain string literal. */
@@ -624,6 +659,7 @@ export function scanExpressV5(project: Project, root: string): RuleContext {
   const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   for (const sf of project.getSourceFiles()) {
     if (!importsExpress(sf)) continue; // no express import/require: nothing to flag
+    if (alreadyOnExpress5(sf.getFilePath(), root)) continue; // nearest package.json is already on v5: leave it alone
     checkRouteStrings(ctx, sf);
     checkUrlencoded(ctx, sf);
     checkQueryParser(ctx, sf);
