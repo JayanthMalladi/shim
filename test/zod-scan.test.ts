@@ -93,6 +93,21 @@ describe("zod v4 scan", () => {
     }
   });
 
+  it("does not throw on the imported-identifier / two-const cycle fixture", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-zod-crash-"));
+    fs.cpSync(fixture, dir, { recursive: true });
+    const m = getMigration("zod-v4");
+    let threw: unknown;
+    try {
+      scanWith(dir, m);
+    } catch (err) {
+      threw = err;
+    }
+    // src/imported-key.ts imports `uuidId` (no initializer -> isZodChain would recurse
+    // on itself forever) and holds a two-const cycle. The scan must finish, not RangeError.
+    expect(threw, `scan threw on the cycle/imported-key fixture: ${String(threw)}`).toBeUndefined();
+  });
+
   it("carries the severity + fix kind from the T3.3 table", async () => {
     const findings = await zodScan();
     const rule = (id: string) => findings.filter((f) => f.ruleId === id);
