@@ -2,16 +2,18 @@ import type { Project } from "ts-morph";
 import type { RuleContext } from "./rules/ai-sdk-v7.js";
 import { checkCiNodeVersions, checkPackageJsons, findAiPackages, findPackages } from "./scan.js";
 import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
-import { allowsMajor, bumpAiSdk, bumpZod } from "./bump.js";
+import { allowsMajor, bumpAiSdk, bumpExpress, bumpZod } from "./bump.js";
 import { applyAutoFixes } from "./rules/ai-sdk-v7.js";
 import { scanZodV4 } from "./rules/zod-v4.js";
+import { checkExpressRelatedPackages, scanExpressV5 } from "./rules/express-v5.js";
 import { runZodCodemod } from "./zod-codemod.js";
+import { runExpressCodemod } from "./express-codemod.js";
 import { FIXER_RULES, REVIEWER_RULES } from "./arch.js";
 import { JUDGE_RULES } from "./agent.js";
 import { run } from "./exec.js";
 
 export interface Migration {
-  id: "ai-sdk-v7" | "zod-v4";
+  id: "ai-sdk-v7" | "zod-v4" | "express-v5";
   /** Human name used in PR text: "AI SDK 7", "Zod 4". */
   title: string;
   /** package.json files that depend on the old major (dependencies, devDependencies, peerDependencies). */
@@ -156,9 +158,97 @@ export const ZOD_V4: Migration = {
   statusLine: "migration: zod-v4",
 };
 
+/** The Express 4 -> 5 fixer's rules, word for word. Behavior-preserving; no AI SDK words. */
+const EXPRESS_FIXER_RULES = `Rules:
+- Preserve the program's Express 4 runtime behavior exactly: the same requests must match the same
+  routes, read the same params/query/body, and produce the same responses. Known Express 5 changes
+  and their behavior-preserving fixes:
+  - A wildcard route (\`'*'\`, \`'/*'\`, \`'/x/*'\`) throws at registration in Express 5. Braces are
+    required: rewrite it to \`'*splat'\` / \`'/{*splat}'\` / \`'/x/{*splat}'\` and read
+    \`(req.params.splat ?? []).join('/')\` instead of the old \`req.params[0]\` string. Keep the matched
+    paths identical — add a leading \`'/'\` only for the bare \`'*'\` form. A \`'/(.*)'\` route is a dead
+    route (matched nothing in Express 4), so leave it as-is.
+  - An optional param (\`'/user/:id?/edit'\`) throws; rewrite it to a single route
+    (\`'/user{/:id}/edit'\`) so the matched set is unchanged. Any other \`?\` placement has no single
+    v5 spelling — register two routes (\`'/user/edit'\` and \`'/user/:id/edit'\`) with the same handler.
+  - A regex-constrained param (\`':id(\\d+)'\`) throws; use a plain \`':id'\` and enforce the constraint in
+    the handler with \`if (!/^\\d+$/.test(req.params.id)) return next('route');\` — never \`next()\` with
+    an error, because Express 4 fell through to the next route on a non-match.
+  - The default query parser changed from 'extended' to 'simple'; if the app relies on nested or
+    array query keys, add \`app.set('query parser', 'extended')\` near app creation.
+  - \`res.redirect('back')\` now means the literal string 'back' (an open-redirect); use
+    \`req.get('Referer') || '/'\` (the header is spelled Referer).
+  - \`res.status(<non-integer>)\`, \`res.vary()\`, and \`res.clearCookie(name, { maxAge })\`
+    changed; fix only where the finding says to.
+- Never change a route's matched paths or its params object: the fix must preserve what matched
+  before. Do not refactor a sync handler to async or vice versa.
+- Make the smallest edit at each site. No refactors, no formatting changes, no new dependencies.
+- The codemod's edits are in \`git diff\`. If one is wrong, revert that edit. If the codemod clobbered
+  a non-Express \`.del(\` call, fix or revert it.
+- Never silence a type error with \`as any\`, \`as unknown as\`, \`@ts-ignore\` or \`@ts-expect-error\`.
+- If a site cannot be fixed safely, leave it and say why in your final message.
+- Finish by running \`npx --no-install tsc --noEmit -p tsconfig.json\` if a tsconfig.json exists.`;
+
+/** The Express reviewer's rules: reject edits that change behavior or touch unrelated code. */
+const EXPRESS_REVIEWER_RULES = `Reject it if any of these is true:
+- Runtime behavior changes beyond what Express 5 forces: a route's matched paths or params object
+  changed, a query/body parse result changed, or a response differs, where a behavior-preserving
+  fix existed. A behavior-preserving fix for one of the Express 5 changes above is not a behavior
+  change and is not a reason to reject.
+- An edit has nothing to do with the upgrade (refactors, renames, reformatting of untouched code).
+- A type error from the upgrade is hidden with \`as unknown as\`, \`as any\`, \`@ts-ignore\`,
+  \`@ts-expect-error\` or a similar cast or suppression instead of fixed.
+- A test is deleted, skipped, or loosened, or an assertion changes, unless the edit only reverts a
+  wrong codemod edit or is a minimal type-only change the new API requires.
+- A function's signature changes, or a sync handler is refactored to async.`;
+
+/** Stricter than the reviewer, mirroring the Zod judge: judgeRules extends reviewerRules. */
+const EXPRESS_JUDGE_RULES = `${EXPRESS_REVIEWER_RULES}
+- The diff leaves code that cannot compile, references names that do not exist, or renames anything
+  this package exports.
+- A site that cannot be fixed safely was forced anyway (a cast, a widened type, a loosened test,
+  a route whose matched paths changed) instead of being left for the maintainer.`;
+
+/** The Express 4 -> 5 migration. The agent prompts are Express-specific on purpose. */
+export const EXPRESS_V5: Migration = {
+  id: "express-v5",
+  title: "Express 5",
+  findPackages: (root) => findPackages(root, "express"),
+  isOldMajor: (range) => allowsMajor(range, 4) && !allowsMajor(range, 5),
+  bump: (root) => bumpExpress(root),
+  codemod: runExpressCodemod,
+  scan: (project, root) => {
+    const ctx = scanExpressV5(project, root);
+    // E9: related packages that commonly break with Express 5 (express-rate-limit, etc.).
+    ctx.findings.push(...checkExpressRelatedPackages(root));
+    // E10: Express 5's Node floor is 18. Check engines.node and CI against 18, on the express dep.
+    ctx.findings.push(...checkPackageJsons(root, { major: 18, label: "Express 5", dep: "express" }));
+    ctx.findings.push(...checkCiNodeVersions(root, ctx, { major: 18, label: "Express 5" }));
+    return ctx;
+  },
+  applyAutoFixes,
+  fixerIntro:
+    "You are finishing an Express 4 -> 5 migration in this repository. Dependencies are already bumped\n" +
+    "and the official codemod (@expressjs/codemod) has run. Fix only what is listed below.",
+  reviewerIntro:
+    "It upgrades the project from Express 4 to 5. A maintainer will merge it only if it is a pure upgrade.\n" +
+    "You can read files and run only `git diff` and `git status`; other commands are denied. The build, typecheck " +
+    "and tests already ran on this diff, so do not try to run them or install packages.",
+  reference: "https://expressjs.com/en/guide/upgrading-to-5.html (you can't open it here; the rules above list every Express 5 change that matters)",
+  fixerRules: EXPRESS_FIXER_RULES,
+  reviewerRules: EXPRESS_REVIEWER_RULES,
+  judgeRules: EXPRESS_JUDGE_RULES,
+  prBranch: "shim/express-5",
+  commitMessage: "Upgrade to Express 5",
+  changesetFile: "upgrade-express-5.md",
+  changesetText: "Upgrade to Express 5. Requires Node.js 18 or later.",
+  statusLine: "migration: express-v5",
+};
+
 export const MIGRATIONS: Partial<Record<Migration["id"], Migration>> = {
   "ai-sdk-v7": AI_SDK_V7,
   "zod-v4": ZOD_V4,
+  "express-v5": EXPRESS_V5,
 };
 
 export function getMigration(id?: Migration["id"]): Migration {

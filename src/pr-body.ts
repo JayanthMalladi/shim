@@ -15,6 +15,13 @@ const ZOD_SEVERITY_LABEL = {
   deprecated: "Fixed: deprecated in Zod 4",
 } as const;
 
+/** The Express 5 equivalents of SEVERITY_LABEL, so the same structure names Express 5, not v7. */
+const EXPRESS_SEVERITY_LABEL = {
+  break: "Fixed: would fail at startup on Express 5",
+  silent: "Fixed: same code, different behavior on Express 5",
+  deprecated: "Fixed: removed in Express 5",
+} as const;
+
 const SOURCE_FILE = /\.(m|c)?[jt]sx?$/;
 const MAX_LOCATIONS = 10;
 
@@ -35,22 +42,32 @@ export function prBody(r: MigrationReport, patch?: string, m: Migration = getMig
   const forHuman = dedupe([...unique.filter((f) => f.fix === "manual"), ...unfixed, ...r.remaining]);
   const bySeverity = (s: Finding["severity"]) => fixed.filter((f) => f.severity === s);
 
-  const isZod = m.id !== "ai-sdk-v7";
-  const label = isZod ? ZOD_SEVERITY_LABEL : SEVERITY_LABEL;
-  const title = isZod ? "## Upgrade to Zod 4" : "## Upgrade to AI SDK 7";
+  // Exact id checks so adding express-v5 doesn't quietly make it read the Zod text.
+  const isZod = m.id === "zod-v4";
+  const isExpress = m.id === "express-v5";
+  const label = isZod ? ZOD_SEVERITY_LABEL : isExpress ? EXPRESS_SEVERITY_LABEL : SEVERITY_LABEL;
+  const title = isZod ? "## Upgrade to Zod 4" : isExpress ? "## Upgrade to Express 5" : "## Upgrade to AI SDK 7";
   const intro =
     (isZod ? "This PR moves the project from Zod 3 to 4 and keeps its current behavior"
+      : isExpress ? "This PR moves the project from Express 4 to 5 and keeps its current behavior"
       : "This PR moves the project from AI SDK 6 to 7 and keeps its current behavior")
     + (forHuman.length ? ', except where noted under "Needs your eyes"' : "") + ".";
-  const introParagraph = [intro, ...(isZod ? [] : explain(fixed))].join("\n");
+  // explain() is AI-SDK-specific (the multi-step example); both Zod and Express skip it.
+  const introParagraph = [intro, ...(isZod || isExpress ? [] : explain(fixed))].join("\n");
   const libraryLine = isZod
     ? "If this package's public types include Zod schemas, users will see Zod 4 types. That probably belongs in a new major version."
-    : "This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.";
-  // The AI SDK codemod always runs; the community Zod codemod is only claimed when the report says it did.
+    : isExpress
+      ? "This drops support for Express 4, so users of this package will need Express 5 too. It probably belongs in a new major version."
+      : "This drops support for AI SDK 6, so users of this package will need AI SDK 7 too. It probably belongs in a new major version.";
+  // The AI SDK codemod always runs; the Zod and Express codemods are only claimed when the report says they did.
+  const reviewNote = r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : "";
   const codemodLine = isZod
     ? [...(r.codemod ? ["Also ran `npx zod-v3-to-v4` (community codemod)."] : []),
-       `Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`].join(" ")
-    : `Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${r.review?.approve ? " A second agent reviewed the full diff for behavior changes and unrelated edits." : ""}`;
+       `Install ran with \`--ignore-scripts\`.${reviewNote}`].join(" ")
+    : isExpress
+      ? [...(r.codemod ? ["Also ran `npx @expressjs/codemod` (official codemod)."] : []),
+         `Install ran with \`--ignore-scripts\`.${reviewNote}`].join(" ")
+      : `Also ran \`npx @ai-sdk/codemod v7\` (official). Install ran with \`--ignore-scripts\`.${reviewNote}`;
 
   const sourceFiles = r.changedFiles.filter((f) => SOURCE_FILE.test(f));
   const fixedFiles = new Set(fixed.map((f) => f.file));

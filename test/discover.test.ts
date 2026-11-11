@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { discover } from "../src/discover.js";
-import { AI_SDK_V7, ZOD_V4 } from "../src/migrations.js";
+import { AI_SDK_V7, ZOD_V4, EXPRESS_V5 } from "../src/migrations.js";
 
 const recent = new Date(Date.now() - 5 * 86_400_000).toISOString();
 const older = new Date(Date.now() - 10 * 86_400_000).toISOString();
@@ -49,6 +49,23 @@ describe("discover, Zod", () => {
       ["app-dep", "^3.22.4", false],
       ["app-dev", "3.25.76", false],
     ]);
+  });
+});
+
+describe("discover, Express", () => {
+  it("keeps express 4 packages with tests and a GitHub repo, skipping peers and on-5", async () => {
+    stubRegistry({
+      "exp-app": doc("exp-app", { dependencies: { express: "^4.21.0" } }, recent),
+      "exp-peer": doc("exp-peer", { dependencies: { express: "^4.21.0" }, peerDependencies: { express: "^4.18.0" } }),
+      "exp-on5": doc("exp-on5", { dependencies: { express: "^5.1.0" } }),
+      "exp-dual": doc("exp-dual", { dependencies: { express: "^4.0.0 || ^5.0.0" } }),
+      "exp-no-test": doc("exp-no-test", { dependencies: { express: "^4.21.0" }, scripts: {} }),
+      "exp-cli": doc("exp-cli", { dependencies: { express: "^4.22.0" }, bin: { x: "cli.js" } }, older),
+    });
+    const found = await discover(60, 1, EXPRESS_V5);
+    // Inherited from the non-AI-SDK path: a bin-bearing candidate sorts first, then recency.
+    // peer/on5/dual/no-test are skipped (peer dep, already 5, dual-range, no real test).
+    expect(found.map((c) => [c.name, c.aiRange])).toEqual([["exp-cli", "^4.22.0"], ["exp-app", "^4.21.0"]]);
   });
 });
 

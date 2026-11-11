@@ -5,7 +5,9 @@ import { DEFAULT_ARCH, type Architecture } from "./arch.js";
 import { getMigration, type Migration } from "./migrations.js";
 import { codemodExportFindings } from "./codemod-guard.js";
 import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
+import { installedExpressPeerSkip, expressPeerDependencySkip } from "./express-skips.js";
 import { undoCosmeticCodemodEdits, zodCodemodGuard } from "./zod-codemod.js";
+import { expressCodemodGuard } from "./express-codemod.js";
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
@@ -106,6 +108,9 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
   if (m.id === "zod-v4") {
     const peer = zodPeerDependencySkip(dir);
     if (peer) return { skip: peer };
+  } else if (m.id === "express-v5") {
+    const peer = expressPeerDependencySkip(dir);
+    if (peer) return { skip: peer };
   }
   if (!pkgs.some((p) => m.isOldMajor(p.range))) {
     const ranges = pkgs.map((p) => p.range).join(", ");
@@ -114,6 +119,11 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
       // catalog:, workspace: and the like: the real version lives elsewhere, and bumpZod can't rewrite it.
       if (pkgs.every((p) => p.range.includes(":"))) return { skip: `zod version not in package.json (${ranges})` };
       return { skip: `already on zod 4 (${ranges})` };
+    }
+    if (m.id === "express-v5") {
+      if (!ranges) return { skip: "no express dependency" };
+      if (pkgs.every((p) => p.range.includes(":"))) return { skip: `express version not in package.json (${ranges})` };
+      return { skip: `already on express 5 (${ranges})` };
     }
     return { skip: `not on ai@6 (${ranges || "no ai dependency"})` };
   }
@@ -130,6 +140,9 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
   if (m.id === "zod-v4") {
     const peer = installedPeerSkip([...new Set([dir, ...pkgDirs])]);
     if (peer) return { skip: peer, baseline };
+  } else if (m.id === "express-v5") {
+    const peer = installedExpressPeerSkip([...new Set([dir, ...pkgDirs])]);
+    if (peer) return { skip: peer, baseline };
   }
 
   log("bumping dependencies");
@@ -143,6 +156,16 @@ export async function prepare(dir: string, repo: string, m: Migration = getMigra
     codemod = m.codemod(dir);
     undoCosmeticCodemodEdits(dir);
     guard = zodCodemodGuard(dir);
+  } else if (m.id === "express-v5") {
+    // Express's official codemod and Shim's rules touch nearly disjoint domains: the codemod rewrites
+    // send/json/redirect/param/acceptsCharset signatures and Shim rewrites route strings + query/body
+    // parser options, so either order is safe for correctness. Shim goes first so the guard can scope
+    // the codemod's own edits against Shim's findings.
+    log("applying Shim auto-fixes");
+    ({ result: pre, applied } = await scanAndFixWith(dir, m));
+    log("running official codemod @expressjs/codemod");
+    codemod = m.codemod(dir);
+    guard = expressCodemodGuard(dir);
   } else {
     log("running official codemod");
     codemod = m.codemod(dir);
