@@ -6,6 +6,8 @@ import type { Finding } from "../src/types.js";
 import { getMigration } from "../src/migrations.js";
 import { scanAndFixWith, scanWith } from "../src/scan.js";
 import { checkExpressRelatedPackages } from "../src/rules/express-v5.js";
+import { bumpExpress } from "../src/bump.js";
+import { run } from "../src/exec.js";
 
 /** The fixture and its expected (post-auto-fix) tree. */
 const fixture = path.join(import.meta.dirname, "fixtures/express4-app");
@@ -235,6 +237,77 @@ export default app;
     await scanAndFixWith(dir, m);
     expect(fs.readFileSync(path.join(dir, "src", "main.ts"), "utf8")).toContain("/{*splat}");
     expect(fs.readFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), "utf8")).toBe(SPLAT);
+  });
+});
+
+/**
+ * E6.9: the "already on Express 5" gate must read the COMMITTED package.json, not the on-disk one.
+ * In `prepare` the bump rewrites every package.json to ^5 before the rules run, so an on-disk read
+ * makes every file look already-on-v5 and the scan skips them all (a real run fixes nothing). A
+ * committed read still upgrades the v4 package and still leaves a committed-^5 sub-package alone.
+ */
+describe("express-v5 scan decides already-on-v5 from the committed package.json (E6.9)", () => {
+  const m = getMigration("express-v5");
+  const SPLAT = `import express from "express";
+const app = express();
+app.use(express.json());
+app.get("/*", (req, res) => res.json({ ok: true }));
+export default app;
+`;
+  const commit = (dir: string) => {
+    const git = (...a: string[]) => {
+      const r = run("git", a, dir);
+      if (!r.ok) throw new Error(`git ${a.join(" ")} failed: ${r.output}`);
+      return r;
+    };
+    git("init", "-q", "--initial-branch=main");
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init");
+  };
+  /** The fixture copied into a git repo with a committed ^5 sub-package under packages/v5pkg. */
+  const repoDir = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-e69-commit-"));
+    fs.cpSync(fixture, dir, { recursive: true });
+    fs.mkdirSync(path.join(dir, "packages", "v5pkg", "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "packages", "v5pkg", "package.json"), JSON.stringify({ name: "v5pkg", dependencies: { express: "^5.3.0" } }));
+    fs.writeFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), SPLAT);
+    commit(dir);
+    return dir;
+  };
+
+  it("bump + scanAndFix on a git repo: the v4 fixture is still found and fixed", async () => {
+    // Baseline: a plain scan of the untouched fixture (no bump, no git).
+    const baseline = ((): Finding[] => {
+      const b = fs.mkdtempSync(path.join(os.tmpdir(), "shim-e69-base-"));
+      fs.cpSync(fixture, b, { recursive: true });
+      const { result } = scanWith(b, m);
+      return result.findings;
+    })();
+
+    const dir = repoDir();
+    expect(bumpExpress(dir).some((c) => c.startsWith("express ")), "the bump rewrites the root package.json").toBe(true);
+    // On-disk, the root package.json now says ^5 — exactly the state that made the old on-disk read skip everything.
+    expect(fs.readFileSync(path.join(dir, "package.json"), "utf8")).toContain('"express": "^5.0.0"');
+
+    const { result, applied } = await scanAndFixWith(dir, m);
+    // Same E1/E2/E3 source findings as the plain scan of the fixture (file is fixture-root-relative in both).
+    expect(result.findings.map((f) => `${f.file}:${f.line}`)).toEqual(baseline.map((f) => `${f.file}:${f.line}`));
+    for (const ruleId of ["express-splat-param", "express-query-parser", "express-urlencoded-extended"]) {
+      expect(result.findings.some((f) => f.ruleId === ruleId), `${ruleId} found`).toBe(true);
+    }
+    // The v4 auto-fixes were applied, and the committed-^5 sub-package got nothing.
+    expect(applied).toBeGreaterThan(0);
+    expect(fs.readFileSync(path.join(dir, "src", "app.ts"), "utf8")).toContain("/{*splat}");
+    expect(fs.readFileSync(path.join(dir, "packages", "v5pkg", "src", "routes.ts"), "utf8")).toBe(SPLAT);
+    expect(result.findings.some((f) => f.file.replace(/\\/g, "/") === "packages/v5pkg/src/routes.ts")).toBe(false);
+  });
+
+  it("plain scan of the same repo (no bump): also sees the v4 fixture and skips the committed-^5 sub-package", async () => {
+    const dir = repoDir();
+    const { result } = scanWith(dir, m);
+    const flagged = result.findings.map((f) => f.file.replace(/\\/g, "/"));
+    expect(flagged.some((f) => f.startsWith("src/")), "v4 fixture files are flagged").toBe(true);
+    expect(flagged.some((f) => f.startsWith("packages/v5pkg/")), "committed-^5 sub-package is skipped").toBe(false);
   });
 });
 

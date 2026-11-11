@@ -22,6 +22,7 @@ import type { RuleContext } from "./ai-sdk-v7.js";
 import type { Finding, FixKind, Severity } from "../types.js";
 import { findPackageJsons, readJson } from "../scan.js";
 import { allowsMajor } from "../bump.js";
+import { runCapture } from "../exec.js";
 
 /** Method names whose first argument is a route string. */
 const ROUTE_METHODS = new Set(["get", "post", "put", "patch", "delete", "options", "head", "use", "all", "del"]);
@@ -176,25 +177,50 @@ function importsExpress(sf: SourceFile): boolean {
 }
 
 /**
- * The nearest package.json (walking up from the file) and the `express` range it depends on, across
- * dependencies / devDependencies / peerDependencies.
+ * The `express` range in the nearest package.json (walking up from the file), across dependencies /
+ * devDependencies / peerDependencies. The range is read from the COMMITTED package.json (`git show
+ * HEAD:`), not the on-disk one: in `prepare` the bump rewrites every package.json to ^5 before these
+ * rules run, so the on-disk file would make every file look "already on v5" and the scan would skip
+ * all of them. Only when git has no HEAD version (a plain `scan` on a folder that isn't a repo, or an
+ * uncommitted package.json) do we fall back to the on-disk file.
  */
 function nearestExpressRange(file: string, root: string): string | undefined {
   let dir = path.dirname(path.resolve(file));
   const base = path.resolve(root);
   while (true) {
     const pj = path.join(dir, "package.json");
-    if (fs.existsSync(pj)) {
-      const pkg = readJson(pj);
-      const range = pkg?.dependencies?.express ?? pkg?.devDependencies?.express ?? pkg?.peerDependencies?.express;
-      if (typeof range === "string") return range;
-    }
+    if (fs.existsSync(pj)) return committedExpressRange(pj, root);
     if (dir === base) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
   return undefined;
+}
+
+// One `git show` per package.json, not per source file.
+const committedRangeCache = new Map<string, string | undefined>();
+
+/** The `express` range in a package.json's COMMITTED (HEAD) contents, on-disk when git has none. */
+function committedExpressRange(pj: string, root: string): string | undefined {
+  if (committedRangeCache.has(pj)) return committedRangeCache.get(pj);
+  const pkg = committedPackageJson(pj, root) ?? readJson(pj);
+  const range = pkg?.dependencies?.express ?? pkg?.devDependencies?.express ?? pkg?.peerDependencies?.express;
+  const out = typeof range === "string" ? range : undefined;
+  committedRangeCache.set(pj, out);
+  return out;
+}
+
+/** The committed (HEAD) contents of a file, or undefined when git has no such version. */
+function committedPackageJson(pj: string, root: string): any {
+  const rel = path.relative(root, pj).split(path.sep).join("/");
+  const cap = runCapture("git", ["show", `HEAD:${rel}`], root);
+  if (!cap.ok) return undefined;
+  try {
+    return JSON.parse(cap.stdout);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -645,6 +671,7 @@ export function checkExpressRelatedPackages(root: string): Finding[] {
 }
 
 export function scanExpressV5(project: Project, root: string): RuleContext {
+  committedRangeCache.clear(); // one `git show` per package.json per scan, no cross-scan staleness
   const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   for (const sf of project.getSourceFiles()) {
     if (!importsExpress(sf)) continue; // no express import/require: nothing to flag
