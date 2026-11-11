@@ -442,16 +442,28 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   }
 }
 
-/** E5: res.status(x) with a non-integer or out-of-range argument -> manual report. */
+/**
+ * E5: res.status(x) where x is a value Express 4 accepted but Express 5 rejects at request time.
+ * Express 5 throws on any non-integer status; Express 4 coerced a string/non-integer with a
+ * deprecation warning. So flag only the static forms of those: string literals, template literals,
+ * non-integer numeric literals, and String(...)/.toString() results. Integers are fine; out-of-range
+ * integers and identifiers/member expressions are left alone (Node's writeHead rejects a bad
+ * integer in both versions, and a variable's value is not knowable statically).
+ */
 function checkStatus(ctx: RuleContext, sf: SourceFile) {
   for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     const e = call.getExpression();
     if (!Node.isPropertyAccessExpression(e) || e.getName() !== "status") continue;
     const arg = call.getArguments()[0];
     if (!arg) continue;
-    // Only flag when the arg is NOT a plain integer literal 100..999.
-    const ok = Node.isNumericLiteral(arg) ? arg.getLiteralValue() >= 100 && arg.getLiteralValue() <= 999 : false;
-    if (ok) continue;
+    let flag = false;
+    if (Node.isStringLiteral(arg) || Node.isNoSubstitutionTemplateLiteral(arg) || Node.isTemplateExpression(arg)) flag = true;
+    else if (Node.isNumericLiteral(arg) && !Number.isInteger(arg.getLiteralValue())) flag = true;
+    else if (Node.isCallExpression(arg)) {
+      const callee = arg.getExpression();
+      if (callee.getText() === "String" || (Node.isPropertyAccessExpression(callee) && callee.getName() === "toString")) flag = true;
+    }
+    if (!flag) continue;
     add(ctx, arg, "express-status-code", "silent", "manual",
       "res.status(<non-integer>) throws at request time in Express 5 (Express 4 accepted a string/number with a " +
       "deprecation warning). Pass an integer status code in 100..999.");
