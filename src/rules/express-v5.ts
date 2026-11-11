@@ -25,61 +25,77 @@ import { allowsMajor } from "../bump.js";
 /** Method names whose first argument is a route string. */
 const ROUTE_METHODS = new Set(["get", "post", "put", "patch", "delete", "options", "head", "use", "all", "del"]);
 
-/** A path segment that is a bare splat in its v4 form; the v5 named-splat replacements follow CATALOG §2. */
+/**
+ * A bare `*`/`/*`/`/x/*` splat in its v4 form, and its v5 braced rewrite. Braces are required in
+ * path-to-regexp 8: `'/x/*'` does NOT become `'/x/*splat'` (that 404s on `'/x/'`), it becomes
+ * `'/x/{*splat}'` (F1/F4).
+ */
 function splatRewrite(route: string): string | undefined {
   if (route === "*") return "*splat";
   if (route === "/*") return "/{*splat}";
-  if (route === "/(.*)") return "/{*splat}";
-  // '/<prefix>/*' (but not the bare '/*' handled above) -> '/<prefix>/*splat': keep the '*', name it.
-  const prefix = route.match(/^\/[^\/*]*\/\*$/);
-  if (prefix) return route.replace(/\*$/, "*splat");
-  // ':<name>(*)' splat-constraint, e.g. '/files/:path(*)' -> '/files/*splat'.
-  const constrained = route.match(/^(\/[^\/*]*)?:\w+\(\*$/);
-  if (constrained) {
-    const head = route.slice(0, route.indexOf(":"));
-    return `${head}*splat`;
-  }
+  // '/<prefix>/*' (but not the bare '/*' handled above) -> '/<prefix>/{*splat}'.
+  const m = route.match(/^\/([^\/*]*)\/\*$/);
+  if (m && m[1] !== "") return `/${m[1]}/{*splat}`;
   return undefined;
 }
 
 /** True when a v4 route string REG-THROWS under path-to-regexp 8 and has a simple v5 spelling. */
 const isSplat = (r: string) => splatRewrite(r) !== undefined;
 
+/**
+ * F3: v4 `'/(.*)'` is a dead route — it matches nothing (404 on `/` and `/a/b` alike). Rewriting it
+ * to a live braced splat would change which paths match, so leave it and report it as manual.
+ */
+const isDeadSplat = (r: string) => r === "/(.*)";
+
+/**
+ * F4: a v4 `:name(*)` splat-constraint segment at the end of a route, e.g. '/files/:path(*)'. Never
+ * auto-rewritten: in Express 5 the handler's `req.params.<name>` (a string) becomes an array (or
+ * undefined) under the braced splat, so the rewrite and every `req.params` read are handed to the
+ * agent together.
+ */
+const hasConstrainedSplatParam = (r: string) => /(^|\/):[a-zA-Z_]\w*\(\*\)$/m.test(r);
+const constrainedSplatName = (r: string) => r.match(/:([a-zA-Z_]\w*)\(\*\)$/)?.[1] ?? "path";
+
 /** Optional named-param modifier: ':id?' -> agent (no single v5 string; split into two routes). */
 const hasOptionalParam = (r: string) => /(^|\/):[a-zA-Z_]\w*\?/.test(r) && !isSplat(r);
-/** Custom-regex named-param ':id(\d+)': agent (no v8 constraint form; enforce in-handler). */
-const hasCustomRegexParam = (r: string) => /:\w+\([^)]+\)/.test(r) && !isSplat(r);
+/** Custom-regex named-param ':id(\d+)': agent (no v8 constraint form; guard in-handler with next('route')). */
+const hasCustomRegexParam = (r: string) => /:\w+\([^)]+\)/.test(r) && !isSplat(r) && !hasConstrainedSplatParam(r) && r !== "/(.*)";
 /**
- * Literal '+'/'?'/'()' characters in a path that are not a named-param token: path-to-regexp 8
- * treats them as token modifiers, so the route REG-THROWS. Strip the recognized ':name' and
- * ':name(regex)' params; whatever '+'/'?'/'(' /')' remains is a literal-special route.
+ * F7: '+'/'?'/'()' characters in a path that are not a named-param token. In Express 4 these were
+ * regex metacharacters (path-to-regexp 0.1), so a route like '/ab+cd' was a pattern; path-to-regexp
+ * 8 treats them as token modifiers, so the route REG-THROWS in Express 5.
  */
 const hasLiteralSpecial = (r: string) => {
-  if (isSplat(r) || hasOptionalParam(r) || hasCustomRegexParam(r)) return false;
+  if (isSplat(r) || hasOptionalParam(r) || hasCustomRegexParam(r) || hasConstrainedSplatParam(r)) return false;
   const stripped = r.replace(/:\w+\([^)]*\)/g, "").replace(/:\w+/g, "");
   return /[+?()]/.test(stripped);
 };
 
-/** Does this handler expression read req.params[0] / params.splat / a numeric params index? */
-function handlerReadsSplatParam(handler: TmNode | undefined): boolean {
-  if (!handler) return false;
-  let found = false;
-  handler.forEachDescendant((n) => {
-    if (found) return;
-    // params.splat / params["0"] — property or element access whose receiver is `*.params`.
-    const recv = Node.isPropertyAccessExpression(n) ? n.getExpression()
-      : Node.isElementAccessExpression(n) ? n.getExpression()
-      : undefined;
-    if (!recv || !Node.isPropertyAccessExpression(recv) || recv.getName() !== "params") return;
-    if (Node.isPropertyAccessExpression(n)) {
-      const prop = n.getName();
-      if (prop === "splat" || /^\d+$/.test(prop)) found = true;
-    } else if (Node.isElementAccessExpression(n)) {
-      const arg = n.getArgumentExpression();
-      if (arg && /["']?(0|splat|\d+)["']?$/.test(arg.getText())) found = true;
-    }
-  });
-  return found;
+/**
+ * A splat rewrite is safe to auto-apply only when every handler argument of the call (all arguments
+ * after the route string) is an inline function (arrow or function expression) AND none of them
+ * reads `req.params` at all. Any referenced handler (`controller.get`, an imported function, a plain
+ * identifier) must be `agent` — the function may read `req.params[0]` in another file, which this
+ * scan cannot see.
+ */
+function splatHandlersAreInlineAndParamsFree(call: CallExpression): boolean {
+  const args = call.getArguments();
+  if (args.length < 2) return false; // no handler arg at all: nothing to check, stay safe
+  for (const h of args.slice(1)) {
+    if (!Node.isArrowFunction(h) && !Node.isFunctionExpression(h)) return false;
+    let readsParams = false;
+    h.forEachDescendant((n) => {
+      if (readsParams) return;
+      if (Node.isPropertyAccessExpression(n) && n.getName() === "params") readsParams = true;
+      else if (Node.isElementAccessExpression(n)) {
+        const recv = n.getExpression();
+        if (Node.isPropertyAccessExpression(recv) && recv.getName() === "params") readsParams = true;
+      }
+    });
+    if (readsParams) return false;
+  }
+  return true;
 }
 
 /**
@@ -142,11 +158,10 @@ function importsExpress(sf: SourceFile): boolean {
 }
 
 /** The route-string argument of a route call, when it is a plain string literal. */
-function routeStringArg(call: CallExpression): { text: string; node: TmNode; handler: TmNode | undefined } | undefined {
-  const args = call.getArguments();
-  const first = args[0];
+function routeStringArg(call: CallExpression): { text: string; node: TmNode } | undefined {
+  const first = call.getArguments()[0];
   if (!first || !Node.isStringLiteral(first)) return undefined;
-  return { text: first.getLiteralValue(), node: first, handler: args.length >= 2 ? args[args.length - 1] : undefined };
+  return { text: first.getLiteralValue(), node: first };
 }
 
 function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
@@ -161,22 +176,41 @@ function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
     const r = routeStringArg(call);
     if (!r) continue;
     const route = r.text;
-    const handler = r.handler;
 
+    // F3: a dead v4 wildcard route — matches nothing, so leaving it is behavior-preserving.
+    if (isDeadSplat(route)) {
+      add(ctx, r.node, "express-splat-param", "break", "manual",
+        "This wildcard route is a dead route in Express 4: '/(.*)' matched nothing at runtime. Rewriting it to a " +
+        "live braced splat would change which paths match, so leave it as-is.");
+      continue;
+    }
+    // F1/F2: bare `*`/`/*`/`/x/*` splat. Auto-rewrite only when the handlers are all inline and
+    // never read req.params; otherwise hand it to the agent with the exact braced spelling.
     if (isSplat(route)) {
-      const read = handlerReadsSplatParam(handler);
-      if (read) {
-        add(ctx, r.node, "express-splat-param", "break", "agent",
-          "This wildcard route REG-THROWS in Express 5 (path-to-regexp 8 has no unnamed splat). Its handler reads " +
-          "req.params[0]/req.params.splat, whose shape changes from a string to an array. Rewrite the route to a " +
-          "named splat (e.g. '*splat') and read req.params.splat.join('/') (add a leading '/' for the '*'/'/(.*)' " +
-          "forms), keeping the matched paths identical.");
-      } else {
+      if (splatHandlersAreInlineAndParamsFree(call)) {
         add(ctx, r.node, "express-splat-param", "break", "auto",
           "This wildcard route REG-THROWS in Express 5 (path-to-regexp 8 dropped the unnamed splat). Rewrote it to a " +
-          "named splat; the matched paths are unchanged.");
+          "braced named splat; the matched paths are unchanged.");
         ctx.edits.push({ node: r.node, text: `'${splatRewrite(route)}'` });
+      } else {
+        add(ctx, r.node, "express-splat-param", "break", "agent",
+          "This wildcard route REG-THROWS in Express 5 (path-to-regexp 8 has no unnamed splat). Rewrite it to a " +
+          "braced named splat ('/<prefix>/{*splat}'; a bare '*splat' 404s on '/x/') and read " +
+          "(req.params.splat ?? []).join('/') instead of the old req.params[0] string. Add a leading '/' only for " +
+          "the bare '*' form, keeping the matched paths identical.");
       }
+      continue;
+    }
+    // F4: a trailing ':name(*)' splat-constraint, e.g. '/files/:path(*)'. The v5 braced splat turns
+    // req.params.name into an array (or undefined on the bare prefix), so the fix needs both the route
+    // rewrite and every params read changed — that is the agent's call.
+    if (hasConstrainedSplatParam(route)) {
+      const name = constrainedSplatName(route);
+      const prefix = route.slice(0, route.lastIndexOf(":"));
+      add(ctx, r.node, "express-splat-param", "break", "agent",
+        "This ':name(*)' splat-constraint REG-THROWS in Express 5. Rewrite the route to '" + prefix + "{*" + name +
+        "}' and read (req.params." + name + " ?? []).join('/') wherever req.params." + name + " is read " +
+        "(it becomes an array, or undefined on the bare prefix), keeping the matched paths identical.");
       continue;
     }
     if (hasOptionalParam(route)) {
