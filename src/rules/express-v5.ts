@@ -520,6 +520,41 @@ function removeStatement(ctx: RuleContext, stmt: TmNode) {
 }
 
 /**
+ * F10: `res.sendfile(p)` was removed in Express 5; the v5 spelling is `res.sendFile(p)`, but a bare
+ * rename of a relative path 500s ("path must be absolute or specify root"), so the path must be
+ * resolved. Agent judgment: keep the path semantics of the original sendfile call.
+ */
+function checkResSendfile(ctx: RuleContext, sf: SourceFile) {
+  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const e = call.getExpression();
+    if (!Node.isPropertyAccessExpression(e) || e.getName() !== "sendfile") continue;
+    add(ctx, e, "express-sendfile", "break", "agent",
+      "res.sendfile() was removed in Express 5. Replace it with res.sendFile(path.resolve(p)); a bare rename " +
+      "to sendFile('f.txt') 500s on a relative path ('path must be absolute or specify root'), so resolve the " +
+      "path against the same base the original sendfile used (or pass { root }).");
+  }
+}
+
+/**
+ * `express.query(fn)` registered the global query parser in Express 4; it was removed in Express 5.
+ * The replacement is per-app `app.set('query parser', ...)`, which the maintainer threads through to every
+ * app/router that serves the request — agent judgment, no deterministic rewrite. A non-express `.query(`
+ * (Map, axios, ...) is not flagged.
+ */
+function checkExpressQuery(ctx: RuleContext, sf: SourceFile) {
+  const routers = expressRouters(sf);
+  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    const e = call.getExpression();
+    if (!Node.isPropertyAccessExpression(e) || e.getName() !== "query") continue;
+    const recv = e.getExpression();
+    if (!Node.isIdentifier(recv) || !routers.has(recv.getText())) continue; // a Map/axios .query is not express.query
+    add(ctx, e, "express-query", "break", "agent",
+      "express.query() was removed in Express 5. Set the query parser on the app or router that serves the " +
+      "request instead: app.set('query parser', ...), using the parser the original express.query() registered.");
+  }
+}
+
+/**
  * E9: related packages that commonly break alongside an Express 5 upgrade (from the catalog's
  * tooling notes). Report-only (manual): name the package and the bump it needs. The @types
  * lockstep is handled by the bump itself, so only the runtime packages are reported here.
@@ -567,6 +602,8 @@ export function scanExpressV5(project: Project, root: string): RuleContext {
     checkHost(ctx, sf);
     checkClearCookie(ctx, sf);
     checkAsyncErrors(ctx, sf);
+    checkResSendfile(ctx, sf);
+    checkExpressQuery(ctx, sf);
   }
   return ctx;
 }
