@@ -29,3 +29,15 @@ const ok: ToolExecutionOptions<any> = { toolCallId: 'call_3', messages: msgs, co
 export function typedWithContext() {
   return ok;
 }
+
+// A virtual-CLI `.execute` literal that has `toolCallId` but no `messages` -> not ai's options; must NOT flag.
+declare const host: any;
+export function virtualCliRun() {
+  host.run.execute('argv', { sessionId: 's', toolCallId: 'call_4', signal: undefined });
+}
+
+// A custom tool `.execute` with `toolCallId` + an unrelated field, no `messages` -> must NOT flag.
+declare const t: any;
+export function customToolExecute() {
+  t.execute('i', { toolCallId: 'call_5', approved: true });
+}

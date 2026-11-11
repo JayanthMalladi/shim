@@ -91,7 +91,7 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
       if (!fn || !PROMPT_FNS.has(fn)) continue;
       const aiCall = toAiCall(fn, call);
 
-      checkSystemMessages(ctx, aiCall);
+      checkSystemMessages(ctx, aiCall, names);
       if (aiCall.options) {
         const telemetry =
           aiCall.options.getProperty("experimental_telemetry") ?? aiCall.options.getProperty("telemetry");
@@ -109,6 +109,7 @@ export function scanAiSdkV7(project: Project, root: string): RuleContext {
 
     checkTypedResults(ctx, sf, names);
     checkToolExecutionOptions(ctx, sf, names);
+    checkUsageFlatTokens(ctx, sf);
 
     for (const expr of sf.getDescendantsOfKind(SyntaxKind.NewExpression)) {
       const cls = calleeName(expr, names);
@@ -195,17 +196,37 @@ function checkRequire(ctx: RuleContext, sf: SourceFile) {
  * v7 rejects `role: 'system'` in `messages`/`prompt` unless `allowSystemInMessages` is set, and v6 accepted it.
  * Unless the messages are provably system-free, set the option: it keeps the v6 behavior.
  */
-function checkSystemMessages(ctx: RuleContext, { fn, call, options, hidden }: AiCall) {
+function checkSystemMessages(ctx: RuleContext, { fn, call, options, hidden }: AiCall, names: Map<string, string>) {
   if (!SYSTEM_MESSAGE_FNS.has(fn) || !call.getArguments()[0]) return;
   if (!options) return maybeSystem(ctx, call);
   if (optionLiterals(options).some((o) => o.getProperty(ALLOW_SYSTEM))) return;
   const { kind, node } = inspectPrompt(options);
   if (kind === "hidden" || (kind === "none" && hidden)) return maybeSystem(ctx, call);
+  // A top-level `system` option puts the system prompt where it belongs, so an unknown messages/prompt
+  // is not flagged. The one exception is `convertToModelMessages`, whose UIMessage input can carry a
+  // `system` role: that stays a "maybe" for the agent. An inline `role: "system"` literal (kind "system")
+  // is still a hard flag even when `system` is also set.
+  if (kind === "unknown" && systemOptionSet(options)) {
+    if (convertsToModelMessages(node, names)) return maybeSystem(ctx, call);
+    return;
+  }
   if (kind === "system" || kind === "unknown") {
     allowSystem(ctx, node!, options, kind === "system"
       ? "`messages`/`prompt` has a system message, which AI SDK 7 rejects at runtime by default."
       : "`messages`/`prompt` is built elsewhere and may hold a system message, which AI SDK 7 rejects at runtime by default.");
   }
+}
+
+/** The call sets a top-level `system` option, so the system prompt already has a home outside the list. */
+function systemOptionSet(options: ObjectLiteralExpression): boolean {
+  return optionLiterals(options).some((o) => o.getProperty("system") !== undefined);
+}
+
+/** `messages`/`prompt` is `convertToModelMessages(...)`: UIMessage can carry a `system` role, so it can't be trusted. */
+function convertsToModelMessages(node: Node | undefined, names: Map<string, string>): boolean {
+  let value = node && Node.isPropertyAssignment(node) ? unwrap(node.getInitializer()) : undefined;
+  while (value && Node.isAwaitExpression(value)) value = value.getExpression();
+  return value !== undefined && Node.isCallExpression(value) && calleeName(value, names) === "convertToModelMessages";
 }
 
 /**
@@ -507,6 +528,52 @@ function checkTotalUsage(ctx: RuleContext, { call }: AiCall) {
 }
 
 /**
+ * v7 removed the flat `usage.reasoningTokens` / `usage.cachedInputTokens`; they read as `undefined`.
+ * The nested fields (`outputTokenDetails` / `inputTokenDetails`) already exist in v6, so the rewrite
+ * is safe on both. Only a property access whose receiver is `.usage`/`.totalUsage` — a bare `usage`
+ * identifier (e.g. a destructure) is not an AI SDK read, so it is left alone. Runs on ai-importing
+ * files only, which the caller guarantees.
+ */
+const USAGE_FLAT_MSG =
+  "AI SDK 7 removed the flat usage.reasoningTokens / usage.cachedInputTokens fields; they read as undefined. " +
+  "Use usage.outputTokenDetails.reasoningTokens / usage.inputTokenDetails.cacheReadTokens.";
+
+function checkUsageFlatTokens(ctx: RuleContext, sf: SourceFile) {
+  // A `result.usage` / `result.totalUsage` receiver may carry a pending rewrite of its own
+  // (multi-step-result: `.usage` -> `.finalStep.usage`, total-usage: `.totalUsage` -> `.usage`).
+  // Fold that rewrite into the text and drop the inner edit, so the whole-access replacement
+  // composes instead of clobbering it. (Replacing the leaf field name on its own is a
+  // property-access in a name slot, which ts-morph's replacer rejects in batched application.)
+  const folded = new Map<Node, string>();
+  for (const access of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+    const prop = access.getName();
+    if (prop !== "reasoningTokens" && prop !== "cachedInputTokens") continue;
+    let receiver: Node = access.getExpression();
+    while (Node.isParenthesizedExpression(receiver) || Node.isAwaitExpression(receiver)) receiver = receiver.getExpression();
+    if (!Node.isPropertyAccessExpression(receiver)) continue;
+    if (receiver.getName() !== "usage" && receiver.getName() !== "totalUsage") continue;
+    let base = access.getExpression().getText();
+    if (!folded.has(receiver)) {
+      const i = ctx.edits.findIndex((e) => e.node === receiver);
+      if (i >= 0) {
+        const pending = ctx.edits[i]!;
+        ctx.edits.splice(i, 1);
+        folded.set(receiver, pending.text);
+      }
+    }
+    const fold = folded.get(receiver);
+    if (fold !== undefined) base = base.replace(receiver.getText(), fold);
+    // Keep `?.` if the original read used an optional chain.
+    const op = access.hasQuestionDotToken() ? "?." : ".";
+    const text = prop === "reasoningTokens"
+      ? `${base}${op}outputTokenDetails${op}reasoningTokens`
+      : `${base}${op}inputTokenDetails${op}cacheReadTokens`;
+    add(ctx, access, "usage-flat-token-fields", "silent", "auto", USAGE_FLAT_MSG);
+    ctx.edits.push({ node: access, text });
+  }
+}
+
+/**
  * AI SDK 7 added a required `context` field to `ToolExecutionOptions`. Code (mostly tests) that
  * builds an options literal with `toolCallId`/`messages` but no `context` stopped type-checking.
  * Flag such literals so the fixer adds the minimal `context` field it is now allowed to make.
@@ -527,8 +594,9 @@ function checkToolExecutionOptions(ctx: RuleContext, sf: SourceFile, names: Map<
     if (!(Node.isPropertyAccessExpression(callee) && callee.getName() === "execute")) continue;
     const literal = call.getArguments()[1];
     if (!literal || !Node.isObjectLiteralExpression(literal)) continue;
-    // The `toolCallId` marker keeps this precise: a ToolExecutionOptions literal missing `context`.
-    if (hasProp(literal, "toolCallId") && !hasProp(literal, "context")) {
+    // `toolCallId` + `messages` keep this precise: a ToolExecutionOptions literal missing `context`.
+    // Requiring `messages` rules out custom/virtual-CLI execute signatures that only share the field name.
+    if (hasProp(literal, "toolCallId") && hasProp(literal, "messages") && !hasProp(literal, "context")) {
       add(ctx, literal, "tool-execution-context", "break", "agent", TOOL_EXEC_CONTEXT_MSG);
     }
   }
