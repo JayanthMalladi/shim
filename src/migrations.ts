@@ -163,14 +163,17 @@ const EXPRESS_FIXER_RULES = `Rules:
 - Preserve the program's Express 4 runtime behavior exactly: the same requests must match the same
   routes, read the same params/query/body, and produce the same responses. Known Express 5 changes
   and their behavior-preserving fixes:
-  - A wildcard route (\`*\`, \`/*\`, \`/x/*\`, \`/(.*)\`) throws at registration in Express 5; use a
-    named splat (\`'*splat'\`, \`'/{*splat}'\`) and read \`req.params.splat.join('/')\` instead of the
-    old \`req.params[0]\` string. Keep the matched paths identical (add a leading \`/\` for the
-    \`*\`/\`/(.*)\` forms).
-  - An optional param (\`'/user/:id?/edit'\`) throws; register two routes (\`'/user/edit'\` and
-    \`'/user/:id/edit'\`) with the same handler so the matched set is unchanged.
-  - A regex-constrained param (\`':id(\\d+)'\`) throws; use a plain \`':id'\` and enforce the
-    constraint in the handler, preserving the capture.
+  - A wildcard route (\`'*'\`, \`'/*'\`, \`'/x/*'\`) throws at registration in Express 5. Braces are
+    required: rewrite it to \`'*splat'\` / \`'/{*splat}'\` / \`'/x/{*splat}'\` and read
+    \`(req.params.splat ?? []).join('/')\` instead of the old \`req.params[0]\` string. Keep the matched
+    paths identical — add a leading \`'/'\` only for the bare \`'*'\` form. A \`'/(.*)'\` route is a dead
+    route (matched nothing in Express 4), so leave it as-is.
+  - An optional param (\`'/user/:id?/edit'\`) throws; rewrite it to a single route
+    (\`'/user{/:id}/edit'\`) so the matched set is unchanged. Any other \`?\` placement has no single
+    v5 spelling — register two routes (\`'/user/edit'\` and \`'/user/:id/edit'\`) with the same handler.
+  - A regex-constrained param (\`':id(\\d+)'\`) throws; use a plain \`':id'\` and enforce the constraint in
+    the handler with \`if (!/^\\d+$/.test(req.params.id)) return next('route');\` — never \`next()\` with
+    an error, because Express 4 fell through to the next route on a non-match.
   - The default query parser changed from 'extended' to 'simple'; if the app relies on nested or
     array query keys, add \`app.set('query parser', 'extended')\` near app creation.
   - \`res.redirect('back')\` now means the literal string 'back' (an open-redirect); use
@@ -181,7 +184,7 @@ const EXPRESS_FIXER_RULES = `Rules:
   before. Do not refactor a sync handler to async or vice versa.
 - Make the smallest edit at each site. No refactors, no formatting changes, no new dependencies.
 - The codemod's edits are in \`git diff\`. If one is wrong, revert that edit. If the codemod clobbered
-  a non-Express \`.del(\` call or emitted the misspelled \`req.get("Referrer")\`, fix or revert it.
+  a non-Express \`.del(\` call, fix or revert it.
 - Never silence a type error with \`as any\`, \`as unknown as\`, \`@ts-ignore\` or \`@ts-expect-error\`.
 - If a site cannot be fixed safely, leave it and say why in your final message.
 - Finish by running \`npx --no-install tsc --noEmit -p tsconfig.json\` if a tsconfig.json exists.`;
