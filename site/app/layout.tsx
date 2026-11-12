@@ -7,7 +7,7 @@ const bricolage = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "700
 
 const title = "Shim · Upgrades shouldn't wobble";
 const description =
-  "When an API you depend on changes, Shim opens one tested pull request. Today: AI SDK 6 to 7 and Zod 3 to 4, including the changes the codemods and tsc miss.";
+  "When an API you depend on changes, Shim shows you what breaks and sends one tested pull request when you ask. Today: AI SDK 6 to 7 and Zod 3 to 4, including the changes the codemods and tsc miss.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://getshim.dev"),
