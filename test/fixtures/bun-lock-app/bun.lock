@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "packages": {
+    "zod": [
+      "zod@3.25.76",
+      "",
+      {},
+      "sha512-bun32576integrity"
+    ]
+  }
+}
