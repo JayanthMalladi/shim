@@ -31,3 +31,39 @@ export interface ScanResult {
   filesScanned: number;
   findings: Finding[];
 }
+
+/**
+ * S05: the declarative record of "this API change breaks this code" that one pack
+ * (one migration) carries. One manifest per `MIGRATIONS` entry; the registry is
+ * `src/packs.ts`. Descriptive only — the scanners keep producing byte-identical
+ * findings — but `exposure.ts` and `migrations.ts` now read `package` and the major
+ * `to` from the manifest instead of their own mirrors, and `test/packs.test.ts`
+ * proves the `rules` entries agree with what each scanner actually emits.
+ */
+export interface PackManifest {
+  /** The `MIGRATIONS` entry id this manifest describes: "ai-sdk-v7" | "zod-v4" | "express-v5". */
+  id: string;
+  /** The package name the pack's scanners look for ("ai", "zod", "express"). */
+  package: string;
+  /** The semver range of the OLD major the migration upgrades away from. */
+  from: string;
+  /** The semver range of the NEW major the bump rewrites to. */
+  to: string;
+  /** One entry per ruleId this pack's scan path can emit. */
+  rules: Array<{
+    /** The existing ruleId, unchanged — it points at the rule that emits it. */
+    id: string;
+    severity: Severity;
+    fix: FixKind;
+    /** One sentence: what changed in the library that this rule detects. */
+    change: string;
+    /** The exact changelog / migration-guide URL plus the heading the rule encodes. */
+    source: string;
+    /**
+     * Paths of fixture cases that already exist under test/fixtures/ — at least one FLAG
+     * case and one must-NOT-flag case, where the rule has them. A rule lacking a case lists
+     * only the side it has (or none, for a documented gap); never an invented path.
+     */
+    fixtures: string[];
+  }>;
+}

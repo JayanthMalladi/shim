@@ -15,6 +15,7 @@ import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
 import { scoreTargets } from "./score-targets.js";
 import { buildExposureReport, formatFindings, renderReport } from "./exposure.js";
+import { renderPacksTable } from "./packs.js";
 
 const USAGE = `shim <command>
 
@@ -47,7 +48,10 @@ const USAGE = `shim <command>
                            --write updates data/prs.csv
   stats [--csv <file>] [--out <file>]
                            Regenerate site/lib/stats.json from data/prs.csv
-                           (the site's live numbers); commit it to redeploy`;
+                           (the site's live numbers); commit it to redeploy
+  packs
+                           Print the pack-manifest table (the generated docs/PACKS.md),
+                           so the doc can't drift from the code`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -67,6 +71,12 @@ const migFlag = (): import("./migrations.js").Migration["id"] | undefined => {
   const i = rest.indexOf("--migration");
   return i >= 0 ? (rest[i + 1] as import("./migrations.js").Migration["id"]) : undefined;
 };
+
+// `packs` takes no positional target: print the generated manifest table and exit.
+if (cmd === "packs") {
+  console.log(renderPacksTable());
+  process.exit(0);
+}
 
 // `stats` takes no positional target: run it before the guard (which requires one) and exit.
 if (cmd === "stats") {
