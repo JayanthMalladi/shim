@@ -30,12 +30,15 @@ app.get("/f", (req, res) => res.sendfile("f.txt"));                      // FLAG
 // --- E2: req.query read, no app.set('query parser', ...) in this file ---
 app.get("/search", (req, res) => res.json({ q: req.query.q }));         // FLAG E2 (insert app.set('query parser','extended') after app creation)
 
-// --- E4: req.body read while a body parser IS mounted on this app ---
-app.get("/profile", (req, res) => res.json({ name: req.body.name }));   // OK E4 (a parser is mounted; not flagged)
-
-// --- E5: res.status with a non-integer argument ---
+// --- E5: res.status with a value Express 4 accepted but Express 5 rejects ---
 app.get("/s1", (req, res) => res.status("200").send("x"));              // FLAG E5 (string status: throws at request time)
 app.get("/s2", (req, res) => res.status(200).send("x"));               // OK E5 (integer literal in range)
+app.get("/s3", (req, res) => res.status(404.5).send("x"));             // FLAG E5 (non-integer numeric literal)
+app.get("/s4", (req, res) => res.status(`${code}`).send("x"));         // FLAG E5 (template literal)
+app.get("/s5", (req, res) => res.status(String(404)).send("x"));       // FLAG E5 (String() result)
+app.get("/s6", (req, res) => res.status((404).toString()).send("x"));  // FLAG E5 (.toString() result)
+app.get("/s7", (req, res) => res.status(err.status).send("x"));        // OK E5 (identifier: writeHead rejects a bad integer in both versions)
+app.get("/s8", (req, res) => res.status(code).send("x"));              // OK E5 (identifier: value not knowable statically)
 
 // --- E6: req.host (Express 5 now includes the port) ---
 app.get("/h", (req, res) => res.json({ host: req.host }));             // FLAG E6 (req.host: now with port)

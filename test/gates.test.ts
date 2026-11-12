@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, type GateResults } from "../src/gates.js";
+import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, yarnInstallArgs, isYarnBerry, type GateResults } from "../src/gates.js";
 import type { ExecResult } from "../src/exec.js";
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
@@ -146,4 +146,46 @@ describe("runGates drops untracked files the gates create", () => {
     expect(fs.existsSync(path.join(dir, "dist", "b.js"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "node_modules", "x", "c.js"))).toBe(true);
   }, 60_000);
+});
+
+/**
+ * E6.8: Yarn Berry (v2+) repos — `yarn install --ignore-scripts` exits 1 on them, so they were
+ * skipped as "baseline install fails". Berry disables scripts via the YARN_ENABLE_SCRIPTS env and
+ * freezes the lockfile with --immutable; classic yarn keeps --ignore-scripts and --frozen-lockfile.
+ * The command choice is pure (yarnInstallArgs) so it is tested here without running yarn.
+ */
+describe("yarn install command selection", () => {
+  it("Berry frozen: install --immutable with YARN_ENABLE_SCRIPTS=false, no --ignore-scripts", () => {
+    const { args, env } = yarnInstallArgs(true, true);
+    expect(args).toEqual(["install", "--immutable"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBe("false");
+    expect(args).not.toContain("--ignore-scripts");
+  });
+
+  it("Berry non-frozen: install with YARN_ENABLE_SCRIPTS=false, no --immutable", () => {
+    const { args, env } = yarnInstallArgs(true, false);
+    expect(args).toEqual(["install"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBe("false");
+  });
+
+  it("classic frozen: install --ignore-scripts --frozen-lockfile, scripts flag not env", () => {
+    const { args, env } = yarnInstallArgs(false, true);
+    expect(args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBeUndefined();
+  });
+
+  it("classic non-frozen: install --ignore-scripts", () => {
+    const { args } = yarnInstallArgs(false, false);
+    expect(args).toEqual(["install", "--ignore-scripts"]);
+  });
+
+  it("isYarnBerry is true when a .yarnrc.yml exists (the elifesciences case)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-yarn-berry-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true }));
+    // A .yarnrc.yml is the deterministic Berry signal: isYarnBerry short-circuits to true without
+    // probing `yarn --version`, so this holds regardless of what yarn (if any) is on PATH.
+    fs.writeFileSync(path.join(dir, ".yarnrc.yml"), "nodeLinker: node-modules\n");
+    expect(isYarnBerry(dir)).toBe(true);
+    fs.rmSync(path.join(dir, ".yarnrc.yml"));
+  });
 });

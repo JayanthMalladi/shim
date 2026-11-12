@@ -1,12 +1,13 @@
 /**
  * Express 4 -> 5 rules that the official codemod (@expressjs/codemod) and the type checker do not
  * cover. Most of the route-string breaks are startup throws (path-to-regexp 0.1 -> 8); the rest are
- * silent runtime deltas (query parser, clearCookie, host, status, body). See docs/CATALOG (A-routing,
+ * silent runtime deltas (query parser, clearCookie, host, status). See docs/CATALOG (A-routing,
  * B-runtime, C-tooling). Static only: no type-checker calls, matching scanZodV4's shape.
  *
  * Only files that import/require "express" (or are handed an Express Router) are scanned, mirroring
  * scanZodV4's "import from exactly zod" gate.
  */
+import fs from "node:fs";
 import path from "node:path";
 import {
   Node,
@@ -21,6 +22,7 @@ import type { RuleContext } from "./ai-sdk-v7.js";
 import type { Finding, FixKind, Severity } from "../types.js";
 import { findPackageJsons, readJson } from "../scan.js";
 import { allowsMajor } from "../bump.js";
+import { runCapture } from "../exec.js";
 
 /** Method names whose first argument is a route string. */
 const ROUTE_METHODS = new Set(["get", "post", "put", "patch", "delete", "options", "head", "use", "all", "del"]);
@@ -174,6 +176,65 @@ function importsExpress(sf: SourceFile): boolean {
   return false;
 }
 
+/**
+ * The `express` range in the nearest package.json (walking up from the file), across dependencies /
+ * devDependencies / peerDependencies. The range is read from the COMMITTED package.json (`git show
+ * HEAD:`), not the on-disk one: in `prepare` the bump rewrites every package.json to ^5 before these
+ * rules run, so the on-disk file would make every file look "already on v5" and the scan would skip
+ * all of them. Only when git has no HEAD version (a plain `scan` on a folder that isn't a repo, or an
+ * uncommitted package.json) do we fall back to the on-disk file.
+ */
+function nearestExpressRange(file: string, root: string): string | undefined {
+  let dir = path.dirname(path.resolve(file));
+  const base = path.resolve(root);
+  while (true) {
+    const pj = path.join(dir, "package.json");
+    if (fs.existsSync(pj)) return committedExpressRange(pj, root);
+    if (dir === base) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+
+// One `git show` per package.json, not per source file.
+const committedRangeCache = new Map<string, string | undefined>();
+
+/** The `express` range in a package.json's COMMITTED (HEAD) contents, on-disk when git has none. */
+function committedExpressRange(pj: string, root: string): string | undefined {
+  if (committedRangeCache.has(pj)) return committedRangeCache.get(pj);
+  const pkg = committedPackageJson(pj, root) ?? readJson(pj);
+  const range = pkg?.dependencies?.express ?? pkg?.devDependencies?.express ?? pkg?.peerDependencies?.express;
+  const out = typeof range === "string" ? range : undefined;
+  committedRangeCache.set(pj, out);
+  return out;
+}
+
+/** The committed (HEAD) contents of a file, or undefined when git has no such version. */
+function committedPackageJson(pj: string, root: string): any {
+  const rel = path.relative(root, pj).split(path.sep).join("/");
+  const cap = runCapture("git", ["show", `HEAD:${rel}`], root);
+  if (!cap.ok) return undefined;
+  try {
+    return JSON.parse(cap.stdout);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True when the file's nearest express-depending package.json is already on Express 5. Those files
+ * are not part of the upgrade — they keep their current v5 behavior — so neither a finding nor an
+ * auto-fix may be written into them (a v4-only repo would still be scanned and fixed as usual).
+ */
+function alreadyOnExpress5(file: string, root: string): boolean {
+  const range = nearestExpressRange(file, root);
+  if (range === undefined) return false; // no package.json depending on express: part of the main upgrade
+  const isOldMajor = (r: string) => allowsMajor(r, 4) && !allowsMajor(r, 5);
+  return !isOldMajor(range);
+}
+
 /** The route-string argument of a route call, when it is a plain string literal. */
 function routeStringArg(call: CallExpression): { text: string; node: TmNode } | undefined {
   const first = call.getArguments()[0];
@@ -270,11 +331,41 @@ function checkRouteStrings(ctx: RuleContext, sf: SourceFile) {
 }
 
 /**
- * The first `const app = express()` statement in the file (a bare call to an express binding, not
- * `.Router`/`.Application`), so the query-parser option can be set right after app creation. Returns
- * the VariableStatement and the app variable name.
+ * The identifiers bound to the express module itself: the default import, a namespace import, or a
+ * plain `const express = require("express")`. Calling any of them with no argument returns an app
+ * that has `.set`; a `Router` named import or `express.Router()` returns a Router with no `.set`, so
+ * those are deliberately not in this set (a Router must be configured on the app that mounts it).
  */
-function appCreation(sf: SourceFile, routers: Set<string>) {
+function expressAppBindings(sf: SourceFile): Set<string> {
+  const names = new Set<string>();
+  for (const decl of sf.getImportDeclarations()) {
+    if (decl.getModuleSpecifierValue() !== "express") continue;
+    const def = decl.getDefaultImport();
+    if (def) names.add(def.getText());
+    const ns = decl.getNamespaceImport();
+    if (ns) names.add(ns.getText());
+  }
+  for (const c of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    if (c.getExpression().getText() !== "require") continue;
+    const a = c.getArguments()[0];
+    if (Node.isStringLiteral(a) && a.getLiteralValue() === "express") {
+      const decl = c.getParent();
+      if (Node.isVariableDeclaration(decl)) {
+        const nn = decl.getNameNode();
+        if (Node.isIdentifier(nn)) names.add(nn.getText()); // a destructuring is not the app binding
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * The first `const app = express()` statement whose callee is the express default/namespace binding
+ * (verified against expressAppBindings, so `const router = Router()` never matches: a Router has no
+ * `.set` and the insert would crash at startup). Returns the VariableStatement and the app variable
+ * name.
+ */
+function appCreation(sf: SourceFile, appBindings: Set<string>) {
   for (const stmt of sf.getStatements()) {
     if (!Node.isVariableStatement(stmt)) continue;
     for (const decl of stmt.getDeclarations()) {
@@ -282,7 +373,7 @@ function appCreation(sf: SourceFile, routers: Set<string>) {
       if (!init || !Node.isCallExpression(init)) continue;
       const callee = init.getExpression();
       const calleeName = Node.isIdentifier(callee) ? callee.getText() : null;
-      if (calleeName && routers.has(calleeName)) return { stmt, appName: decl.getNameNode().getText() };
+      if (calleeName && appBindings.has(calleeName)) return { stmt, appName: decl.getNameNode().getText() };
     }
   }
   return undefined;
@@ -360,7 +451,7 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
     if (pae.getExpression().getText() === "req") firstQuery ??= pae;
   }
   if (!firstQuery) return;
-  const app = appCreation(sf, routers);
+  const app = appCreation(sf, expressAppBindings(sf));
   if (app) {
     add(ctx, firstQuery, "express-query-parser", "silent", "auto",
       "Express 5's default query parser is 'simple' (flat keys); Express 4 used 'extended' (nested/array). " +
@@ -373,67 +464,32 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   } else {
     add(ctx, firstQuery, "express-query-parser", "silent", "manual",
       "Express 5's default query parser is 'simple' (flat keys); Express 4 used 'extended' (nested/array). " +
-      "Add app.set('query parser', 'extended') on the app that serves this route.");
+      "Set app.set('query parser', 'extended') on the app that mounts this router.");
   }
 }
 
-/** E4: req.body.<x> read in a file that creates a router but mounts no body parser -> manual report. */
-function checkBody(ctx: RuleContext, sf: SourceFile) {
-  const routers = expressRouters(sf);
-  // Only apply to a file that actually creates an app or router (express(), Router(), or an express
-  // default/namespace binding used as `express.json()`). A pure handler-definition file that just
-  // receives `req` does not mount a parser and is not flagged.
-  // express() with no args, or Router() / express.Router() with no args.
-  let createsRouter = false;
-  for (const c of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
-    if (c.getArguments().length > 0) continue;
-    const e = c.getExpression();
-    if (Node.isIdentifier(e) && routers.has(e.getText()) && (e.getText() === "express" || e.getText() === "Router")) createsRouter = true;
-    else if (Node.isPropertyAccessExpression(e) && e.getName() === "Router" && Node.isIdentifier(e.getExpression()) && routers.has(e.getExpression().getText())) createsRouter = true;
-  }
-  if (!createsRouter) return;
-  const parserNames = new Set(["json", "urlencoded", "raw", "text"]);
-  // A parser is mounted when express.json()/bodyParser.json() (etc.) appears, or is passed to .use().
-  // The receiver must be a parser host, NOT `res`/`response`: res.json(...) sends a response and is
-  // not a body-parser mount.
-  const parserHost = (recv: string) => recv === "express" || recv === "bodyParser" || recv === "body";
-  const mountsParser = sf
-    .getDescendantsOfKind(SyntaxKind.CallExpression)
-    .some((c) => {
-      const e = c.getExpression();
-      if (!Node.isPropertyAccessExpression(e)) return false;
-      const method = e.getName();
-      const recv = e.getExpression().getText();
-      if (parserNames.has(method) && parserHost(recv)) return true;
-      if (method === "use" && JSON.stringify(c.getText()).match(/\b(express|bodyParser)\.(json|urlencoded|raw|text)\(/)) return true;
-      return false;
-    });
-  if (mountsParser) return;
-  let first: TmNode | undefined;
-  for (const pae of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
-    if (pae.getName() !== "body") continue;
-    // The receiver is the bare identifier `req` (req.body).
-    if (pae.getExpression().getText() === "req") {
-      first ??= pae;
-      break;
-    }
-  }
-  if (first)
-    add(ctx, first, "express-body-parser", "silent", "manual",
-      "No body parser is mounted on this app/router, so req.body.<field> is undefined in Express 5 (Express 4 gave {} " +
-      "for a missing body). Mount express.json()/express.urlencoded() or handle the empty-body case.");
-}
-
-/** E5: res.status(x) with a non-integer or out-of-range argument -> manual report. */
+/**
+ * E5: res.status(x) where x is a value Express 4 accepted but Express 5 rejects at request time.
+ * Express 5 throws on any non-integer status; Express 4 coerced a string/non-integer with a
+ * deprecation warning. So flag only the static forms of those: string literals, template literals,
+ * non-integer numeric literals, and String(...)/.toString() results. Integers are fine; out-of-range
+ * integers and identifiers/member expressions are left alone (Node's writeHead rejects a bad
+ * integer in both versions, and a variable's value is not knowable statically).
+ */
 function checkStatus(ctx: RuleContext, sf: SourceFile) {
   for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     const e = call.getExpression();
     if (!Node.isPropertyAccessExpression(e) || e.getName() !== "status") continue;
     const arg = call.getArguments()[0];
     if (!arg) continue;
-    // Only flag when the arg is NOT a plain integer literal 100..999.
-    const ok = Node.isNumericLiteral(arg) ? arg.getLiteralValue() >= 100 && arg.getLiteralValue() <= 999 : false;
-    if (ok) continue;
+    let flag = false;
+    if (Node.isStringLiteral(arg) || Node.isNoSubstitutionTemplateLiteral(arg) || Node.isTemplateExpression(arg)) flag = true;
+    else if (Node.isNumericLiteral(arg) && !Number.isInteger(arg.getLiteralValue())) flag = true;
+    else if (Node.isCallExpression(arg)) {
+      const callee = arg.getExpression();
+      if (callee.getText() === "String" || (Node.isPropertyAccessExpression(callee) && callee.getName() === "toString")) flag = true;
+    }
+    if (!flag) continue;
     add(ctx, arg, "express-status-code", "silent", "manual",
       "res.status(<non-integer>) throws at request time in Express 5 (Express 4 accepted a string/number with a " +
       "deprecation warning). Pass an integer status code in 100..999.");
@@ -566,6 +622,29 @@ const RELATED_PACKAGE_BUMPS: Array<{ name: string; target: string; note: string 
   { name: "http-proxy-middleware", target: "2", note: "needs a major bump for Express 5" },
 ];
 
+/**
+ * The highest major version a range can resolve to, or Infinity when it is unbounded above
+ * (`*`, `latest`, `>=n`, `>n`). `^n`/`~n` cap just below n+1; `<n`/`<=n` cap just below / at n; a bare
+ * `n` or `n.x` caps at n. A range is only a problem when this highest major is below the target:
+ * `^8.7.1` (caps at 8) and `>=7` (unbounded) are both fine for a target of 7, but `^6` (caps at 6) is not.
+ */
+function highestAllowedMajor(range: string): number {
+  let max = 0;
+  for (const part of range.split("||")) {
+    const p = part.trim();
+    if (!p || p === "*" || p === "latest") return Infinity;
+    const base = Number(p.match(/[\^~=v]*(\d+)/)?.[1] ?? NaN);
+    let top: number;
+    if (p.startsWith("^") || p.startsWith("~")) top = base; // ^8 / ~8 both cap below 9 -> highest is 8
+    else if (p.match(/<=\s*\d/)) top = Number(p.match(/<=\s*(\d+)/)![1]);
+    else if (p.match(/<\s*\d/)) top = Number(p.match(/<\s*(\d+)/)![1]) - 1;
+    else if (p.match(/>=?\s*\d/)) top = Infinity; // >=n / >n: no upper bound
+    else top = base; // a bare "8" or "8.x" caps at major 8
+    max = Math.max(max, top);
+  }
+  return max;
+}
+
 export function checkExpressRelatedPackages(root: string): Finding[] {
   const findings: Finding[] = [];
   const push = (file: string, name: string, message: string) =>
@@ -579,8 +658,9 @@ export function checkExpressRelatedPackages(root: string): Finding[] {
     const deps = { ...pkg?.dependencies, ...pkg?.devDependencies };
     for (const { name, target, note } of RELATED_PACKAGE_BUMPS) {
       const range = deps[name];
-      if (typeof range === "string" && !range.includes(":") && allowsMajor(range, Number(target))) continue; // already allows the target
-      if (typeof range === "string") push(file, name, `${name} ${note}: ${range} does not allow ${target}.`);
+      if (typeof range !== "string" || range.includes(":")) continue; // not a range we can read (catalog:, workspace:)
+      if (highestAllowedMajor(range) < Number(target))
+        push(file, name, `${name} ${note}: ${range} allows only majors below ${target} (needs ${target}+ for Express 5).`);
     }
     // express-async-errors is redundant on Express 5 (the router already forwards async rejections).
     if (typeof deps["express-async-errors"] === "string") {
@@ -591,13 +671,14 @@ export function checkExpressRelatedPackages(root: string): Finding[] {
 }
 
 export function scanExpressV5(project: Project, root: string): RuleContext {
+  committedRangeCache.clear(); // one `git show` per package.json per scan, no cross-scan staleness
   const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   for (const sf of project.getSourceFiles()) {
     if (!importsExpress(sf)) continue; // no express import/require: nothing to flag
+    if (alreadyOnExpress5(sf.getFilePath(), root)) continue; // nearest package.json is already on v5: leave it alone
     checkRouteStrings(ctx, sf);
     checkUrlencoded(ctx, sf);
     checkQueryParser(ctx, sf);
-    checkBody(ctx, sf);
     checkStatus(ctx, sf);
     checkHost(ctx, sf);
     checkClearCookie(ctx, sf);

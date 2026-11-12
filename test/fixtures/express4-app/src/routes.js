@@ -1,5 +1,5 @@
-// CJS: require("express") + a Router. No body parser is mounted on this router, so a req.body
-// read here is flagged by E4. A Map's .get("*") must NOT be flagged by E1 (it is not an Express route).
+// CJS: require("express") + a Router. A Map's .get("*") must NOT be flagged by E1 (it is not an
+// Express route).
 const express = require("express");
 const router = express.Router();
 
@@ -15,8 +15,5 @@ router.get("/files/:path(*)", (req, res) => res.json(req.params.path)); // FLAG 
 // F9: a bare side-effect require of express-async-errors -> auto: the statement is removed.
 // FLAG E8 (removed in Express 5; auto-deleted)
 require("express-async-errors");
-
-// E4: req.body read with no json/urlencoded parser mounted on this router -> report only.
-router.get("/save", (req, res) => { res.json({ name: req.body.name }); }); // FLAG E4 (body read, no parser -> report)
 
 module.exports = router;

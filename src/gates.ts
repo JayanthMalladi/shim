@@ -20,6 +20,34 @@ export function detectPackageManager(dir: string): PackageManager {
 }
 
 /**
+ * True when the repo's yarn is Berry (v2+): it has a `.yarnrc.yml`, or (no `.yarnrc.yml`) the
+ * installed `yarn --version` reports a major of 2 or higher. Berry is what elifesciences uses; its
+ * `yarn install --ignore-scripts` exits 1, so it needs a different install command (see
+ * yarnInstallArgs).
+ */
+export function isYarnBerry(dir: string): boolean {
+  if (fs.existsSync(path.join(dir, ".yarnrc.yml"))) return true;
+  const r = run("yarn", ["--version"], dir, 30_000);
+  if (!r.ok) return false; // no yarn on PATH: assume classic (the caller's install will surface a real error)
+  const major = Number(r.output.trim().split("\n").pop()?.match(/^\d+/)?.[1] ?? "0");
+  return major >= 2;
+}
+
+/**
+ * The `yarn install` command Shim chooses for a repo. Berry (v2+) has no `--ignore-scripts` flag
+ * (it errors): scripts are disabled via the YARN_ENABLE_SCRIPTS env, and the frozen lockfile is
+ * enforced with `--immutable`. Classic (v1) keeps `--ignore-scripts` and `--frozen-lockfile`.
+ * Lifecycle scripts never run in either branch. Pure (no git, no yarn): the caller passes its own
+ * berry decision so this is testable without running yarn.
+ */
+export function yarnInstallArgs(berry: boolean, frozen: boolean): { args: string[]; env: NodeJS.ProcessEnv } {
+  if (berry) {
+    return { args: ["install", ...(frozen ? ["--immutable"] : [])], env: { ...targetEnv(), YARN_ENABLE_SCRIPTS: "false" } };
+  }
+  return { args: ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], env: targetEnv() };
+}
+
+/**
  * Install without lifecycle scripts: we run untrusted repos, and postinstall
  * hooks are the classic way to execute code on install.
  */
@@ -27,8 +55,10 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
   switch (pm) {
     case "pnpm":
       return run("pnpm", ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"], dir);
-    case "yarn":
-      return run("yarn", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
+    case "yarn": {
+      const { args, env } = yarnInstallArgs(isYarnBerry(dir), frozen);
+      return run("yarn", args, dir, 10 * 60_000, env);
+    }
     case "bun":
       return run("bun", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
     default:
