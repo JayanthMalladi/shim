@@ -1,0 +1,7 @@
+{
+  "name": "yarn-lock-app",
+  "private": true,
+  "dependencies": {
+    "zod": "^3.25.0"
+  }
+}

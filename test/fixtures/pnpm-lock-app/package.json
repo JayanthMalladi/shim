@@ -1,0 +1,11 @@
+{
+  "name": "pnpm-lock-app",
+  "private": true,
+  "dependencies": {
+    "@changesets/parse": "^0.4.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0"
+  }
+}

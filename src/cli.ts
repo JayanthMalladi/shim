@@ -14,6 +14,7 @@ import { writeStats } from "./stats.js";
 import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
 import { scoreTargets } from "./score-targets.js";
+import { buildExposureReport, formatFindings, renderReport } from "./exposure.js";
 
 const USAGE = `shim <command>
 
@@ -24,8 +25,10 @@ const USAGE = `shim <command>
   score <targets.json> [--prs <prs.csv>]
                            Rank triaged targets by merge likelihood (read-only GitHub
                            calls with GITHUB_TOKEN_READONLY); rewrites the file in place
-  scan <dir> [--migration <id>]
-                           List AI SDK 6 -> 7 findings (no changes); --migration selects the rules
+  scan <dir> [--migration <id>] [--out <file>]
+                           Exposure report: read the pins, run every matching pack, list
+                           findings by severity (no changes, no model, no network);
+                           --migration keeps the single-pack listing; --out writes it
   fix <dir> [--migration <id>]
                            Apply Shim's deterministic, behavior-preserving fixes
   migrate <dir> [--agent] [--out <dir>] [--repo <owner/name>] [--arch <arch.json>] [--migration <id>]
@@ -81,10 +84,22 @@ if (!cmd || !target) {
 
 switch (cmd) {
   case "scan": {
-    const m = getMigration(migFlag());
-    const { result } = scanWith(target, m);
-    for (const f of result.findings) console.log(`${f.file}:${f.line}  ${f.severity}/${f.fix}  [${f.ruleId}]  ${f.message}`);
-    console.log(`\n${result.findings.length} findings in ${result.filesScanned} files`);
+    if (migFlag()) {
+      // --migration: single-migration mode, byte-for-byte the output it has always had.
+      const m = getMigration(migFlag());
+      const { result } = scanWith(target, m);
+      console.log(formatFindings(result));
+      break;
+    }
+    // No flags: the exposure report. Model-free and network-free — the only subprocess is the
+    // local `git ls-files` in the source-file list (src/scan.ts). Lockfiles are read as text.
+    // The report always prints to stdout; `--out <file>` additionally writes it to that file
+    // (relative to CWD, the same convention as prepare/finish's --out). A bare `--out` with no
+    // value writes nothing — the free scan must leave the scanned dir untouched.
+    const report = renderReport(buildExposureReport(target));
+    console.log(report);
+    const out = flag("--out");
+    if (out) fs.writeFileSync(path.resolve(out), report + "\n", "utf8");
     break;
   }
   case "fix": {
