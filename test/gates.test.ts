@@ -3,8 +3,66 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, type GateResults } from "../src/gates.js";
+import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, isYarnBerry, installCmd, type GateResults } from "../src/gates.js";
 import type { ExecResult } from "../src/exec.js";
+
+// A fresh temp dir with the marker files for a given package manager, so the
+// filesystem-dependent install command form can be asserted without a real install.
+function pmDir(pm: "npm" | "pnpm" | "yarn" | "bun" | "yarn-berry"): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-pm-"));
+  const pkg = { name: pm, private: true, scripts: { test: "echo ok" } };
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(pkg, null, 2));
+  if (pm === "npm") fs.writeFileSync(path.join(dir, "package-lock.json"), "{}");
+  if (pm === "pnpm") fs.writeFileSync(path.join(dir, "pnpm-lock.yaml"), "");
+  if (pm === "yarn" || pm === "yarn-berry") fs.writeFileSync(path.join(dir, "yarn.lock"), "");
+  if (pm === "yarn-berry") fs.writeFileSync(path.join(dir, ".yarnrc.yml"), "nodeLinker: node-modules\n");
+  if (pm === "bun") fs.writeFileSync(path.join(dir, "bun.lockb"), "");
+  return dir;
+}
+
+describe("isYarnBerry", () => {
+  it("detects Berry via .yarnrc.yml, not classic Yarn 1", () => {
+    const berry = pmDir("yarn-berry");
+    const classic = pmDir("yarn");
+    expect(isYarnBerry(berry)).toBe(true);
+    expect(isYarnBerry(classic)).toBe(false);
+  });
+});
+
+describe("installCmd per package manager", () => {
+  it("classic Yarn 1 keeps --ignore-scripts and --frozen-lockfile (unchanged)", () => {
+    const dir = pmDir("yarn");
+    const c = installCmd(dir, "yarn", true);
+    expect(c.env).toBeUndefined();
+    expect(c.args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+  });
+
+  it("Yarn Berry uses YARN_ENABLE_SCRIPTS=0 and --immutable, never --ignore-scripts", () => {
+    const dir = pmDir("yarn-berry");
+    const c = installCmd(dir, "yarn", true);
+    expect(c.cmd).toBe("yarn");
+    expect(c.args).toEqual(["install", "--immutable"]);
+    expect(c.args).not.toContain("--ignore-scripts");
+    expect(c.args).not.toContain("--frozen-lockfile");
+    expect(c.env?.YARN_ENABLE_SCRIPTS).toBe("0");
+  });
+
+  it("Yarn Berry without frozen omits --immutable but still disables scripts", () => {
+    const dir = pmDir("yarn-berry");
+    const c = installCmd(dir, "yarn", false);
+    expect(c.args).toEqual(["install"]);
+    expect(c.env?.YARN_ENABLE_SCRIPTS).toBe("0");
+  });
+
+  it("pnpm/bun/npm install forms are unchanged", () => {
+    expect(installCmd(pmDir("pnpm"), "pnpm", true).args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    expect(installCmd(pmDir("bun"), "bun", true).args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    // npm: a lockfile is present, frozen -> ci
+    const npmC = installCmd(pmDir("npm"), "npm", true);
+    expect(npmC.args[0]).toBe("ci");
+    expect(npmC.args).toContain("--ignore-scripts");
+  });
+});
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
 const fail = { ...ok, ok: false, code: 1 };

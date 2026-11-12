@@ -20,20 +20,38 @@ export function detectPackageManager(dir: string): PackageManager {
 }
 
 /**
+ * Yarn Berry (v2+) is signaled by .yarnrc.yml; classic Yarn 1.x has no such file. Berry rejects
+ * the classic CLI flags (its own usage line prints the symptom: it only knows --immutable, not
+ * --ignore-scripts or --frozen-lockfile), so no-scripts and frozen must be given differently:
+ * YARN_ENABLE_SCRIPTS=0 in the environment, and --immutable on the command line.
+ */
+export function isYarnBerry(dir: string): boolean {
+  return fs.existsSync(path.join(dir, ".yarnrc.yml"));
+}
+
+/** Command form of an install without lifecycle scripts: `yarn` repos on Berry carry `env`. */
+export function installCmd(dir: string, pm: PackageManager, frozen: boolean): { cmd: string; args: string[]; env?: NodeJS.ProcessEnv } {
+  switch (pm) {
+    case "pnpm":
+      return { cmd: "pnpm", args: ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"] };
+    case "yarn":
+      if (isYarnBerry(dir))
+        return { cmd: "yarn", args: ["install", ...(frozen ? ["--immutable"] : [])], env: { ...targetEnv(), YARN_ENABLE_SCRIPTS: "0" } };
+      return { cmd: "yarn", args: ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])] };
+    case "bun":
+      return { cmd: "bun", args: ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])] };
+    default:
+      return { cmd: "npm", args: [frozen && fs.existsSync(path.join(dir, "package-lock.json")) ? "ci" : "install", "--ignore-scripts", "--no-audit", "--no-fund"] };
+  }
+}
+
+/**
  * Install without lifecycle scripts: we run untrusted repos, and postinstall
  * hooks are the classic way to execute code on install.
  */
 export function install(dir: string, pm: PackageManager, frozen: boolean): ExecResult {
-  switch (pm) {
-    case "pnpm":
-      return run("pnpm", ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"], dir);
-    case "yarn":
-      return run("yarn", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
-    case "bun":
-      return run("bun", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
-    default:
-      return run("npm", [frozen && fs.existsSync(path.join(dir, "package-lock.json")) ? "ci" : "install", "--ignore-scripts", "--no-audit", "--no-fund"], dir);
-  }
+  const c = installCmd(dir, pm, frozen);
+  return run(c.cmd, c.args, dir, undefined, c.env);
 }
 
 /**
