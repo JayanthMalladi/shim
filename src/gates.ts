@@ -48,22 +48,33 @@ export function yarnInstallArgs(berry: boolean, frozen: boolean): { args: string
 }
 
 /**
+ * The no-lifecycle-script install command for every package manager, as a pure choice (no spawn),
+ * so it is unit-testable without a real install. The yarn case delegates to yarnInstallArgs so
+ * Berry detection (isYarnBerry: .yarnrc.yml or a `yarn --version` major >= 2) stays in one place.
+ * For a `yarn` repo the returned env is the one install() must run with; other managers have none.
+ */
+export function installCmd(dir: string, pm: PackageManager, frozen: boolean): { cmd: string; args: string[]; env: NodeJS.ProcessEnv } {
+  switch (pm) {
+    case "pnpm":
+      return { cmd: "pnpm", args: ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"], env: targetEnv() };
+    case "yarn": {
+      const c = yarnInstallArgs(isYarnBerry(dir), frozen);
+      return { cmd: "yarn", args: c.args, env: c.env };
+    }
+    case "bun":
+      return { cmd: "bun", args: ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], env: targetEnv() };
+    default:
+      return { cmd: "npm", args: [frozen && fs.existsSync(path.join(dir, "package-lock.json")) ? "ci" : "install", "--ignore-scripts", "--no-audit", "--no-fund"], env: targetEnv() };
+  }
+}
+
+/**
  * Install without lifecycle scripts: we run untrusted repos, and postinstall
  * hooks are the classic way to execute code on install.
  */
 export function install(dir: string, pm: PackageManager, frozen: boolean): ExecResult {
-  switch (pm) {
-    case "pnpm":
-      return run("pnpm", ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"], dir);
-    case "yarn": {
-      const { args, env } = yarnInstallArgs(isYarnBerry(dir), frozen);
-      return run("yarn", args, dir, 10 * 60_000, env);
-    }
-    case "bun":
-      return run("bun", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
-    default:
-      return run("npm", [frozen && fs.existsSync(path.join(dir, "package-lock.json")) ? "ci" : "install", "--ignore-scripts", "--no-audit", "--no-fund"], dir);
-  }
+  const c = installCmd(dir, pm, frozen);
+  return run(c.cmd, c.args, dir, 10 * 60_000, c.env);
 }
 
 /**

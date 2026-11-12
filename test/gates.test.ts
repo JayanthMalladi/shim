@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, yarnInstallArgs, isYarnBerry, type GateResults } from "../src/gates.js";
+import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, installCmd, yarnInstallArgs, isYarnBerry, type GateResults } from "../src/gates.js";
 import type { ExecResult } from "../src/exec.js";
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
@@ -187,5 +187,52 @@ describe("yarn install command selection", () => {
     fs.writeFileSync(path.join(dir, ".yarnrc.yml"), "nodeLinker: node-modules\n");
     expect(isYarnBerry(dir)).toBe(true);
     fs.rmSync(path.join(dir, ".yarnrc.yml"));
+  });
+});
+
+/**
+ * installCmd is the per-manager no-lifecycle-script install command, returned as a pure choice so
+ * it can be asserted without spawning the real tool. It is the command install() actually runs,
+ * so pinning these forms guards against a future edit to the pnpm/bun/npm/yarn branches
+ * (classic-Yarn install args and the pnpm/bun/npm forms were not previously covered).
+ */
+describe("installCmd per package manager", () => {
+  // A fresh temp dir with the marker files for a given package manager.
+  const pmDir = (markers: Record<string, string>) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-pm-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true }));
+    for (const [f, c] of Object.entries(markers)) fs.writeFileSync(path.join(dir, f), c);
+    return dir;
+  };
+
+  it("pnpm: install --ignore-scripts, and --frozen-lockfile only when frozen", () => {
+    expect(installCmd(pmDir({ "pnpm-lock.yaml": "" }), "pnpm", true).args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    expect(installCmd(pmDir({ "pnpm-lock.yaml": "" }), "pnpm", false).args).toEqual(["install", "--ignore-scripts", "--no-frozen-lockfile"]);
+  });
+
+  it("bun: install --ignore-scripts, and --frozen-lockfile only when frozen", () => {
+    expect(installCmd(pmDir({ "bun.lockb": "" }), "bun", true).args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    expect(installCmd(pmDir({ "bun.lockb": "" }), "bun", false).args).toEqual(["install", "--ignore-scripts"]);
+  });
+
+  it("npm: ci when frozen and a lockfile is present, else install; always --no-audit --no-fund", () => {
+    expect(installCmd(pmDir({ "package-lock.json": "{}" }), "npm", true).args).toEqual(["ci", "--ignore-scripts", "--no-audit", "--no-fund"]);
+    expect(installCmd(pmDir({ "package-lock.json": "{}" }), "npm", false).args).toEqual(["install", "--ignore-scripts", "--no-audit", "--no-fund"]);
+    expect(installCmd(pmDir({}), "npm", true).args).toEqual(["install", "--ignore-scripts", "--no-audit", "--no-fund"]);
+  });
+
+  it("yarn (no .yarnrc.yml): delegates to yarnInstallArgs under whatever isYarnBerry decides", () => {
+    // No .yarnrc.yml, so isYarnBerry falls back to probing the global yarn --version. That
+    // answer is machine-dependent (1.x classic, 2+ Berry), so the assertion pins the wiring
+    // against its own decision instead of hard-coding classic flags: it must fail only if
+    // installCmd ever stops delegating the yarn case to yarnInstallArgs.
+    const dir = pmDir({ "yarn.lock": "" });
+    expect(installCmd(dir, "yarn", true)).toEqual({ cmd: "yarn", ...yarnInstallArgs(isYarnBerry(dir), true) });
+  });
+
+  it("yarn (Berry via .yarnrc.yml): install --immutable, scripts disabled via env", () => {
+    const c = installCmd(pmDir({ "yarn.lock": "", ".yarnrc.yml": "nodeLinker: node-modules\n" }), "yarn", true);
+    expect(c.args).toEqual(["install", "--immutable"]);
+    expect(c.env?.YARN_ENABLE_SCRIPTS).toBe("false");
   });
 });
