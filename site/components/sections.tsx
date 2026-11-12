@@ -154,6 +154,7 @@ const steps = [
   { n: "2", t: "Bump", bg: "bg-mint", d: "Move to ai@7 and run the official codemod for the renames." },
   { n: "3", t: "Fix", bg: "bg-pink", d: "Rewrite every read whose meaning changed. Rules first, an agent only where a rule cannot." },
   { n: "4", t: "Prove", bg: "bg-wedge", d: "Rerun every check, then a separate judge reads the diff. Any regression means an issue, not a PR." },
+  { n: "5", t: "Ask", bg: "bg-paper", d: "Show the maintainer the exact line and what breaks. The tested PR goes out only after they say yes." },
 ];
 
 export function HowSection() {
@@ -163,7 +164,7 @@ export function HowSection() {
         <SectionHead id="how-title" title="How it works">
           {proof.headline} candidates passed every test and never shipped, because the judge caught them.
         </SectionHead>
-        <ol className="m-0 grid list-none grid-cols-1 gap-8 p-0 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="m-0 grid list-none grid-cols-1 gap-8 p-0 sm:grid-cols-2 lg:grid-cols-5">
           {steps.map((s) => (
             <li key={s.n} className={`card ${s.bg}`}>
               <span className="grid size-10 place-items-center rounded-full border-[3px] border-ink bg-paper font-bold">
@@ -221,6 +222,10 @@ const faq = [
     a: "No. Every fix keeps the value your code read on v6, for example finalStep.usage in place of usage.",
   },
   {
+    q: "Why don't you just open PRs?",
+    a: "Because a PR nobody asked for is work for the maintainer. Shim shows you the exact line and what breaks first, and only sends a tested PR if you want one.",
+  },
+  {
     q: "What if my tests fail after the upgrade?",
     a: "You get a short issue with the file and line instead of a PR. Shim never opens a PR that regresses a check.",
   },
@@ -269,7 +274,7 @@ const vercelFix = "https://github.com/vercel/ai/pull/24438";
 /** The strongest proof, right under the hero. Text only: a factual statement, not an endorsement. */
 export function ProofStrip() {
   return (
-    <section aria-label="Merged upstream" className="px-4 pb-24 sm:px-8">
+    <section aria-label="Proof" className="px-4 pb-24 sm:px-8">
       <div className="mx-auto flex max-w-[1184px] flex-wrap items-center justify-between gap-6 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
         <div className="flex min-w-0 flex-[1_1_480px] flex-col items-start gap-3">
           <span className="tag bg-mint">Merged upstream</span>
@@ -280,6 +285,13 @@ export function ProofStrip() {
         <a href={vercelFix} className="btn btn-sm">
           See vercel/ai#24438 →
         </a>
+      </div>
+      <div className="mx-auto mt-8 flex max-w-[1184px] flex-col items-start gap-3 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
+        <span className="tag bg-pink">Re-run on real upgrades</span>
+        <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
+          We re-ran Shim on 24 real AI SDK 7 and Zod 4 upgrades. In 2 repos where a bot bumped the version and changed
+          no code, Shim found breaks still live in production.
+        </p>
       </div>
     </section>
   );

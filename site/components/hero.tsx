@@ -43,7 +43,8 @@ export function Hero() {
           </h1>
           <p className="m-0 max-w-[520px] text-xl leading-[1.5] font-medium text-pretty">
             A shim is the little wedge that keeps the table level. Ours slides under your dependency upgrade, fixes the
-            code that compiles but quietly changed, and hands you one tested pull request. Today that&apos;s AI SDK 6 to 7
+            code that compiles but quietly changed, shows you the exact line, and sends one tested pull request when you say
+            yes. Today that&apos;s AI SDK 6 to 7
             and Zod 3 to 4. The same pipeline is built for any API that changes under you.
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-2">
