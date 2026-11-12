@@ -221,9 +221,13 @@ describe("installCmd per package manager", () => {
     expect(installCmd(pmDir({}), "npm", true).args).toEqual(["install", "--ignore-scripts", "--no-audit", "--no-fund"]);
   });
 
-  it("yarn (classic, no .yarnrc.yml and no probe): install --ignore-scripts, scripts via flag", () => {
-    // No .yarnrc.yml and we can't run `yarn --version` here, so isYarnBerry falls back to classic.
-    expect(installCmd(pmDir({ "yarn.lock": "" }), "yarn", true).args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+  it("yarn (no .yarnrc.yml): delegates to yarnInstallArgs under whatever isYarnBerry decides", () => {
+    // No .yarnrc.yml, so isYarnBerry falls back to probing the global yarn --version. That
+    // answer is machine-dependent (1.x classic, 2+ Berry), so the assertion pins the wiring
+    // against its own decision instead of hard-coding classic flags: it must fail only if
+    // installCmd ever stops delegating the yarn case to yarnInstallArgs.
+    const dir = pmDir({ "yarn.lock": "" });
+    expect(installCmd(dir, "yarn", true)).toEqual({ cmd: "yarn", ...yarnInstallArgs(isYarnBerry(dir), true) });
   });
 
   it("yarn (Berry via .yarnrc.yml): install --immutable, scripts disabled via env", () => {
