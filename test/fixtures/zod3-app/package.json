@@ -1,0 +1,7 @@
+{
+  "name": "zod3-app",
+  "private": true,
+  "dependencies": {
+    "zod": "^3.25.0"
+  }
+}

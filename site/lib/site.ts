@@ -1,6 +1,7 @@
 /** Every outbound link lives here. */
 export const links = {
   repo: "https://github.com/JayanthMalladi/shim",
+  email: "mailto:hello@getshim.dev",
 } as const;
 
 export const founder = "Jayanth Malladi";

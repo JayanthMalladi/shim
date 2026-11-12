@@ -154,6 +154,7 @@ const steps = [
   { n: "2", t: "Bump", bg: "bg-mint", d: "Move to ai@7 and run the official codemod for the renames." },
   { n: "3", t: "Fix", bg: "bg-pink", d: "Rewrite every read whose meaning changed. Rules first, an agent only where a rule cannot." },
   { n: "4", t: "Prove", bg: "bg-wedge", d: "Rerun every check, then a separate judge reads the diff. Any regression means an issue, not a PR." },
+  { n: "5", t: "Ask", bg: "bg-paper", d: "Show the maintainer the exact line and what breaks. The tested PR goes out only after they say yes." },
 ];
 
 export function HowSection() {
@@ -163,7 +164,7 @@ export function HowSection() {
         <SectionHead id="how-title" title="How it works">
           {proof.headline} candidates passed every test and never shipped, because the judge caught them.
         </SectionHead>
-        <ol className="m-0 grid list-none grid-cols-1 gap-8 p-0 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="m-0 grid list-none grid-cols-1 gap-8 p-0 sm:grid-cols-2 lg:grid-cols-5">
           {steps.map((s) => (
             <li key={s.n} className={`card ${s.bg}`}>
               <span className="grid size-10 place-items-center rounded-full border-[3px] border-ink bg-paper font-bold">
@@ -213,8 +214,16 @@ const faq = [
     a: "It handles renames. The v7 changes that matter still compile, so neither the codemod nor tsc flags them.",
   },
   {
+    q: "Which upgrades does it handle?",
+    a: "AI SDK 6 to 7 and Zod 3 to 4. For Zod, Shim runs the community codemod, then fixes what it misses, such as an object's .default({}) that Zod 4 no longer fills with the object's own defaults.",
+  },
+  {
     q: "Will it change how my app behaves?",
     a: "No. Every fix keeps the value your code read on v6, for example finalStep.usage in place of usage.",
+  },
+  {
+    q: "Why don't you just open PRs?",
+    a: "Because a PR nobody asked for is work for the maintainer. Shim shows you the exact line and what breaks first, and only sends a tested PR if you want one.",
   },
   {
     q: "What if my tests fail after the upgrade?",
@@ -223,6 +232,10 @@ const faq = [
   {
     q: "Does it run my install scripts or see my keys?",
     a: "No. Installs always use --ignore-scripts, and commands in your repo run without API keys.",
+  },
+  {
+    q: "What runs the fix agent, and do I need an API key?",
+    a: "The scan needs no model or key. The fix agent runs on a model you provide: your own Claude login or API key, any Anthropic-compatible provider, or open-source models.",
   },
   {
     q: "Can I run it myself?",
@@ -256,14 +269,50 @@ export function FaqSection() {
   );
 }
 
-const changelog = [
+const vercelFix = "https://github.com/vercel/ai/pull/24438";
+
+/** The strongest proof, right under the hero. Text only: a factual statement, not an endorsement. */
+export function ProofStrip() {
+  return (
+    <section aria-label="Proof" className="px-4 pb-24 sm:px-8">
+      <div className="mx-auto flex max-w-[1184px] flex-wrap items-center justify-between gap-6 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
+        <div className="flex min-w-0 flex-[1_1_480px] flex-col items-start gap-3">
+          <span className="tag bg-mint">Merged upstream</span>
+          <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
+            We found a bug in the official AI SDK 7 codemod. Vercel merged the fix and credited our report.
+          </p>
+        </div>
+        <a href={vercelFix} className="btn btn-sm">
+          See vercel/ai#24438 →
+        </a>
+      </div>
+      <div className="mx-auto mt-8 flex max-w-[1184px] flex-col items-start gap-3 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
+        <span className="tag bg-pink">Re-run on real upgrades</span>
+        <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
+          We re-ran Shim on 24 real AI SDK 7 and Zod 4 upgrades. In 2 repos where a bot bumped the version and changed
+          no code, Shim found breaks still live in production.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+const changelog: { label: string; bg: string; items: React.ReactNode[] }[] = [
   {
     label: "Shipped",
     bg: "bg-mint",
     items: [
-      `${prList.length} AI SDK 7 upgrade PRs opened on public repos`,
+      `${prList.length} upgrade PRs opened on public repos, for AI SDK 7 and Zod 4`,
+      "Zod 3 to 4, the second migration, on the same pipeline",
       `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
       "A guard for the official codemod when it renames your own exports",
+      <span key="vercel-fix">
+        Found a bug in the official AI SDK 7 codemod; Vercel merged the fix and credited our report (
+        <a href={vercelFix} className="underline underline-offset-4">
+          vercel/ai#24438
+        </a>
+        )
+      </span>,
       "Per test baseline: only checks green before the upgrade count after it",
       "Runs on macOS, Linux and Windows",
     ],
@@ -282,7 +331,7 @@ const changelog = [
     items: [
       "pnpm catalog: support, which blocked four repos so far",
       "Scan repos that already moved to v7 for the silent bugs they kept",
-      "More API migrations after AI SDK 7",
+      "Next migration after Zod 4: another SDK with silent breaking changes",
     ],
   },
 ];
@@ -299,8 +348,8 @@ export function ChangelogSection() {
             <div key={c.label} className={`card ${c.bg}`}>
               <span className="tag bg-paper">{c.label}</span>
               <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                {c.items.map((i) => (
-                  <li key={i} className="flex gap-3 text-base leading-6 font-medium">
+                {c.items.map((i, n) => (
+                  <li key={n} className="flex gap-3 text-base leading-6 font-medium">
                     <span aria-hidden="true" className="font-bold">
                       ▸
                     </span>

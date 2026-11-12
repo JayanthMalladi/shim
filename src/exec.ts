@@ -114,6 +114,37 @@ export async function runAgentBackend(args: string[], dir: string, timeoutMs: nu
 }
 
 /**
+ * Check, before any agent run, that the configured backend can start, and describe what will run:
+ * backend, auth source (never its value) and models. A missing backend then fails in seconds instead
+ * of after the baseline install. It can't tell whether a claude login is valid without a model call.
+ */
+export function agentPreflight(models: { fixer: string; reviewer?: string; judge?: string }): string {
+  const backend = agentBackend();
+  if (backend === "dsh" && process.env.SHIM_SANDBOX !== "1")
+    throw new Error("SHIM_AGENT_BACKEND=dsh needs SHIM_SANDBOX=1: only run dsh inside a throwaway container or VM with no credentials");
+  const bin = backend === "dsh" ? "dsh" : "claude";
+  if (!run(bin, ["--version"], process.cwd(), 30_000, agentEnv()).ok)
+    throw new Error(
+      backend === "dsh"
+        ? "SHIM_AGENT_BACKEND=dsh, but the dsh command was not found on PATH"
+        : "the fix agent needs the claude CLI (Claude Code), which was not found on PATH. Install it and log in, or set " +
+          "ANTHROPIC_API_KEY; or set SHIM_AGENT_BACKEND=dsh. `shim scan` and `shim fix` need no model.",
+    );
+  if (backend === "dsh") return "agent: dsh, models set by your dsh profile, cost unpriced";
+  const base = process.env.ANTHROPIC_BASE_URL;
+  let auth = process.env.ANTHROPIC_API_KEY ? "ANTHROPIC_API_KEY" : process.env.ANTHROPIC_AUTH_TOKEN ? "ANTHROPIC_AUTH_TOKEN" : "your Claude Code login";
+  if (base !== undefined) {
+    let host = base;
+    try {
+      host = new URL(base).host;
+    } catch {}
+    auth = `provider at ${host}, cost unpriced`;
+  }
+  const roles = Object.entries(models).filter(([, m]) => m).map(([role, m]) => `${role} ${m}`);
+  return `agent: claude-cli, ${auth} (${roles.join(", ")})`;
+}
+
+/**
  * Run a command without a shell. Output is truncated to the tail, which is where errors live.
  * The env defaults to the target-safe one, so a call that forgets to think about it still can't
  * leak a key; pass env explicitly for the rare command that needs something unusual.
@@ -133,7 +164,32 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 6
     env,
   });
   const output = `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? `\n${r.error.message}` : ""}`;
-  return { ok: r.status === 0, code: r.status, output: output.slice(-8000), ms: Date.now() - start };
+  const ok = r.status === 0;
+  return { ok, code: r.status, output: ok ? output.slice(-8000) : failureExcerpt(output), ms: Date.now() - start };
+}
+
+/** Lines that start a test failure: TAP `not ok`, mocha `1) name`, and the ✗/×/✖ marks of vitest, jest and node --test's spec reporter. */
+const FAILURE_LINE = /^\s*(not ok \d+|\d+\) \S|[✗×✖] \S)/;
+
+/**
+ * A failed command's output, cut to fit in 8000 characters. A long passing listing (2,500 `ok` lines)
+ * would push the one failure out of a plain tail, so when the output has failure lines, the last 1500
+ * characters are kept and each failure line follows with the 30 lines after it (its error and stack).
+ */
+export function failureExcerpt(output: string, max = 8000): string {
+  if (output.length <= max) return output;
+  const lines = output.split("\n");
+  const blocks: string[] = [];
+  let used = 0;
+  for (let i = 0; i < lines.length && used < max - 2000; i++) {
+    if (!FAILURE_LINE.test(lines[i]!)) continue;
+    const block = lines.slice(i, i + 31).join("\n");
+    blocks.push(block);
+    used += block.length + 1;
+    i += 30;
+  }
+  if (!blocks.length) return output.slice(-max);
+  return `${output.slice(-1500)}\n\n--- failing tests (from the full output) ---\n${blocks.join("\n").slice(0, max - 1600)}`;
 }
 
 /** Run with `input` on stdin and return all of stdout: `run` keeps only the tail, which can't be compared to a file. */

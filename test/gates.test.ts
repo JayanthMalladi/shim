@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, type GateResults } from "../src/gates.js";
+import { parseVitestJson, parseJestJson, detectTestRunner, regressions, runGates, yarnInstallArgs, isYarnBerry, type GateResults } from "../src/gates.js";
 import type { ExecResult } from "../src/exec.js";
 
 const ok = { ok: true, code: 0, output: "", ms: 0 };
@@ -122,4 +123,69 @@ describe("runGates captures per-test data for vitest gates", () => {
     expect(gate?.ok).toBe(true);
     expect(gate?.perTest).toEqual({ "test/t.test.ts/works": true });
   }, 120_000);
+});
+
+describe("runGates drops untracked files the gates create", () => {
+  it("removes new build output, keeps earlier untracked files, ignored files and node_modules", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-clean-"));
+    const sh = (...a: string[]) => execFileSync("git", a, { cwd: dir });
+    sh("init", "-q");
+    fs.writeFileSync(path.join(dir, ".gitignore"), "dist/\n");
+    const build = "const fs=require('fs');for(const d of ['out','dist','node_modules/x'])fs.mkdirSync(d,{recursive:true});"
+      + "fs.writeFileSync('out/a.js','x');fs.writeFileSync('dist/b.js','x');fs.writeFileSync('node_modules/x/c.js','x')";
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "c", private: true, scripts: { build: `node -e "${build}"` } }));
+    sh("add", "-A");
+    sh("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init");
+    fs.writeFileSync(path.join(dir, "new.ts"), "export {};\n"); // a fixer's new file
+
+    const res = runGates(dir, "npm", false, [], { install: false });
+
+    expect(res.build?.ok).toBe(true);
+    expect(fs.existsSync(path.join(dir, "out", "a.js"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "new.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "dist", "b.js"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "node_modules", "x", "c.js"))).toBe(true);
+  }, 60_000);
+});
+
+/**
+ * E6.8: Yarn Berry (v2+) repos — `yarn install --ignore-scripts` exits 1 on them, so they were
+ * skipped as "baseline install fails". Berry disables scripts via the YARN_ENABLE_SCRIPTS env and
+ * freezes the lockfile with --immutable; classic yarn keeps --ignore-scripts and --frozen-lockfile.
+ * The command choice is pure (yarnInstallArgs) so it is tested here without running yarn.
+ */
+describe("yarn install command selection", () => {
+  it("Berry frozen: install --immutable with YARN_ENABLE_SCRIPTS=false, no --ignore-scripts", () => {
+    const { args, env } = yarnInstallArgs(true, true);
+    expect(args).toEqual(["install", "--immutable"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBe("false");
+    expect(args).not.toContain("--ignore-scripts");
+  });
+
+  it("Berry non-frozen: install with YARN_ENABLE_SCRIPTS=false, no --immutable", () => {
+    const { args, env } = yarnInstallArgs(true, false);
+    expect(args).toEqual(["install"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBe("false");
+  });
+
+  it("classic frozen: install --ignore-scripts --frozen-lockfile, scripts flag not env", () => {
+    const { args, env } = yarnInstallArgs(false, true);
+    expect(args).toEqual(["install", "--ignore-scripts", "--frozen-lockfile"]);
+    expect(env.YARN_ENABLE_SCRIPTS).toBeUndefined();
+  });
+
+  it("classic non-frozen: install --ignore-scripts", () => {
+    const { args } = yarnInstallArgs(false, false);
+    expect(args).toEqual(["install", "--ignore-scripts"]);
+  });
+
+  it("isYarnBerry is true when a .yarnrc.yml exists (the elifesciences case)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shim-yarn-berry-"));
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "x", private: true }));
+    // A .yarnrc.yml is the deterministic Berry signal: isYarnBerry short-circuits to true without
+    // probing `yarn --version`, so this holds regardless of what yarn (if any) is on PATH.
+    fs.writeFileSync(path.join(dir, ".yarnrc.yml"), "nodeLinker: node-modules\n");
+    expect(isYarnBerry(dir)).toBe(true);
+    fs.rmSync(path.join(dir, ".yarnrc.yml"));
+  });
 });

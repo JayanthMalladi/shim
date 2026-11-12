@@ -1,3 +1,0 @@
-ready
-all baseline gates still pass and no breaking findings remain
-head: HEAD: 8242796

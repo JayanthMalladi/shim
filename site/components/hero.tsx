@@ -24,6 +24,7 @@ function Scene() {
         <span className="sticker top-0 left-0 -rotate-[8deg] bg-paper">{prList.length} PRs open upstream</span>
         <span className="sticker top-6 right-0 rotate-6 bg-mint">{proof.headline} bad diffs caught</span>
         <span className="sticker top-[270px] left-10 rotate-[4deg] bg-paper">tests stay green</span>
+        <span className="sticker top-[190px] right-0 -rotate-[3deg] bg-wedge">fix merged by Vercel ✓</span>
       </div>
     </div>
   );
@@ -41,8 +42,10 @@ export function Hero() {
             Upgrades shouldn&apos;t wobble.
           </h1>
           <p className="m-0 max-w-[520px] text-xl leading-[1.5] font-medium text-pretty">
-            A shim is the little wedge that keeps the table level. Ours slides under your AI SDK 7 upgrade, fixes the
-            code that compiles but quietly changed, and hands you one tested pull request.
+            A shim is the little wedge that keeps the table level. Ours slides under your dependency upgrade, fixes the
+            code that compiles but quietly changed, shows you the exact line, and sends one tested pull request when you say
+            yes. Today that&apos;s AI SDK 6 to 7
+            and Zod 3 to 4. The same pipeline is built for any API that changes under you.
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <a href="#scan" className="btn">

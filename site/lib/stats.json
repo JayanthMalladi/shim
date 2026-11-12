@@ -1,12 +1,12 @@
 {
-  "asOf": "2026-11-02T14:34:27.086Z",
+  "asOf": "2026-11-12T06:08:38.732Z",
   "prs": {
-    "total": 14,
-    "open": 14,
+    "total": 17,
+    "open": 15,
     "merged": 0,
-    "replied": 0,
+    "replied": 3,
     "mergeRate": "0%",
-    "mergeRate3d": "0/14 (0%)"
+    "mergeRate3d": "0/17 (0%)"
   },
   "list": [
     {
@@ -92,6 +92,24 @@
       "url": "https://github.com/HoudiniSwap/houdiniswap-agent/pull/29",
       "state": "open",
       "openedAt": "2026-10-29"
+    },
+    {
+      "repo": "log-10x/log10x-mcp",
+      "url": "https://github.com/log-10x/log10x-mcp/pull/318",
+      "state": "closed",
+      "openedAt": "2026-11-07"
+    },
+    {
+      "repo": "starkeep-org/starkeep-core",
+      "url": "https://github.com/starkeep-org/starkeep-core/pull/146",
+      "state": "closed",
+      "openedAt": "2026-11-07"
+    },
+    {
+      "repo": "vas3k/TaxHacker",
+      "url": "https://github.com/vas3k/TaxHacker/pull/207",
+      "state": "open",
+      "openedAt": "2026-11-09"
     }
   ],
   "proof": {

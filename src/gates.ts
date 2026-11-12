@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { run, type ExecResult } from "./exec.js";
+import { execFileSync } from "node:child_process";
+import { run, targetEnv, type ExecResult } from "./exec.js";
 
 export type PackageManager = "pnpm" | "yarn" | "bun" | "npm";
 /** "install", "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
@@ -19,6 +20,34 @@ export function detectPackageManager(dir: string): PackageManager {
 }
 
 /**
+ * True when the repo's yarn is Berry (v2+): it has a `.yarnrc.yml`, or (no `.yarnrc.yml`) the
+ * installed `yarn --version` reports a major of 2 or higher. Berry is what elifesciences uses; its
+ * `yarn install --ignore-scripts` exits 1, so it needs a different install command (see
+ * yarnInstallArgs).
+ */
+export function isYarnBerry(dir: string): boolean {
+  if (fs.existsSync(path.join(dir, ".yarnrc.yml"))) return true;
+  const r = run("yarn", ["--version"], dir, 30_000);
+  if (!r.ok) return false; // no yarn on PATH: assume classic (the caller's install will surface a real error)
+  const major = Number(r.output.trim().split("\n").pop()?.match(/^\d+/)?.[1] ?? "0");
+  return major >= 2;
+}
+
+/**
+ * The `yarn install` command Shim chooses for a repo. Berry (v2+) has no `--ignore-scripts` flag
+ * (it errors): scripts are disabled via the YARN_ENABLE_SCRIPTS env, and the frozen lockfile is
+ * enforced with `--immutable`. Classic (v1) keeps `--ignore-scripts` and `--frozen-lockfile`.
+ * Lifecycle scripts never run in either branch. Pure (no git, no yarn): the caller passes its own
+ * berry decision so this is testable without running yarn.
+ */
+export function yarnInstallArgs(berry: boolean, frozen: boolean): { args: string[]; env: NodeJS.ProcessEnv } {
+  if (berry) {
+    return { args: ["install", ...(frozen ? ["--immutable"] : [])], env: { ...targetEnv(), YARN_ENABLE_SCRIPTS: "false" } };
+  }
+  return { args: ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], env: targetEnv() };
+}
+
+/**
  * Install without lifecycle scripts: we run untrusted repos, and postinstall
  * hooks are the classic way to execute code on install.
  */
@@ -26,8 +55,10 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
   switch (pm) {
     case "pnpm":
       return run("pnpm", ["install", "--ignore-scripts", frozen ? "--frozen-lockfile" : "--no-frozen-lockfile"], dir);
-    case "yarn":
-      return run("yarn", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
+    case "yarn": {
+      const { args, env } = yarnInstallArgs(isYarnBerry(dir), frozen);
+      return run("yarn", args, dir, 10 * 60_000, env);
+    }
     case "bun":
       return run("bun", ["install", "--ignore-scripts", ...(frozen ? ["--frozen-lockfile"] : [])], dir);
     default:
@@ -41,6 +72,28 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
  * that depends on ai, plus the root.
  */
 export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean } = {}): GateResults {
+  const before = new Set(untracked(dir));
+  try {
+    return gates(dir, pm, frozen, pkgDirs, opts);
+  } finally {
+    // Build and test outputs a repo doesn't gitignore are not part of the change: drop them so they
+    // reach neither the reviewer nor changes.patch. Untracked files that were there before (the
+    // fixer's new files) stay.
+    for (const f of untracked(dir)) if (!before.has(f)) fs.rmSync(path.join(dir, f), { force: true });
+  }
+}
+
+/** Untracked files git doesn't ignore, relative to dir; none outside a git repo. node_modules is never listed. */
+function untracked(dir: string): string[] {
+  try {
+    return execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", ".", ":(exclude,glob)**/node_modules/**"], { cwd: dir, encoding: "utf8", env: targetEnv(), maxBuffer: 256 * 1024 * 1024 })
+      .split("\0").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function gates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean }): GateResults {
   const results: GateResults = {
     install: opts.install === false ? { ok: true, code: 0, output: "skipped: dependencies unchanged", ms: 0 } : install(dir, pm, frozen),
   };
