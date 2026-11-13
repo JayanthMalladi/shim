@@ -51,7 +51,13 @@ const USAGE = `shim <command>
                            (the site's live numbers); commit it to redeploy
   packs
                            Print the pack-manifest table (the generated docs/PACKS.md),
-                           so the doc can't drift from the code`;
+                           so the doc can't drift from the code
+  build-pack <package> --from <ver> --to <ver> --out <dir> [--changelog <file>]
+                           S06: build a candidate pack from public evidence. Evidence is
+                           deterministic (npm pack both majors + the .d.ts diff); the draft and
+                           judge are model calls run here (SHIM_PACKBUILDER_MODEL / SHIM_JUDGE_MODEL),
+                           never in a user's free scan. Writes a candidate pack under --out; it is
+                           not registered in src/packs/ until you copy it in after review`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -159,10 +165,21 @@ switch (cmd) {
     console.log(JSON.stringify(result, null, 2));
     break;
   }
-  case "triage": {
-    const m = getMigration(migFlag());
-    const rows = triage(JSON.parse(fs.readFileSync(target, "utf8")), path.resolve(flag("--work") ?? "work"), m);
-    console.log(JSON.stringify(rows, null, 2));
+  case "build-pack": {
+    // S06: build a candidate pack from public evidence. Model calls happen here (our side); the
+    // free scan never reaches this path. --out is the only place files land.
+    const from = flag("--from"), to = flag("--to"), out = flag("--out");
+    const changelog = flag("--changelog");
+    if (!from || !to || !out) {
+      console.error("usage: shim build-pack <package> --from <ver> --to <ver> --out <dir> [--changelog <file>]");
+      process.exit(1);
+    }
+    const { buildPack } = await import("./pack-builder/build.js");
+    // The cross-pack negative control: every real pack fixture dir under test/fixtures/ EXCEPT the
+    // one being generated (the pack must not fire on another pack's fixtures).
+    const fixtureDirs = fixtureRoots(target).map((r) => path.resolve("test", "fixtures", r));
+    const report = await buildPack({ package: target, from, to, outDir: path.resolve(out), changelog: changelog ? path.resolve(changelog) : undefined, fixtureDirs });
+    console.log(JSON.stringify({ package: report.package, shipped: report.shipped, admitted: report.admitted, cost: report.cost, draftModel: report.draftModel, judgeModel: report.judgeModel }, null, 2));
     break;
   }
   case "score": {
@@ -207,6 +224,18 @@ switch (cmd) {
   default:
     console.log(USAGE);
     process.exit(1);
+}
+
+/**
+ * The real pack fixture roots under test/fixtures/ (the v6-app + CRLF CI for ai, zod3-app, the
+ * express4-app). The cross-pack negative control for build-pack: a generated pack must not fire on
+ * any OTHER pack's fixtures, so when building a pack for `pkg` we pass every root except pkg's own.
+ */
+function fixtureRoots(excludePkg?: string): string[] {
+  const roots = ["v6-app", "crlf-ci", "zod3-app", "express4-app"];
+  const pkgRoots: Record<string, string[]> = { ai: ["v6-app", "crlf-ci"], zod: ["zod3-app"], express: ["express4-app"] };
+  if (!excludePkg) return roots;
+  return roots.filter((r) => !(pkgRoots[excludePkg] ?? []).includes(r));
 }
 
 /** The whole change, new files included, as a patch that `git apply` can replay on a fresh clone. */
