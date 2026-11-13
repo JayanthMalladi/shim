@@ -1,8 +1,8 @@
 {
-  "asOf": "2026-11-13T04:41:46.309Z",
+  "asOf": "2026-11-13T23:09:19.659Z",
   "prs": {
-    "total": 17,
-    "open": 15,
+    "total": 18,
+    "open": 16,
     "merged": 0,
     "replied": 3,
     "mergeRate": "0%",
@@ -110,6 +110,12 @@
       "url": "https://github.com/vas3k/TaxHacker/pull/207",
       "state": "open",
       "openedAt": "2026-11-09"
+    },
+    {
+      "repo": "elifesciences/enhanced-preprints-server",
+      "url": "https://github.com/elifesciences/enhanced-preprints-server/pull/1690",
+      "state": "open",
+      "openedAt": "2026-11-13"
     }
   ],
   "proof": {
