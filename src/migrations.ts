@@ -1,6 +1,8 @@
 import type { Project } from "ts-morph";
 import type { RuleContext } from "./rules/ai-sdk-v7.js";
-import { checkCiNodeVersions, checkPackageJsons, findAiPackages, findPackages } from "./scan.js";
+import { checkCiNodeVersions, checkPackageJsons, findPackages } from "./scan.js";
+import type { PackManifest } from "./types.js";
+import { aiSdkV7, expressV5, zodV4 } from "./packs.js";
 import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
 import { allowsMajor, bumpAiSdk, bumpExpress, bumpZod } from "./bump.js";
 import { applyAutoFixes } from "./rules/ai-sdk-v7.js";
@@ -16,6 +18,8 @@ export interface Migration {
   id: "ai-sdk-v7" | "zod-v4" | "express-v5";
   /** Human name used in PR text: "AI SDK 7", "Zod 4". */
   title: string;
+  /** The pack this migration describes (S05): its `package`, major ranges, and per-rule record. */
+  pack: PackManifest;
   /** package.json files that depend on the old major (dependencies, devDependencies, peerDependencies). */
   findPackages(root: string): Array<{ file: string; range: string }>;
   /** True when a range is on the old major and does not already allow the new one. */
@@ -53,7 +57,8 @@ export interface Migration {
 export const AI_SDK_V7: Migration = {
   id: "ai-sdk-v7",
   title: "AI SDK 7",
-  findPackages: findAiPackages,
+  pack: aiSdkV7,
+  findPackages: (root) => findPackages(root, aiSdkV7.package),
   isOldMajor: (range) => /(^|[\^~>=\s])6(\.|$)/.test(range),
   bump: (root) => bumpAiSdk(root),
   codemod: (dir) => run("npx", ["-y", "@ai-sdk/codemod@4", "v7", "."], dir).ok,
@@ -134,7 +139,8 @@ const ZOD_JUDGE_RULES = `${ZOD_REVIEWER_RULES}
 export const ZOD_V4: Migration = {
   id: "zod-v4",
   title: "Zod 4",
-  findPackages: (root) => findPackages(root, "zod"),
+  pack: zodV4,
+  findPackages: (root) => findPackages(root, zodV4.package),
   isOldMajor: (range) => allowsMajor(range, 3) && !allowsMajor(range, 4),
   bump: (root) => bumpZod(root),
   codemod: runZodCodemod,
@@ -213,7 +219,8 @@ const EXPRESS_JUDGE_RULES = `${EXPRESS_REVIEWER_RULES}
 export const EXPRESS_V5: Migration = {
   id: "express-v5",
   title: "Express 5",
-  findPackages: (root) => findPackages(root, "express"),
+  pack: expressV5,
+  findPackages: (root) => findPackages(root, expressV5.package),
   isOldMajor: (range) => allowsMajor(range, 4) && !allowsMajor(range, 5),
   bump: (root) => bumpExpress(root),
   codemod: runExpressCodemod,

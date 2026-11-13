@@ -11,15 +11,15 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { Finding, ScanResult, Severity } from "./types.js";
+import type { Finding, PackManifest, ScanResult, Severity } from "./types.js";
 import type { Migration } from "./migrations.js";
 import { MIGRATIONS } from "./migrations.js";
 import { findPackageJsons, loadProject, readJson } from "./scan.js";
 
-/** The package name each migration's pack scans for (mirrors each entry's findPackages target). */
-const MIG_DEP: Record<Migration["id"], string> = { "ai-sdk-v7": "ai", "zod-v4": "zod", "express-v5": "express" };
-/** The migration's new major: what "already upgraded" means for the section label. */
-const NEW_MAJOR: Record<Migration["id"], number> = { "ai-sdk-v7": 7, "zod-v4": 4, "express-v5": 5 };
+/** The package name each migration's pack scans for, read from the pack manifest instead of a mirror. */
+const packDep = (m: Migration): string => m.pack.package;
+/** The migration's new major (what "already upgraded" means), read from the manifest's `to` range. */
+const packNewMajor = (m: Migration): number => Number(m.pack.to.match(/\d+/)?.[0]);
 /** The dependency fields a pin can be declared in; mirrors findPackages. */
 const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies"] as const;
 const SEVERITY_ORDER: Severity[] = ["silent", "break", "deprecated"];
@@ -85,10 +85,10 @@ export function buildExposureReport(root: string): ExposureReport {
   const sections: Section[] = [];
   for (const m of Object.values(MIGRATIONS)) {
     if (!m) continue;
-    const mine = pins.filter((p) => MIG_DEP[m.id] === p.pkg);
+    const mine = pins.filter((p) => packDep(m) === p.pkg);
     if (mine.length === 0) continue;
     const oldPins = mine.filter((p) => m.isOldMajor(p.range));
-    const newPins = mine.filter((p) => !m.isOldMajor(p.range) && rangeAllowsMajor(p.range, NEW_MAJOR[m.id]));
+    const newPins = mine.filter((p) => !m.isOldMajor(p.range) && rangeAllowsMajor(p.range, packNewMajor(m)));
     // A pin that is neither on the old major nor on the new major (workspace:, catalog:,
     // git:, * — no usable major) is shown in "Pins found" only; we claim no coverage of it.
     if (oldPins.length === 0 && newPins.length === 0) continue;
@@ -105,7 +105,7 @@ export function buildExposureReport(root: string): ExposureReport {
 
   for (const p of pins) p.installed = installed?.versions.get(p.pkg);
 
-  const coveredNames = new Set(Object.values(MIGRATIONS).filter(Boolean).map((m) => MIG_DEP[m!.id]));
+  const coveredNames = new Set(Object.values(MIGRATIONS).filter(Boolean).map((m) => packDep(m!)));
   const seen = new Set<string>();
   const notCovered: Array<{ pkg: string; range: string }> = [];
   for (const p of pins) {
