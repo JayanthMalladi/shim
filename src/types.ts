@@ -60,10 +60,13 @@ export interface PackManifest {
     /** The exact changelog / migration-guide URL plus the heading the rule encodes. */
     source: string;
     /**
-     * Paths of fixture cases that already exist under test/fixtures/ — at least one FLAG
-     * case and one must-NOT-flag case, where the rule has them. A rule lacking a case lists
-     * only the side it has (or none, for a documented gap); never an invented path.
+     * Fixture cases that already exist under test/fixtures/, split into the FLAG side (the
+     * rule fires on these) and the must-NOT-flag side (the rule must stay silent on these).
+     * A rule lacking one side lists the other (or, for a documented gap, neither); a path is
+     * never invented. `flag` empty + `noFlag` empty = a rule with no fixture case at all.
      */
-    fixtures: string[];
+    flag: string[];
+    /** Fixture cases the rule must NOT flag (the negative control); empty when it has none. */
+    noFlag: string[];
   }>;
 }
