@@ -167,18 +167,21 @@ switch (cmd) {
   }
   case "build-pack": {
     // S06: build a candidate pack from public evidence. Model calls happen here (our side); the
-    // free scan never reaches this path. --out is the only place files land.
+    // free scan never reaches this path. --out is the only place files land. The standalone entry
+    // (src/pack-builder/cli.ts) is the decoupled form this runs in the blind benchmark copy.
     const from = flag("--from"), to = flag("--to"), out = flag("--out");
     const changelog = flag("--changelog");
+    const candidates = flag("--candidates");
     if (!from || !to || !out) {
-      console.error("usage: shim build-pack <package> --from <ver> --to <ver> --out <dir> [--changelog <file>]");
+      console.error("usage: shim build-pack <package> --from <ver> --to <ver> --out <dir> [--changelog <file>] [--no-judge] [--candidates <json>]");
       process.exit(1);
     }
     const { buildPack } = await import("./pack-builder/build.js");
     // The cross-pack negative control: every real pack fixture dir under test/fixtures/ EXCEPT the
     // one being generated (the pack must not fire on another pack's fixtures).
     const fixtureDirs = fixtureRoots(target).map((r) => path.resolve("test", "fixtures", r));
-    const report = await buildPack({ package: target, from, to, outDir: path.resolve(out), changelog: changelog ? path.resolve(changelog) : undefined, fixtureDirs });
+    const candSet = candidates ? JSON.parse(fs.readFileSync(path.resolve(candidates), "utf8")) : undefined;
+    const report = await buildPack({ package: target, from, to, outDir: path.resolve(out), changelog: changelog ? path.resolve(changelog) : undefined, fixtureDirs, noJudge: rest.includes("--no-judge"), candidates: candSet });
     console.log(JSON.stringify({ package: report.package, shipped: report.shipped, admitted: report.admitted, cost: report.cost, draftModel: report.draftModel, judgeModel: report.judgeModel }, null, 2));
     break;
   }

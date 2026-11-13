@@ -77,10 +77,12 @@ export interface DslRule {
 
 export interface Detect {
   kind: "chain" | "recordArgs" | "objectField" | "propAccess";
-  // chain: `.method(...)` on a chain rooted at a detected binding.
-  method?: string;
-  /** First method from the binding, e.g. "string", "object", "coerce". */
-  root?: string;
+  // chain: `.method(...)` on a chain rooted at a detected binding. A rule may name several
+  // trigger methods (e.g. R7 fires on both `intersection` and `and`) — so method/root are
+  // string-or-array; the interpreter treats either as "the method is one of these".
+  method?: string | string[];
+  /** First method from the binding, e.g. "string", "object", "coerce". Also string-or-array. */
+  root?: string | string[];
   /** Require one of these methods to appear earlier in the chain (R2 transforms). */
   chainBefore?: string[];
   /** For optional/nullish: the receiver must be a `.default()` call (R1). */

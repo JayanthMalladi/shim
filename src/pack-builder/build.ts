@@ -27,6 +27,8 @@ export interface BuildPackOptions {
   fixtureDirs?: string[];
   /** Skip the model stages entirely: build evidence + run a supplied candidate set through the harness. */
   candidates?: Candidate[];
+  /** Skip the model judge stage (4): admitted rules ship on the harness alone. Deterministic spine. */
+  noJudge?: boolean;
   /** The draft/judge model ids to run with (defaults from env / clamped). */
   models?: { draft: string; judge: string };
 }
@@ -74,12 +76,13 @@ export async function buildPack(opts: BuildPackOptions): Promise<BuildReport> {
   const admittedIds = new Set(admissions.filter((a) => a.admitted).map((a) => a.ruleId));
   const admitted = cands.filter((c) => admittedIds.has(c.rule.id));
 
-  // 4. Judge — strict per-rule ADMIT/REJECT against the cited evidence.
-  const judged = await runJudge(admitted, judgeModel, outDir);
+  // 4. Judge — strict per-rule ADMIT/REJECT against the cited evidence. Skippable (--no-judge) so the
+  // deterministic spine runs without a model; with noJudge the harness-admitted set ships as-is.
+  const judged = opts.noJudge ? [] : await runJudge(admitted, judgeModel, outDir);
   const judgedIn = new Set(judged.filter((j) => j.admit).map((j) => j.ruleId));
 
   // 5. Output — a candidate pack, not registered; Jayanth copies it in after review.
-  const shipped = admitted.filter((c) => judgedIn.has(c.rule.id));
+  const shipped = opts.noJudge ? admitted : admitted.filter((c) => judgedIn.has(c.rule.id));
   const manifest = emitManifest({
     id: `${opts.package.replace("@", "").replace("/", "-")}-pack`,
     package: opts.package,

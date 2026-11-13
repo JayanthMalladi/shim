@@ -124,8 +124,11 @@ function checkChain(ctx: RuleContext, sf: SourceFile, b: Bindings, inits: Map<st
       continue;
     }
     const methods = chainMethods(e);
-    if (d.method && m !== d.method) continue; // the rule names the method being called (e.g. "uuid")
-    if (d.root && methods[0] !== d.root) continue;
+    const oneOf = (v: string | string[] | undefined): string[] | undefined => (v == null ? undefined : Array.isArray(v) ? v : [v]);
+    const wantMethod = oneOf(d.method);
+    const wantRoot = oneOf(d.root);
+    if (wantMethod && !wantMethod.includes(m)) continue; // the rule names the method being called (e.g. "uuid", or "intersection"|"and")
+    if (wantRoot && !wantRoot.includes(methods[0] ?? "")) continue;
     if (d.chainBefore && !methods.slice(0, -1).some((x) => d.chainBefore!.includes(x))) continue;
     emitChain(ctx, rule, call, e, names, inits);
   }
