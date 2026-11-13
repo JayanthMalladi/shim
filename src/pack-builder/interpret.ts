@@ -98,6 +98,7 @@ export function interpretRule(rule: DslRule, project: Project, root: string): Ru
   for (const sf of project.getSourceFiles()) {
     const b = bindingsFor(sf, rule);
     if (b.names.size === 0 && b.errorNames.size === 0) continue; // import-gated: no binding, nothing to flag
+    if (!gatePasses(sf, rule)) continue; // a rule that only fires where the file references an identifier
     const inits = constInits(sf);
     if (d.kind === "chain") checkChain(ctx, sf, b, inits, rule);
     else if (d.kind === "recordArgs") checkRecord(ctx, sf, b, inits, rule);
@@ -105,6 +106,25 @@ export function interpretRule(rule: DslRule, project: Project, root: string): Ru
     else if (d.kind === "propAccess") checkPropAccess(ctx, sf, b, inits, rule);
   }
   return ctx;
+}
+
+/**
+ * A `gates.fileReferences: <Ident>` rule fires only in files that reference that identifier in
+ * code: a named import of it, a namespace/default import of its package (so `pkg.Ident` is
+ * reachable), or an `instanceof Ident`. Comments do not count. (Mirrors the hand-written
+ * "only where the file checks ZodError" gate.)
+ */
+function gatePasses(sf: SourceFile, rule: DslRule): boolean {
+  const ident = rule.gates?.fileReferences;
+  if (!ident) return true;
+  for (const decl of sf.getImportDeclarations()) if (decl.getNamedImports().some((s) => s.getName() === ident)) return true;
+  for (const bin of sf.getDescendantsOfKind(SyntaxKind.BinaryExpression)) {
+    if (bin.getOperatorToken().getText() !== "instanceof") continue;
+    const rhs = bin.getRight();
+    if (Node.isIdentifier(rhs) && rhs.getText() === ident) return true;
+    if (Node.isPropertyAccessExpression(rhs) && rhs.getName() === ident) return true;
+  }
+  return false;
 }
 
 /** A `.method(...)` on a chain rooted at the binding, with optional receiver/chainBefore/root filters. */
@@ -192,9 +212,16 @@ function checkObjectField(ctx: RuleContext, sf: SourceFile, b: Bindings, inits: 
       if (!Node.isPropertyAssignment(prop)) continue;
       const v = prop.getInitializer();
       if (!v || !isChain(v, b.names, inits)) continue;
-      const vm = callMethod(v as CallExpression) ?? chainMethods(v)[0];
-      if (d.fieldValueRoot && !d.fieldValueRoot.includes(vm ?? "")) continue;
       const methods = chainMethods(v);
+      // Match the value's chain either on its terminal call method (R5: `z.unknown()`/`z.any()`)
+      // or on where the chain *starts* (R6: `z.coerce.<x>()` — "coerce" is the root, not the terminal).
+      // A filter the rule names must actually match; an unfiltered rule matches any chain value.
+      const vm = callMethod(v as CallExpression) ?? methods[0];
+      const startsMatch = d.fieldValueChainStarts ? d.fieldValueChainStarts.includes(methods[0] ?? "") : false;
+      const rootsMatch = d.fieldValueRoot ? d.fieldValueRoot.includes(vm ?? "") : false;
+      if (d.fieldValueChainStarts || d.fieldValueRoot) {
+        if (!startsMatch && !rootsMatch) continue;
+      }
       if (d.guardMethods && methods.some((x) => d.guardMethods!.includes(x))) continue;
       add(ctx, v, rule, rule.emit.severity, rule.emit.fix, rule.emit.message);
       applyRewrite(ctx, rule, v);

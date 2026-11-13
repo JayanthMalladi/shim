@@ -92,7 +92,10 @@ export interface Detect {
   arg0Root?: string[];
   // objectField: a field of z.object({...}) whose value is rooted at one of these.
   fieldOf?: string;
+  /** Terminal call method of the value (R5: `z.unknown()`/`z.any()` — but NOT `z.unknown().optional()`). */
   fieldValueRoot?: string[];
+  /** Root method of the value's chain (R6: `z.coerce.<x>()` — the chain *starts* at "coerce"). */
+  fieldValueChainStarts?: string[];
   /** R6: reject when any of these guard methods are present. */
   guardMethods?: string[];
   // propAccess: `<x>.<prop>` — the receiver shape.
