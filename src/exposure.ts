@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { Finding, PackManifest, ScanResult, Severity } from "./types.js";
+import type { Finding, ScanResult, Severity } from "./types.js";
 import type { Migration } from "./migrations.js";
 import { MIGRATIONS } from "./migrations.js";
 import { findPackageJsons, loadProject, readJson } from "./scan.js";

@@ -21,6 +21,35 @@ const PACK_SOURCES: Record<string, { fixture: string; sources: string[]; migrati
   "express-v5": { fixture: "express4-app", sources: ["src/rules/express-v5.ts", "src/scan.ts"], migration: "express-v5" },
 };
 
+/**
+ * Check (a') — the rule ids a pack's scanner source CAN emit: every hyphenated string literal on an
+ * emission line (`add(` / `addAt(` / `ruleId:` / `const …ruleId =`) in the pack's own rule file.
+ * Emission lines are where a rule id is produced, so module/dependency names ("body-parser",
+ * "express-rate-limit", "ts-morph") never sit on one and are excluded for free. The shared
+ * src/scan.ts hooks are attributed per pack (SHARED_HOOKS) rather than extracted, because one line
+ * in it emits both the ai and the express node-floor flavors.
+ */
+const HY = /"([a-z][a-z0-9]*(?:-[a-z0-9]+)+)"/g;
+const EMIT_LINE = /\badd(?:At)?\s*\(|\bruleId\s*:|\bconst\s+\w*ruleId\s*=/;
+function emittedRuleIds(file: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of read(file).split("\n")) {
+    if (!EMIT_LINE.test(line)) continue;
+    for (const m of line.matchAll(HY)) out.add(m[1]!);
+  }
+  return out;
+}
+const OWN_RULE_FILE: Record<string, string> = {
+  "ai-sdk-v7": "src/rules/ai-sdk-v7.ts",
+  "zod-v4": "src/rules/zod-v4.ts",
+  "express-v5": "src/rules/express-v5.ts",
+};
+const SHARED_HOOKS: Record<string, string[]> = {
+  "ai-sdk-v7": ["node-22", "ci-node-version"],
+  "zod-v4": [],
+  "express-v5": ["express-node-floor", "ci-node-version"],
+};
+
 describe("pack manifests", () => {
   // (a) Every rule id the scanners actually emit on their fixture has a manifest entry.
   // This is the negative control: delete a manifest entry for a rule that fires, and the
@@ -30,6 +59,19 @@ describe("pack manifests", () => {
       const { result } = scanWith(fx(cfg.fixture), getMigration(cfg.migration));
       const inManifest = new Set(PACKS[id]!.rules.map((r) => r.id));
       const missing = [...new Set(result.findings.map((f) => f.ruleId))].filter((r) => !inManifest.has(r));
+      expect(missing).toEqual([]);
+    });
+  }
+
+  // (a') Every rule id the scanner source CAN emit has a manifest entry — the static half of (a).
+  // (a) only proves it for ids that fire on the fixture; this proves it for ids that can emit but
+  // have no fixture case (express-query today). The manifest's rule-id set therefore exactly matches
+  // the source's emittable set, so a new rule added in code but not declared in the manifest fails.
+  for (const id of Object.keys(PACK_SOURCES)) {
+    it(`${id}: every emittable rule id has a manifest entry`, () => {
+      const emittable = new Set([...emittedRuleIds(OWN_RULE_FILE[id]!), ...SHARED_HOOKS[id]!]);
+      const inManifest = new Set(PACKS[id]!.rules.map((r) => r.id));
+      const missing = [...emittable].filter((r) => !inManifest.has(r));
       expect(missing).toEqual([]);
     });
   }
@@ -46,10 +88,11 @@ describe("pack manifests", () => {
     });
   }
 
-  // (c) Every fixture path a manifest lists exists on disk — no invented paths.
+  // (c) Every fixture path a manifest lists (on either side of the flag/noFlag split) exists on disk
+  // — no invented paths. A path a pack does not exercise is simply absent from both lists.
   for (const id of Object.keys(PACKS)) {
     it(`${id}: every listed fixture path exists`, () => {
-      const bad = PACKS[id]!.rules.flatMap((r) => r.fixtures).filter((f) => !fs.existsSync(path.join(root, f)));
+      const bad = PACKS[id]!.rules.flatMap((r) => [...r.flag, ...r.noFlag]).filter((f) => !fs.existsSync(path.join(root, f)));
       expect(bad).toEqual([]);
     });
   }
