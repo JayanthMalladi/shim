@@ -67,6 +67,30 @@ function evidenceLines(e: Evidence): string[] {
   return lines;
 }
 
+/** Collapse all whitespace runs to a single space and trim — the comparison unit for citations. */
+const normWs = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/**
+ * Deterministic evidence-citation gate (S06b). The draft model writes the `evidence` string itself,
+ * and the judge is asked to trust it — so before the judge runs, reject any candidate whose
+ * `evidence` is not, after whitespace normalization, (a) one of the .d.ts diff lines the draft was
+ * shown, or (b) a substring of the changelog file. This is model-free: a fabricated or paraphrased
+ * citation drops the candidate deterministically, before any Opus cost is spent on it.
+ */
+export function evidenceCited(e: Evidence, c: Candidate): boolean {
+  const cite = normWs(c.evidence ?? "");
+  if (cite === "") return false;
+  const diffLine = evidenceLines(e).some((l) => normWs(l) === cite);
+  const changelog = e.changelog ? normWs(e.changelog) : "";
+  const inChangelog = changelog !== "" && changelog.includes(cite);
+  return diffLine || inChangelog;
+}
+
+/** The admitted candidates that survive the deterministic evidence-citation gate. */
+export function citedCandidates(e: Evidence, cands: Candidate[]): Candidate[] {
+  return cands.filter((c) => evidenceCited(e, c));
+}
+
 function draftPrompt(e: Evidence, changelogFile: string | undefined, outDir: string): string {
   const lines = evidenceLines(e);
   return [

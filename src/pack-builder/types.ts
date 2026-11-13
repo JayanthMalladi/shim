@@ -168,6 +168,8 @@ export interface BuildReport {
   skips: Array<{ evidence: string; reason: string }>;
   /** Rules that survived the deterministic admission harness. */
   admitted: string[];
+  /** Rules the deterministic evidence-citation gate dropped (fabricated/paraphrased citation), before the judge. */
+  evidenceRejected: string[];
   /** Rules the judge admitted / rejected, with its one-line reason. */
   judged: JudgeVerdict[];
   /** The rules in the emitted manifest (admitted AND judged-in). */
