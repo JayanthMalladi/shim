@@ -28,17 +28,23 @@ async function main(): Promise<void> {
   const from = arg("--from", rest), to = arg("--to", rest), out = arg("--out", rest);
   const changelog = arg("--changelog", rest);
   const candidatesJson = arg("--candidates", rest);
+  const fixturesArg = arg("--fixtures", rest);
   if (!from || !to || !out) {
     console.error("build-pack requires --from, --to, --out");
     process.exit(1);
   }
   const candidates = candidatesJson ? JSON.parse(fs.readFileSync(path.resolve(candidatesJson), "utf8")) as Candidate[] : undefined;
+  // --fixtures: comma-separated dirs used as the cross-pack negative control (check 3). In the real
+  // repo these are the OTHER packs' fixture roots (v6-app, express4-app, crlf-ci); a pack for `pkg`
+  // must not fire on any of them.
+  const fixtureDirs = fixturesArg ? fixturesArg.split(",").map((s) => path.resolve(s.trim())).filter(Boolean) : undefined;
   const report = await buildPack({
     package: pkg,
     from,
     to,
     outDir: path.resolve(out),
     changelog: changelog ? path.resolve(changelog) : undefined,
+    fixtureDirs,
     noJudge: rest.includes("--no-judge"),
     candidates,
   });
