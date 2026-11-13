@@ -101,6 +101,10 @@ export function writePack(outDir: string, manifest: PackManifest, rules: DslRule
   }
   fs.writeFileSync(path.join(outDir, "manifest.ts"), manifestTs(manifest), "utf8");
   fs.writeFileSync(path.join(outDir, "rules.ts"), rulesTs(rules, manifest.package), "utf8");
+  // Machine-readable copies the benchmark scorer loads (interpret the DSL rules without importing
+  // the generated .ts; the scorer ships in the blind copy, so it can't reach the real pack's rules).
+  fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
+  fs.writeFileSync(path.join(outDir, "rules.json"), JSON.stringify(rules, null, 2), "utf8");
   fs.writeFileSync(path.join(outDir, "build-report.md"), buildReportMd(report, manifest), "utf8");
   return outDir;
 }
