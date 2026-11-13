@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import ts from "typescript";
 import { run } from "../exec.js";
 import type { Evidence, Surface, SurfaceDiff, SurfaceExport } from "./types.js";
@@ -31,9 +32,44 @@ export function packPackage(pkg: string, version: string, outDir: string): strin
   const tgz = fs.readdirSync(dest).find((f) => f.endsWith(".tgz"));
   if (!tgz) throw new Error(`no tarball from npm pack ${pkg}@${version}`);
   const root = path.join(work, "package");
-  const ex = run("tar", ["-xzf", path.join(dest, tgz), "-C", root, "--strip-components", "1"], work, 2 * 60_000);
-  if (!ex.ok || !fs.existsSync(root)) throw new Error(`tar extract of ${pkg}@${version} failed: ${ex.output.slice(-300)}`);
+  unpackTgz(path.join(dest, tgz), root);
+  if (!fs.existsSync(root)) throw new Error(`tarball for ${pkg}@${version} unpacked to nothing`);
   return root;
+}
+
+/**
+ * Unpack an npm tarball (a `package/`-rooted ustar, gzip-compressed) into `destDir`, stripping the
+ * leading `package/` component — in pure Node, because the system `tar` binary is flaky on Windows
+ * ("Cannot connect to C:"). Only regular files and directories are written; symlinks are dropped
+ * (a library's `.d.ts` surface is plain files).
+ */
+function unpackTgz(tgzPath: string, destDir: string): void {
+  const buf = zlib.gunzipSync(fs.readFileSync(tgzPath));
+  // ustar: 512-byte headers; name in bytes [0..100], octal size in [124..135], typeflag byte 156.
+  // A trailing "/" on the name marks a directory. The next header starts at the current one's
+  // 512-byte block rounded up to 512.
+  let off = 0;
+  while (off + 512 <= buf.length) {
+    const name = buf.subarray(off, off + 100).toString("utf8").replace(/\0.*$/, "");
+    if (name === "") break; // all-zero header: end of archive
+    const sizeStr = buf.subarray(off + 124, off + 136).toString("utf8").replace(/\0.*/, "").trim();
+    const size = parseInt(sizeStr || "0", 8) || 0;
+    const type = buf[off + 156]; // 48 = "0" file, 55 = "7" dir, others (symlink) ignored
+    const dataStart = off + 512;
+    if ((type === 48 || type === 55) && size > 0 || type === 55) {
+      // Strip the first path segment ("package/...") so files land directly under destDir.
+      const rel = name.replace(/\/+$/, "").split("/").slice(1).join("/");
+      if (rel) {
+        const target = path.join(destDir, rel);
+        if (type === 55) fs.mkdirSync(target, { recursive: true });
+        else {
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.writeFileSync(target, buf.subarray(dataStart, dataStart + size));
+        }
+      }
+    }
+    off = dataStart + Math.ceil(size / 512) * 512;
+  }
 }
 
 /** The .d.ts files a package ships: every `*.d.ts` under the package root, node_modules excluded. */
