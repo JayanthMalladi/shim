@@ -103,18 +103,27 @@ export async function scanAndFix(root: string) {
   return { result, applied };
 }
 
+/**
+ * Options a migration's scanner can consume. Today only express-v5 reads `baselineRef` (the git ref
+ * whose committed package.jsons decide "already on v5"); other migrations accept and ignore the bag.
+ */
+export interface ScanOptions {
+  /** git ref (default "HEAD") for the "already on the new major" gate; the bot-PR case passes the pre-bump commit. */
+  baselineRef?: string;
+}
+
 /** Scan a repo with a specific migration's rules; the migration's scan does the whole job. */
-export function scanWith(root: string, m: import("./migrations.js").Migration): { result: ScanResult; project: Project; ctx: RuleContext } {
+export function scanWith(root: string, m: import("./migrations.js").Migration, opts: ScanOptions = {}): { result: ScanResult; project: Project; ctx: RuleContext } {
   const abs = path.resolve(root);
   const project = loadProject(abs);
-  const ctx = m.scan(project, abs);
+  const ctx = m.scan(project, abs, opts);
   ctx.findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
   return { result: { root: abs, filesScanned: project.getSourceFiles().length, findings: ctx.findings }, project, ctx };
 }
 
 /** Apply a migration's deterministic rewrites to a scanned project. */
-export async function scanAndFixWith(root: string, m: import("./migrations.js").Migration) {
-  const { result, project, ctx } = scanWith(root, m);
+export async function scanAndFixWith(root: string, m: import("./migrations.js").Migration, opts: ScanOptions = {}) {
+  const { result, project, ctx } = scanWith(root, m, opts);
   const applied = await m.applyAutoFixes(project, ctx);
   return { result, applied };
 }
