@@ -273,11 +273,17 @@ const PER_PAGE = 100;
 /** Page both searches (with cache) until `limit` unique repos, one PR per repo (newest). */
 function find(gh: GhRunner, pkg: string, from: string, to: string, cacheDir: string, limit: number): SearchItem[] {
   const q = searchQueries(pkg, from, to);
+  // The search cache key carries pkg/from/to, not just source/page: a `--out` dir shared across
+  // packages must never serve one package's search bodies to another (the pr/repo keys are already
+  // repo-scoped). Non-alnum chars (scoped names, dots) become `_` so the key is a safe filename.
+  const safe = (s: string) => s.replace(/[^a-zA-Z0-9.]/g, "_");
+  const keyPrefix = `search-${safe(pkg)}-${safe(from)}-${safe(to)}`;
   const acc: SearchItem[] = [];
   for (const source of ["dependabot", "renovate"] as Source[]) {
+    if (dedupeByRepo(acc).length >= limit) break; // enough unique repos already; don't fetch this source
     let page = 1;
     for (;;) {
-      const raw = cached(cacheDir, `search-${source}-p${page}.json`,
+      const raw = cached(cacheDir, `${keyPrefix}-${source}-p${page}.json`,
         () => gh(["api", `search/issues?q=${encodeURIComponent(q[source])}&per_page=${PER_PAGE}&page=${page}`]));
       const items = parseSearchItems(raw, source);
       acc.push(...items);
