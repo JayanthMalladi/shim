@@ -12,7 +12,7 @@ import path from "node:path";
 import { buildEvidence } from "./evidence.js";
 import { interpretRule } from "./interpret.js";
 import { admitCandidates, genFlagName, genNoFlagName } from "./harness.js";
-import { packBuilderModel, packJudgeModel, runDraft, runJudge, parseDraft, readChangelog } from "./model.js";
+import { packBuilderModel, packJudgeModel, runDraft, runJudge, citedCandidates, parseDraft, readChangelog } from "./model.js";
 import { emitManifest, writePack } from "./output.js";
 import type { BuildReport, Candidate } from "./types.js";
 
@@ -76,13 +76,22 @@ export async function buildPack(opts: BuildPackOptions): Promise<BuildReport> {
   const admittedIds = new Set(admissions.filter((a) => a.admitted).map((a) => a.ruleId));
   const admitted = cands.filter((c) => admittedIds.has(c.rule.id));
 
+  // 3b. Evidence-citation gate — deterministic, before the judge: drop any admitted candidate whose
+  // `evidence` the draft wrote that is neither a .d.ts diff line nor a changelog substring. The judge
+  // is then run only on cited rules, so it never trusts a fabricated citation (and no judge cost is
+  // spent on an uncited one). Runs on both the judge and --no-judge paths: an uncited rule ships
+  // nowhere.
+  const cited = citedCandidates(evidence, admitted);
+  const citedIds = new Set(cited.map((c) => c.rule.id));
+  const evidenceRejected = admitted.filter((c) => !citedIds.has(c.rule.id)).map((c) => c.rule.id);
+
   // 4. Judge — strict per-rule ADMIT/REJECT against the cited evidence. Skippable (--no-judge) so the
-  // deterministic spine runs without a model; with noJudge the harness-admitted set ships as-is.
-  const judged = opts.noJudge ? [] : await runJudge(admitted, judgeModel, outDir);
+  // deterministic spine runs without a model; with noJudge the cited set ships as-is.
+  const judged = opts.noJudge ? [] : await runJudge(cited, judgeModel, outDir);
   const judgedIn = new Set(judged.filter((j) => j.admit).map((j) => j.ruleId));
 
   // 5. Output — a candidate pack, not registered; Jayanth copies it in after review.
-  const shipped = opts.noJudge ? admitted : admitted.filter((c) => judgedIn.has(c.rule.id));
+  const shipped = opts.noJudge ? cited : cited.filter((c) => judgedIn.has(c.rule.id));
   const manifest = emitManifest({
     id: `${opts.package.replace("@", "").replace("/", "-")}-pack`,
     package: opts.package,
@@ -97,6 +106,7 @@ export async function buildPack(opts: BuildPackOptions): Promise<BuildReport> {
     candidates: cands.length,
     skips,
     admitted: [...admittedIds],
+    evidenceRejected,
     judged,
     shipped: manifest.rules.map((r) => r.id),
     cost: draftCost,

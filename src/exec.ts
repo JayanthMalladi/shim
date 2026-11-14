@@ -105,12 +105,18 @@ export async function runDsh(prompt: string, cwd: string, timeoutMs: number): Pr
 
 /**
  * Backend-agnostic agent dispatch: the `dsh` backend takes the prompt directly; `claude-cli`
- * dispatches through `runClaude` with the full claude argument list. Callers pass both so a
- * single call site works regardless of `SHIM_AGENT_BACKEND`.
+ * dispatches through `runClaude` with the full claude argument list. For `claude-cli`, the prompt
+ * is piped on stdin rather than passed as a `-p` argv element: Windows caps CreateProcess at
+ * ~32 KB, so a large prompt in argv fails with ENAMETOOLONG.
  */
 export async function runAgentBackend(args: string[], dir: string, timeoutMs: number, prompt: string): Promise<ExecResult> {
   if (agentBackend() === "dsh") return runDsh(prompt, dir, timeoutMs);
-  return runClaude(args, dir, timeoutMs);
+  // Drop the positional prompt (the element right after `-p`); claude -p with no positional prompt
+  // reads from stdin, which we pipe via the new `stdin` parameter.
+  const argv = [...args];
+  const i = argv.indexOf("-p");
+  if (i >= 0 && i + 1 < argv.length) argv.splice(i + 1, 1);
+  return runClaude(argv, dir, timeoutMs, prompt);
 }
 
 /**
@@ -198,11 +204,23 @@ export function runCapture(cmd: string, args: string[], cwd: string, input?: str
   return { ok: r.status === 0, stdout: r.stdout ?? "" };
 }
 
-/** Async `run`, for work that runs side by side (parallel fixer candidates). */
-export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv()): Promise<ExecResult> {
+/**
+ * Async `run`, for work that runs side by side (parallel fixer candidates). When `stdin` is given
+ * it is piped to the child and closed — that is how an oversized agent prompt keeps off the Windows
+ * argv cap (CreateProcess limits the command line to ~32767 chars).
+ */
+export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 10 * 60_000, env: NodeJS.ProcessEnv = targetEnv(), stdin?: string): Promise<ExecResult> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const child = crossSpawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = crossSpawn(cmd, args, {
+      cwd,
+      env,
+      stdio: stdin === undefined ? undefined : ["pipe", "pipe", "pipe"],
+    });
+    if (stdin !== undefined) {
+      child.stdin?.write(stdin);
+      child.stdin?.end();
+    }
     let output = "";
     const keep = (d: Buffer) => { output = (output + d.toString()).slice(-2_000_000); };
     child.stdout?.on("data", keep);
@@ -231,13 +249,14 @@ const LIMIT = /hit your (session|usage|weekly|5-hour|daily) limit|usage limit re
 
 /**
  * `claude -p` that waits out a plan usage limit instead of failing: on "You've hit your session limit ·
- * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again.
+ * resets 10pm (UTC)" it sleeps until the reset, then runs the same command again. An optional
+ * `stdin` string is piped to the CLI (how an oversized prompt keeps off the Windows argv cap).
  */
-export async function runClaude(args: string[], cwd: string, timeoutMs: number): Promise<ExecResult> {
+export async function runClaude(args: string[], cwd: string, timeoutMs: number, stdin?: string): Promise<ExecResult> {
   // The agent runs with the full environment so claude's auth (ANTHROPIC_API_KEY, a login profile,
   // or ANTHROPIC_AUTH_TOKEN) works; every other command defaulting to runAsync is target-safe.
   for (let tries = 0; ; tries++) {
-    const res = await runAsync("claude", args, cwd, timeoutMs, agentEnv());
+    const res = await runAsync("claude", args, cwd, timeoutMs, agentEnv(), stdin);
     const text = res.text ?? res.output;
     if (!LIMIT.test(text) || tries >= 6) return res;
     const wait = Math.min(msUntilReset(text) ?? 15 * 60_000, 6 * 3600_000);

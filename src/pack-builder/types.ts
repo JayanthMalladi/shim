@@ -78,8 +78,7 @@ export interface DslRule {
 export interface Detect {
   kind: "chain" | "recordArgs" | "objectField" | "propAccess";
   // chain: `.method(...)` on a chain rooted at a detected binding. A rule may name several
-  // trigger methods (e.g. R7 fires on both `intersection` and `and`) — so method/root are
-  // string-or-array; the interpreter treats either as "the method is one of these".
+  // trigger methods — so method/root are string-or-array; the interpreter treats either as "the method is one of these".
   method?: string | string[];
   /** First method from the binding, e.g. "string", "object", "coerce". Also string-or-array. */
   root?: string | string[];
@@ -90,7 +89,7 @@ export interface Detect {
   // recordArgs: z.record(A, B) — arg0's root is one of these.
   argCount?: number;
   arg0Root?: string[];
-  // objectField: a field of z.object({...}) whose value is rooted at one of these.
+  // objectField: a schema field whose value is rooted at one of these (e.g. unknown/any/coerce).
   fieldOf?: string;
   /** Terminal call method of the value (R5: `z.unknown()`/`z.any()` — but NOT `z.unknown().optional()`). */
   fieldValueRoot?: string[];
@@ -168,6 +167,8 @@ export interface BuildReport {
   skips: Array<{ evidence: string; reason: string }>;
   /** Rules that survived the deterministic admission harness. */
   admitted: string[];
+  /** Rules the deterministic evidence-citation gate dropped (fabricated/paraphrased citation), before the judge. */
+  evidenceRejected: string[];
   /** Rules the judge admitted / rejected, with its one-line reason. */
   judged: JudgeVerdict[];
   /** The rules in the emitted manifest (admitted AND judged-in). */
