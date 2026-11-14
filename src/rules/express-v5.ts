@@ -453,11 +453,16 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   let firstQuery: TmNode | undefined;
   for (const pae of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
     if (pae.getName() !== "query") continue;
-    // Flag only when something chains off req.query: the `.query` node's parent is another
-    // property/element access (req.query.filter, req.query['a']). A bare `req.query` (no chaining)
-    // produces identical flat keys in both simple and extended mode, so it is not a behavior delta.
+    // Flag only a nested/array dereference off req.query — `req.query.a.b`, `req.query.ids[0]`,
+    // `req.query["a"]["b"]` — the only shape where Express 5's 'simple' parser diverges from v4's
+    // 'extended'. The `.query` node's parent is the single-level access (e.g. `req.query.a`); the
+    // code then reads INTO that value when the grandparent is a further property/element access. A
+    // flat read (`req.query.code`) has the grandparent be a plain expression (a call arg, a literal,
+    // a var decl), so it is not flagged: both parsers return the same flat scalar key.
     const parent = pae.getParent();
-    if (Node.isPropertyAccessExpression(parent) || Node.isElementAccessExpression(parent)) {
+    if (!Node.isPropertyAccessExpression(parent) && !Node.isElementAccessExpression(parent)) continue;
+    const grand = parent.getParent();
+    if (Node.isPropertyAccessExpression(grand) || Node.isElementAccessExpression(grand)) {
       firstQuery ??= pae;
     }
   }
