@@ -230,6 +230,20 @@ export default app;
     expect(qp, "a flat value with a method call must not be flagged").toHaveLength(0);
   });
 
+  it("a flat key used as an index into another object (OPTS[req.query.sort]) is NOT flagged", async () => {
+    // The query access is the element, not the base: OPTS[req.query.sort] reads a flat key and
+    // indexes a different object — both parsers return the same string.
+    const file = `import express from "express";
+const OPTS = { a: 1, b: 2 };
+const app = express();
+app.get("/a", (req, res) => res.json(OPTS[req.query.sort]));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/index.js": file });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp, "a flat key as an index into another object must not be flagged").toHaveLength(0);
+  });
+
   it("a const app = express() file still gets the .set insert", async () => {
     const appFile = `import express from "express";
 const app = express();

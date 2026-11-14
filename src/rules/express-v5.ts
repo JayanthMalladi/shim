@@ -461,15 +461,18 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
     const parent = pae.getParent();
     if (!Node.isPropertyAccessExpression(parent) && !Node.isElementAccessExpression(parent)) continue;
     const grand = parent.getParent();
-    if (Node.isPropertyAccessExpression(grand)) {
+    // The query access must be the BASE being dereferenced (grand.getExpression() === parent):
+    //   `SORT_OPTIONS[req.query.sort]` uses a flat key as an index into a *different* object —
+    //   grand.getExpression() is `SORT_OPTIONS`, so it is not flagged.
+    if (Node.isPropertyAccessExpression(grand) && grand.getExpression() === parent) {
       // A property read INTO the value (`req.query.a.b`) — but if that property access is the callee
       // of a method call (`req.query.a.trim()`), the value is a flat scalar and the method behaves
       // identically under both parsers, so it is not a divergence: skip it.
       const gp = grand.getParent();
       if (Node.isCallExpression(gp) && gp.getExpression() === grand) continue;
       firstQuery ??= pae;
-    } else if (Node.isElementAccessExpression(grand)) {
-      // An array/nested expectation (`req.query.a[0]` / `req.query.a["b"]`).
+    } else if (Node.isElementAccessExpression(grand) && grand.getExpression() === parent) {
+      // An array/nested expectation: `req.query.a[0]` / `req.query.a["b"]`.
       firstQuery ??= pae;
     }
   }
