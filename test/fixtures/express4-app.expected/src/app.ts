@@ -28,7 +28,7 @@ app.get(["/a", "/b"], (req, res) => res.json({ ok: true }));             // OK E
 app.get("/f", (req, res) => res.sendfile("f.txt"));                      // FLAG E11 (sendfile -> agent)
 
 // --- E2: req.query read, no app.set('query parser', ...) in this file ---
-app.get("/search", (req, res) => res.json({ q: req.query.q }));         // FLAG E2 (insert app.set('query parser','extended') after app creation)
+app.get("/search", (req, res) => res.json({ q: req.query.filter.name }));         // FLAG E2 (insert app.set('query parser','extended') after app creation)
 
 // --- E5: res.status with a value Express 4 accepted but Express 5 rejects ---
 app.get("/s1", (req, res) => res.status("200").send("x"));              // FLAG E5 (string status: throws at request time)
