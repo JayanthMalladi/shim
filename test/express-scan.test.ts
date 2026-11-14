@@ -217,6 +217,19 @@ export default app;
     expect(qp[0]!.fix).toBe("auto");
   });
 
+  it("a method call on a flat value (req.query.x.trim()) is NOT flagged", async () => {
+    // `.trim()` is a method call on a flat scalar value — it behaves identically under both
+    // parsers, so the grandparent check must exclude the method-call form.
+    const file = `import express from "express";
+const app = express();
+app.get("/a", (req, res) => res.json(req.query.search.trim()));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/method.js": file });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp, "a flat value with a method call must not be flagged").toHaveLength(0);
+  });
+
   it("a const app = express() file still gets the .set insert", async () => {
     const appFile = `import express from "express";
 const app = express();

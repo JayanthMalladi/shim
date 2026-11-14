@@ -455,14 +455,21 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
     if (pae.getName() !== "query") continue;
     // Flag only a nested/array dereference off req.query — `req.query.a.b`, `req.query.ids[0]`,
     // `req.query["a"]["b"]` — the only shape where Express 5's 'simple' parser diverges from v4's
-    // 'extended'. The `.query` node's parent is the single-level access (e.g. `req.query.a`); the
-    // code then reads INTO that value when the grandparent is a further property/element access. A
-    // flat read (`req.query.code`) has the grandparent be a plain expression (a call arg, a literal,
+    // 'extended'. The `.query` node's parent is the single-level access (e.g. `req.query.a`). A flat
+    // read (`req.query.code`) has the parent be a plain expression context (a call arg, a literal,
     // a var decl), so it is not flagged: both parsers return the same flat scalar key.
     const parent = pae.getParent();
     if (!Node.isPropertyAccessExpression(parent) && !Node.isElementAccessExpression(parent)) continue;
     const grand = parent.getParent();
-    if (Node.isPropertyAccessExpression(grand) || Node.isElementAccessExpression(grand)) {
+    if (Node.isPropertyAccessExpression(grand)) {
+      // A property read INTO the value (`req.query.a.b`) — but if that property access is the callee
+      // of a method call (`req.query.a.trim()`), the value is a flat scalar and the method behaves
+      // identically under both parsers, so it is not a divergence: skip it.
+      const gp = grand.getParent();
+      if (Node.isCallExpression(gp) && gp.getExpression() === grand) continue;
+      firstQuery ??= pae;
+    } else if (Node.isElementAccessExpression(grand)) {
+      // An array/nested expectation (`req.query.a[0]` / `req.query.a["b"]`).
       firstQuery ??= pae;
     }
   }
