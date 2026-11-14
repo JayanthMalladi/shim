@@ -13,6 +13,13 @@ import { run, runCapture, targetEnv } from "./exec.js";
 import { getMigration, type Migration } from "./migrations.js";
 import { scanWith } from "./scan.js";
 
+/** Simple additive hash for cache-key suffixing (no crypto import needed). */
+function qHash(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
 export type Source = "dependabot" | "renovate";
 export type Bucket = "green" | "red" | "merged" | "no-ci" | "skip";
 
@@ -30,11 +37,13 @@ export function makeGh(): GhRunner {
 
 // ---- 1. Find ----
 
-/** The two title searches, in the exact formats H3 reported. Grouped PRs ("Bump the ... group") match neither. */
+/** The two title searches, in the exact formats H3 reported, scoped to the bot authors. Grouped PRs
+ *  ("Bump the ... group") match neither title pattern, and the author filter also excludes human or
+ *  grouped PRs that happen to contain the title text in the body. */
 export function searchQueries(pkg: string, from: string, to: string): Record<Source, string> {
   return {
-    dependabot: `type:pr "bump ${pkg} from ${from}." "to ${to}."`,
-    renovate: `type:pr "update dependency ${pkg} to v${to}"`,
+    dependabot: `type:pr "bump ${pkg} from ${from}." "to ${to}." author:app/dependabot`,
+    renovate: `type:pr "update dependency ${pkg} to v${to}" author:app/renovate`,
   };
 }
 
@@ -114,7 +123,14 @@ export function classify(ci: ClassifyInput, now = Date.now()): Bucket {
   if (Number.isFinite(pushed) && now - pushed > STALE_MS) return "skip"; // stale
   if (ci.checks.some((c) => c.status !== "COMPLETED")) return "skip"; // pending checks
   if (ci.checks.some((c) => c.conclusion === "FAILURE")) return "red";
-  if (ci.checks.some((c) => c.conclusion === "CANCELLED" || c.conclusion === "STALE")) return "skip"; // inconclusive
+  if (ci.checks.some((c) => {
+    const f = c.conclusion;
+    return f === "TIMED_OUT" || f === "STARTUP_FAILURE";
+  })) return "red";
+  if (ci.checks.some((c) => {
+    const f = c.conclusion;
+    return f === "ACTION_REQUIRED" || f === "CANCELLED" || f === "STALE";
+  })) return "skip"; // inconclusive
   if (ci.checks.length === 0) return "no-ci";
   return "green";
 }
@@ -160,11 +176,22 @@ export function enrichOne(item: SearchItem, gh: GhRunner, cacheDir: string): Enr
     isArchived: r.isArchived ?? false,
     pushedAt: r.pushedAt ?? "",
     stars: r.stargazerCount ?? 0,
-    checks: (Array.isArray(p.statusCheckRollup) ? p.statusCheckRollup : []).map((c: any) => ({
-      conclusion: c.conclusion ?? null,
-      status: c.status ?? "",
-      name: c.name,
-    })),
+    // statusCheckRollup mixes CheckRun entries (status + conclusion) and StatusContext entries
+    // (state + context, no conclusion). Normalize both to { status, conclusion, name } so classify
+    // treats commit statuses correctly: FAILURE/ERROR → COMPLETED/FAILURE (red), SUCCESS → COMPLETED/SUCCESS
+    // (green), PENDING/EXPECTED → IN_PROGRESS/null (pending → skip).
+    checks: (Array.isArray(p.statusCheckRollup) ? p.statusCheckRollup : []).map((c: any) => {
+      if (c.state !== undefined && !c.status) {
+        // StatusContext entry (commit status: Vercel, CircleCI, Netlify…)
+        let status: string, conclusion: string | null;
+        if (c.state === "SUCCESS") { status = "COMPLETED"; conclusion = "SUCCESS"; }
+        else if (c.state === "FAILURE" || c.state === "ERROR") { status = "COMPLETED"; conclusion = "FAILURE"; }
+        else { status = "IN_PROGRESS"; conclusion = null; }
+        return { status, conclusion, name: c.context };
+      }
+      // CheckRun entry: pass through as-is (classify handles all conclusion values).
+      return { conclusion: c.conclusion ?? null, status: c.status ?? "", name: c.name };
+    }),
   };
 }
 
@@ -273,11 +300,11 @@ const PER_PAGE = 100;
 /** Page both searches (with cache) until `limit` unique repos, one PR per repo (newest). */
 function find(gh: GhRunner, pkg: string, from: string, to: string, cacheDir: string, limit: number): SearchItem[] {
   const q = searchQueries(pkg, from, to);
-  // The search cache key carries pkg/from/to, not just source/page: a `--out` dir shared across
-  // packages must never serve one package's search bodies to another (the pr/repo keys are already
-  // repo-scoped). Non-alnum chars (scoped names, dots) become `_` so the key is a safe filename.
+  // The search cache key carries pkg/from/to AND the query text: the queries changed (author filter
+  // added in TP02), so a key without the query would silently serve stale cached search bodies for
+  // the new query. Non-alnum chars (scoped names, dots) become `_` so the key is a safe filename.
   const safe = (s: string) => s.replace(/[^a-zA-Z0-9.]/g, "_");
-  const keyPrefix = `search-${safe(pkg)}-${safe(from)}-${safe(to)}`;
+  const keyPrefix = `search-${safe(pkg)}-${safe(from)}-${safe(to)}-${qHash(q.dependabot + q.renovate)}`;
   const acc: SearchItem[] = [];
   for (const source of ["dependabot", "renovate"] as Source[]) {
     if (dedupeByRepo(acc).length >= limit) break; // enough unique repos already; don't fetch this source

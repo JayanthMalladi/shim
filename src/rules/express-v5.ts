@@ -453,8 +453,13 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   let firstQuery: TmNode | undefined;
   for (const pae of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
     if (pae.getName() !== "query") continue;
-    // The receiver is the bare identifier `req` (req.query); not a chain.
-    if (pae.getExpression().getText() === "req") firstQuery ??= pae;
+    // Flag only when something chains off req.query: the `.query` node's parent is another
+    // property/element access (req.query.filter, req.query['a']). A bare `req.query` (no chaining)
+    // produces identical flat keys in both simple and extended mode, so it is not a behavior delta.
+    const parent = pae.getParent();
+    if (Node.isPropertyAccessExpression(parent) || Node.isElementAccessExpression(parent)) {
+      firstQuery ??= pae;
+    }
   }
   if (!firstQuery) return;
   const app = appCreation(sf, expressAppBindings(sf));

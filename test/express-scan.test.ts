@@ -192,7 +192,7 @@ module.exports = router;
   it("a const app = express() file still gets the .set insert", async () => {
     const appFile = `import express from "express";
 const app = express();
-app.get("/search", (req, res) => res.json(req.query.q));
+app.get("/search", (req, res) => res.json(req.query.filter.name));
 export default app;
 `;
     const { dir, findings } = scanDir({ "src/app.js": appFile });

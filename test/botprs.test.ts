@@ -60,7 +60,25 @@ describe("classify (pure)", () => {
     expect(classify({ ...base, checks: c }, NOW)).toBe("red");
   });
   it("merged beats an archive (a merged PR is reported even if the repo later archived)", () => {
-    expect(classify({ ...base, state: "closed", mergedAt: RECENT, isArchived: true }, NOW)).toBe("merged");
+    expect(classify({ ...base, state: "closed", mergedAt: RECENT, isArchived: true, checks: [] }, NOW)).toBe("merged");
+  });
+});
+
+describe("classify: StatusContext and new CheckRun conclusions", () => {
+  const checks = (n: number) => Array.from({ length: n }, () => ({ conclusion: "SUCCESS", status: "COMPLETED" }));
+  const base = { state: "open" as const, mergedAt: null, isArchived: false, pushedAt: RECENT, checks: checks(2) };
+
+  it("red: TIMED_OUT conclusion counts as failure", () => {
+    const c = checks(2); c[1]!.conclusion = "TIMED_OUT";
+    expect(classify({ ...base, checks: c }, NOW)).toBe("red");
+  });
+  it("red: STARTUP_FAILURE conclusion counts as failure", () => {
+    const c = checks(2); c[1]!.conclusion = "STARTUP_FAILURE";
+    expect(classify({ ...base, checks: c }, NOW)).toBe("red");
+  });
+  it("skip: ACTION_REQUIRED is inconclusive (not a pass, not a failure)", () => {
+    const c = checks(2); c[0]!.conclusion = "ACTION_REQUIRED";
+    expect(classify({ ...base, checks: c }, NOW)).toBe("skip");
   });
 });
 
@@ -86,45 +104,89 @@ describe("search parsing (canned, no network)", () => {
     expect(one.map((i) => `${i.repo}#${i.number}`).sort()).toEqual(["acme/alpha#9", "beta/bravo#2"]);
     expect(dedupeByRepo(items)[0]!.repo).toBe("acme/alpha"); // newest-first: #9 (2026-11-03)
   });
-  it("search queries match H3's exact bot phrasings", () => {
+  it("search queries include the author filters (Dependabot + Renovate)", () => {
     expect(searchQueries("ai", "6", "7")).toEqual({
-      dependabot: 'type:pr "bump ai from 6." "to 7."',
-      renovate: 'type:pr "update dependency ai to v7"',
+      dependabot: 'type:pr "bump ai from 6." "to 7." author:app/dependabot',
+      renovate: 'type:pr "update dependency ai to v7" author:app/renovate',
     });
   });
 });
 
-describe("enrichOne (inject the gh runner: no network)", () => {
-  /** A gh runner that answers search/pr/repo from canned JSON and records every fetch it actually makes. */
-  function fakeGh(fetchLog: string[], pr: Record<string, any>, repo: Record<string, any>): GhRunner {
+describe("enrichOne: StatusContext normalization", () => {
+  function fakeGh(fetchLog: string[], pr: Record<string, any>, repo: Record<string, any>, opts?: { statusCheckRollup?: any[] }): GhRunner {
+    const rollup = opts?.statusCheckRollup ?? [{ conclusion: "SUCCESS", status: "COMPLETED", name: "CI" }];
     return (args) => {
       const j = (o: any) => JSON.stringify(o);
       if (args[0] === "api") { fetchLog.push("search"); return j({ items: [] }); }
-      if (args[0] === "pr") { fetchLog.push(`pr:${args[2]}`); return j(pr); }
+      if (args[0] === "pr") {
+        fetchLog.push(`pr:${args[2]}`);
+        return j({ ...pr, statusCheckRollup: rollup });
+      }
       if (args[0] === "repo") { fetchLog.push(`repo:${args[1]}`); return j(repo); }
       throw new Error(`unexpected gh ${args.join(" ")}`);
     };
   }
+
   const item: SearchItem = { repo: "acme/alpha", number: 5, url: "https://github.com/acme/alpha/pull/5", title: "Bump ai from 6.0.0 to 7.0.0", state: "open", createdAt: RECENT, source: "dependabot" };
-  const prJson = { state: "OPEN", mergedAt: null, baseRefOid: "base123", headRefOid: "head456", mergeCommit: null, statusCheckRollup: [{ conclusion: "SUCCESS", status: "COMPLETED", name: "CI" }] };
+  const prJson = { state: "OPEN", mergedAt: null, baseRefOid: "base123", headRefOid: "head456", mergeCommit: null };
   const repoJson = { isArchived: false, pushedAt: RECENT, stargazerCount: 42 };
 
-  it("joins the PR fields with the repo fields", () => {
+  it("passes CheckRun entries through unchanged", () => {
     const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
     const log: string[] = [];
-    const e = enrichOne(item, fakeGh(log, prJson, repoJson), cache);
-    expect({ repo: e.repo, n: e.number, base: e.baseRefOid, head: e.headRefOid, stars: e.stars, archived: e.isArchived, checks: e.checks.length }).toEqual(
-      { repo: "acme/alpha", n: 5, base: "base123", head: "head456", stars: 42, archived: false, checks: 1 });
+    const rollup = [{ conclusion: "SUCCESS", status: "COMPLETED", name: "CI" }];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([{ conclusion: "SUCCESS", status: "COMPLETED", name: "CI" }]);
   });
-  it("caches each response: a second call makes no further gh fetches", () => {
+
+  it("normalizes a StatusContext SUCCESS -> {status:COMPLETED, conclusion:SUCCESS}", () => {
     const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
     const log: string[] = [];
-    const gh = fakeGh(log, prJson, repoJson);
-    enrichOne(item, gh, cache);
-    const after1 = log.length;
-    expect(after1).toBeGreaterThan(0);
-    enrichOne(item, gh, cache);
-    expect(log.length, "the second enrich must be served from the cache").toBe(after1);
+    const rollup = [{ state: "SUCCESS", context: "vercel" }];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([{ conclusion: "SUCCESS", status: "COMPLETED", name: "vercel" }]);
+  });
+
+  it("normalizes a StatusContext FAILURE -> {status:COMPLETED, conclusion:FAILURE}", () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
+    const log: string[] = [];
+    const rollup = [{ state: "FAILURE", context: "circleci" }];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([{ conclusion: "FAILURE", status: "COMPLETED", name: "circleci" }]);
+  });
+
+  it("normalizes a StatusContext ERROR -> {status:COMPLETED, conclusion:FAILURE}", () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
+    const log: string[] = [];
+    const rollup = [{ state: "ERROR", context: "netlify" }];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([{ conclusion: "FAILURE", status: "COMPLETED", name: "netlify" }]);
+  });
+
+  it("normalizes a StatusContext PENDING -> {status:IN_PROGRESS, conclusion:null}", () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
+    const log: string[] = [];
+    const rollup = [{ state: "PENDING", context: "ci" }];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([{ conclusion: null, status: "IN_PROGRESS", name: "ci" }]);
+  });
+
+  it("mixed rollup: CheckRun SUCCESS + StatusContext FAILURE -> one FAILURE check (classify -> red)", () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), "shim-bp-cache-"));
+    const log: string[] = [];
+    const rollup = [
+      { conclusion: "SUCCESS", status: "COMPLETED", name: "CI" },
+      { state: "FAILURE", context: "vercel" },
+    ];
+    const e = enrichOne(item, fakeGh(log, prJson, repoJson, { statusCheckRollup: rollup }), cache);
+    expect(e.checks).toEqual([
+      { conclusion: "SUCCESS", status: "COMPLETED", name: "CI" },
+      { conclusion: "FAILURE", status: "COMPLETED", name: "vercel" },
+    ]);
+    expect(classify({
+      state: "open", mergedAt: null, isArchived: false, pushedAt: RECENT,
+      checks: e.checks,
+    }, NOW)).toBe("red");
   });
 });
 
