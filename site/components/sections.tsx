@@ -287,6 +287,13 @@ export function ProofStrip() {
         </a>
       </div>
       <div className="mx-auto mt-8 flex max-w-[1184px] flex-col items-start gap-3 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
+        <span className="tag bg-wedge">Fixed by a maintainer</span>
+        <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
+          A maintainer of a live open-source app fixed an AI SDK 7 break Shim reported: a system message that v7 rejects
+          at runtime, missed by both tsc and the codemod.
+        </p>
+      </div>
+      <div className="mx-auto mt-8 flex max-w-[1184px] flex-col items-start gap-3 rounded-[32px] border-[3px] border-ink bg-paper p-6 shadow-[8px_8px_0_#111] sm:p-8">
         <span className="tag bg-pink">Re-run on real upgrades</span>
         <p className="m-0 text-2xl leading-8 font-bold tracking-[-0.02em] text-pretty">
           We re-ran Shim on 24 real AI SDK 7 and Zod 4 upgrades. In 2 repos where a bot bumped the version and changed
@@ -306,6 +313,7 @@ const changelog: { label: string; bg: string; items: React.ReactNode[] }[] = [
       "Zod 3 to 4, the second migration, on the same pipeline",
       `A separate judge that has blocked ${proof.headline} green but wrong diffs`,
       "A guard for the official codemod when it renames your own exports",
+      "Reported a silent AI SDK 7 break in a live open-source app; the maintainer fixed it",
       <span key="vercel-fix">
         Found a bug in the official AI SDK 7 codemod; Vercel merged the fix and credited our report (
         <a href={vercelFix} className="underline underline-offset-4">
