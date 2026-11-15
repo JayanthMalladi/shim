@@ -11,6 +11,7 @@ import { expressCodemodGuard, expressCodemodUnexpressRestore } from "./express-c
 import { adopt, fixInParallel, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
+import { PRISMA_GENERATE_GATE } from "./prisma.js";
 import { prBody } from "./pr-body.js";
 import { scan, scanAndFix, scanWith, scanAndFixWith } from "./scan.js";
 import type { Finding, ScanResult } from "./types.js";
@@ -222,13 +223,13 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
     const cands = await fixInParallel(dir, arch, {
       baseline, after, findings: remaining,
       failingOutput: (a) => Object.entries(a)
-        .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
+        .filter(([g, r]) => g !== "install" && g !== PRISMA_GENERATE_GATE && !r.ok && baseline[g]?.ok)
         .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)
         .join("\n\n"),
       // Same packages, inside the candidate's copy: absolute paths would gate the original repo.
       gates: (d, install) => runGates(d, pm, false, pkgDirsIn(d), { install }),
       breaks,
-      checks: Object.keys(baseline).filter((g) => g !== "install").map((g) => {
+      checks: Object.keys(baseline).filter((g) => g !== "install" && g !== PRISMA_GENERATE_GATE).map((g) => {
         const [kind, rel = "."] = g.split(" ");
         if (kind === "build") return `${pm} run build`;
         if (kind === "typecheck") return `cd ${rel} && ${hasTypecheckScript(path.join(dir, rel)) ? `${pm} run typecheck` : "npx --no-install tsc --noEmit -p tsconfig.json"}`;

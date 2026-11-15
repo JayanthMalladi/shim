@@ -17,6 +17,7 @@ Shim turns API breaking changes into tested PRs. First migration: AI SDK 6 -> 7.
 - Every new rule gets a fixture case in `test/fixtures/v6-app` and an assertion in `test/scan.test.ts`, including a case that must not be flagged.
 - Never open a PR unless every gate that passed at baseline still passes (`src/gates.ts`). Otherwise write an issue draft (see "Issue drafts" below). Never post it yourself.
 - Installs of target repos always use `--ignore-scripts`.
+- Prisma: after install Shim runs the repo's own `prisma generate` only when every generator is prisma-client(-js) and there is no prisma.config.*; otherwise it skips and says why.
 - Keep replies and PR text short and specific; maintainers skim.
 - Agents never open, close, edit or comment on PRs or issues on target repos, with any tool (`gh`, the API, MCP) or account. `shim pr open` pushes to Jayanth's fork, and Jayanth clicks Create. Never open a second PR on a repo already in `data/prs.csv`. Agent runs must not hold a GitHub token that can write outside `JayanthMalladi/shim` and Jayanth's forks.
 - Never use a Fable or Mythos model in the pipeline or the evolution. The allowlist is in `src/evolve-guard.ts`.

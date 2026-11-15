@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { run, targetEnv, type ExecResult } from "./exec.js";
+import { PRISMA_GENERATE_GATE, runPrismaGenerate, type PrismaGenRunner } from "./prisma.js";
 
 export type PackageManager = "pnpm" | "yarn" | "bun" | "npm";
-/** "install", "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
+/** "install", "prisma generate" (informational, not a gate), "build", or "typecheck <pkg>" / "test <pkg>" for each package that uses ai. */
 export type GateName = string;
 export type GateResults = Record<GateName, ExecResult>;
 
@@ -82,7 +83,7 @@ export function install(dir: string, pm: PackageManager, frozen: boolean): ExecR
  * often import each other's built output), then type check and test every package
  * that depends on ai, plus the root.
  */
-export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean } = {}): GateResults {
+export function runGates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean; prismaRunner?: PrismaGenRunner } = {}): GateResults {
   const before = new Set(untracked(dir));
   try {
     return gates(dir, pm, frozen, pkgDirs, opts);
@@ -104,11 +105,16 @@ function untracked(dir: string): string[] {
   }
 }
 
-function gates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean }): GateResults {
+function gates(dir: string, pm: PackageManager, frozen: boolean, pkgDirs: string[], opts: { install?: boolean; prismaRunner?: PrismaGenRunner }): GateResults {
   const results: GateResults = {
     install: opts.install === false ? { ok: true, code: 0, output: "skipped: dependencies unchanged", ms: 0 } : install(dir, pm, frozen),
   };
   if (!results.install!.ok) return results;
+  // @prisma/client's postinstall is skipped (--ignore-scripts), so its generated client is missing
+  // until we run prisma generate ourselves. Informational only: excluded from regressions() and the
+  // PR checks table (see PRISMA_GENERATE_GATE), and it runs identically at baseline and after.
+  const prisma = runPrismaGenerate(dir, opts.prismaRunner);
+  if (prisma) results[PRISMA_GENERATE_GATE] = prisma;
   if (typeof readPkg(dir)?.scripts?.build === "string") results.build = run(pm, ["run", "build"], dir);
 
   for (const pkgDir of gateOrder(dir, pkgDirs).slice(0, MAX_GATED_PACKAGES)) {
@@ -234,6 +240,7 @@ export function hasValidation(baseline: GateResults): boolean {
  */
 export function regressions(baseline: GateResults, after: GateResults): GateName[] {
   return Object.keys(baseline).filter((g) => {
+    if (g === PRISMA_GENERATE_GATE) return false; // informational: not a gate, excluded like install-skipped
     const gateRegressed = baseline[g]?.ok && !after[g]?.ok;
     const b = baseline[g]?.perTest;
     const a = after[g]?.perTest;

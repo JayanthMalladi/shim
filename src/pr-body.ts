@@ -1,5 +1,6 @@
 import type { MigrationReport } from "./pipeline.js";
 import { getMigration, type Migration } from "./migrations.js";
+import { PRISMA_GENERATE_GATE } from "./prisma.js";
 import type { Finding } from "./types.js";
 
 const SEVERITY_LABEL = {
@@ -86,7 +87,9 @@ export function prBody(r: MigrationReport, patch?: string, m: Migration = getMig
       : []),
   ];
 
+  // prisma generate is informational, not a gate: keep it out of the checks table.
   const gates = Object.keys(r.baseline)
+    .filter((g) => g !== PRISMA_GENERATE_GATE)
     .map((g) => `| ${g} | ${r.baseline[g] ? "pass" : "fail"} | ${r.after[g] ? "pass" : "fail"} |`)
     .join("\n");
 
