@@ -215,7 +215,7 @@ export function runAsync(cmd: string, args: string[], cwd: string, timeoutMs = 1
     const child = crossSpawn(cmd, args, {
       cwd,
       env,
-      stdio: stdin === undefined ? undefined : ["pipe", "pipe", "pipe"],
+      stdio: stdin === undefined ? ["ignore", "pipe", "pipe"] : ["pipe", "pipe", "pipe"],
     });
     if (stdin !== undefined) {
       child.stdin?.write(stdin);

@@ -3,7 +3,7 @@
  * of a package with `npm pack` (a download of a published tarball — it installs nothing and runs
  * no lifecycle scripts), unpacks them, and diffs the exported `.d.ts` surface: which top-level
  * exports were removed or added, and which kept their name but changed signature (including a
- * class/interface losing a member, which is how `ZodError.errors` and `res.sendfile` surface).
+ * class/interface losing a member, which is how `ZodError.issues` and `res.sendfile` surface).
  *
  * The changelog / migration-guide text is passed in as `--changelog <file>`; it is not fetched
  * here (a Haiku agent fetches it separately). `buildEvidence` combines the two into evidence.json.
@@ -68,20 +68,23 @@ export function unpackTar(buf: Buffer, destDir: string): void {
     const size = parseInt(sizeStr || "0", 8) || 0;
     const type = buf[off + 156]; // 48 = "0" file, 55 = "7" dir, others (symlink) ignored
     const dataStart = off + 512;
-    if ((type === 48 && size > 0) || type === 55) {
-      // Strip the first path segment ("package/...") so files land directly under destDir.
-      const rel = full.replace(/\/+$/, "").split("/").slice(1).join("/");
-      if (rel) {
-        const target = path.join(destDir, rel);
-        if (!inside(target)) continue; // a `../` or absolute entry escapes destDir -> skip it
-        if (type === 55) fs.mkdirSync(target, { recursive: true });
-        else {
-          fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, buf.subarray(dataStart, dataStart + size));
-        }
-      }
-    }
+    // Always advance `off` past the current entry BEFORE deciding to skip, so a hostile entry
+    // can't trap the loop.
     off = dataStart + Math.ceil(size / 512) * 512;
+    if (type !== 48 && type !== 55) continue;
+    // Strip the first path segment ("package/...") so files land directly under destDir.
+    const rel = full.replace(/\/+$/, "").split("/").slice(1).join("/");
+    if (!rel) continue; // no content after root segment (e.g. bare "package" or "package/")
+    // Skip entries that would escape destDir: absolute paths, drive-letter paths, or `..` segments.
+    const hasDdot = full.split("/").some((s) => s === "..");
+    if (full.startsWith("/") || full.startsWith("\\") || /^[A-Za-z]:/.test(full) || hasDdot) continue;
+    const target = path.join(destDir, rel);
+    if (!inside(target)) continue;
+    if (type === 55) fs.mkdirSync(target, { recursive: true });
+    else {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, buf.subarray(dataStart, dataStart + size));
+    }
   }
 }
 

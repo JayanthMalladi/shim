@@ -66,7 +66,10 @@ Both backends return the same `ExecResult` shape. `parseReview`'s last-line JSON
 
 ### Cost semantics
 
-`--max-budget-usd` and the `cost` field in reports are meaningful only on the `claude-cli` backend with Anthropic's own pricing. When `ANTHROPIC_BASE_URL` is set or the backend is `dsh`, cost is recorded as `null` ("unpriced"); actual spend comes from the provider's dashboard.
+`runAsync` always records whatever `total_cost_usd` the backend's JSON output contains. Callers that
+check `costUnpriced()` (true for the `dsh` backend or when `ANTHROPIC_BASE_URL` is set) then override
+that value to `null` before storing it in reports. So on `dsh` or a non-Anthropic endpoint, the `cost`
+field in every report is `null` ("unpriced"); actual spend comes from the provider's dashboard.
 
 ### Model overrides
 

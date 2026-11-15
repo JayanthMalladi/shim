@@ -111,7 +111,7 @@ export interface Emit {
 
 export interface Rewrite {
   node: "method" | "call" | "field" | "prop";
-  /** Replace the method/prop name (e.g. "default"->"prefault", "uuid"->"guid"). */
+  /** Replace the method/prop name (e.g. the old name -> the new name). */
   replaceMethod?: string;
   /** Insert after the node (R5: append ".optional()"). */
   appendAfter?: string;

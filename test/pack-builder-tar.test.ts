@@ -1,8 +1,8 @@
 /**
  * S06c: unit tests for the pure tar unpacker (`unpackTar`). The tarball is built in memory here —
  * a small hand-rolled ustar writer, no `tar` binary, no network. Two properties are asserted:
- *   - containment: an entry whose resolved target escapes `destDir` (a `../` or absolute path) is
- *     skipped, so a hostile tarball can never write outside its dest dir;
+ *   - containment: an entry whose resolved target escapes `destDir` (a `../`, absolute path, or
+ *     drive-letter path) is skipped, so a hostile tarball can never write outside its dest dir;
  *   - ustar prefix: a name longer than 100 bytes, split across the `prefix` + `name` fields, is
  *     reassembled so long paths aren't cut off.
  * And the ordinary case: a `package/`-rooted tree unpacks with the root segment stripped.
@@ -92,28 +92,45 @@ describe("S06c tar unpacker", () => {
       // The ordinary files land inside dest.
       expect(fs.readFileSync(path.join(dest, "index.d.ts"), "utf8")).toBe("declare const x: number;\n");
       expect(fs.readFileSync(path.join(dest, "sub", "deep.d.ts"), "utf8")).toBe("export const y = 1;\n");
-      // Nothing wrote outside dest: the `../../escape.txt` target is root/escape.txt (two up from
-      // base/dest); the `../outside-base.txt` target is base/outside-base.txt.
+      // Nothing wrote outside dest.
       expect(fs.existsSync(path.join(root, "escape.txt"))).toBe(false);
       expect(fs.existsSync(path.join(root, "base", "outside-base.txt"))).toBe(false);
-      // dest holds exactly the two unpacked files + the sub dir.
       expect(fs.readdirSync(dest).sort()).toEqual(["index.d.ts", "sub"]);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("rejects an absolute entry that would write outside destDir", () => {
+  it("skips absolute paths and drive-letter paths", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "shim-tar-"));
     try {
       const dest = path.join(root, "dest");
       fs.mkdirSync(dest, { recursive: true });
-      // An absolute name: stripping the first segment yields "/abs/evil.txt"; joining it onto
-      // destDir and resolving still points at the filesystem root, not inside dest.
-      const entries: TarEntry[] = [{ path: "/abs/evil.txt", data: "PWNED\n" }];
+      const entries: TarEntry[] = [
+        { path: "/abs/evil.txt", data: "PWNED\n" },
+        { path: "C:/evil.txt", data: "PWNED\n" },
+      ];
       unpackTar(buildTar(entries), dest);
-      expect(fs.existsSync(path.join(root, "dest", "abs", "evil.txt"))).toBe(false);
       expect(fs.readdirSync(dest)).toEqual([]);
+      expect(fs.existsSync(path.join(root, "abs", "evil.txt"))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an escaping entry followed by a normal file: the loop advances and the normal file still unpacks", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "shim-tar-"));
+    try {
+      const dest = path.join(root, "dest");
+      fs.mkdirSync(dest, { recursive: true });
+      const entries: TarEntry[] = [
+        { path: "package/../../escape.txt", data: "PWNED\n" },
+        { path: "package/index.d.ts", data: "declare const x: number;\n" },
+      ];
+      unpackTar(buildTar(entries), dest);
+      // The escaping entry must not have been written; the normal file must have been unpacked.
+      expect(fs.existsSync(path.join(root, "escape.txt"))).toBe(false);
+      expect(fs.readFileSync(path.join(dest, "index.d.ts"), "utf8")).toBe("declare const x: number;\n");
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

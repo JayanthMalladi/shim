@@ -66,7 +66,7 @@ export async function buildPack(opts: BuildPackOptions): Promise<BuildReport> {
   } else {
     const res = await runDraft(evidence, outDir, draftModel, opts.changelog);
     draftCost = res.cost ?? null;
-    const answers = parseDraft(res);
+    const answers = parseDraft(res, outDir);
     cands = toCandidates(answers, outDir);
     skips = answers.filter((a) => a.skip).map((a) => ({ evidence: a.evidence, reason: a.skipReason ?? a.skip ?? "skipped" }));
   }
