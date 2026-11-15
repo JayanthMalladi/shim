@@ -7,8 +7,7 @@ import { codemodExportFindings } from "./codemod-guard.js";
 import { installedPeerSkip, zodPeerDependencySkip } from "./zod-skips.js";
 import { installedExpressPeerSkip, expressPeerDependencySkip } from "./express-skips.js";
 import { undoCosmeticCodemodEdits, zodCodemodGuard } from "./zod-codemod.js";
-import { expressCodemodGuard, expressCodemodUnexpressRestore } from "./express-codemod.js";
-import { adopt, fixInParallel, rank } from "./candidates.js";
+import { adopt, fixCandidates, rank } from "./candidates.js";
 import { agentBackend, costUnpriced, run, runCapture, type AgentBackend } from "./exec.js";
 import { detectPackageManager, hasTypecheckScript, hasValidation, readPkg, regressions, runGates, type GateName, type GateResults, type PackageManager } from "./gates.js";
 import { prBody } from "./pr-body.js";
@@ -23,6 +22,8 @@ export interface MigrateOptions {
   arch?: Architecture;
   /** Which migration to run. Absent means the AI SDK 7 default. */
   migration?: Migration;
+  /** The watched release's own notes, handed to the fixer when the upgrade came from a release. */
+  changeNotes?: string;
 }
 
 export type Verdict = "open-pr" | "open-issue" | "skip";
@@ -68,13 +69,17 @@ export interface AgentInfo {
   /** Only for claude-cli: dsh picks its models from its own profile. */
   fixerModel?: string;
   reviewerModel?: string;
+  /** The round-robin's rotation, when the architecture has one. */
+  fixerModels?: string[];
 }
 
 /** The backend and models an architecture's fix stage runs on, for report.json and cost tracking. */
 export function agentInfo(arch: Architecture): AgentInfo {
   const backend = agentBackend();
   if (backend === "dsh") return { backend };
-  return { backend, fixerModel: arch.fixerModel, ...(arch.review ? { reviewerModel: arch.reviewerModel } : {}) };
+  const info: AgentInfo = { backend, fixerModel: arch.fixerModel, ...(arch.review ? { reviewerModel: arch.reviewerModel } : {}) };
+  if (arch.fixerModels?.length) info.fixerModels = arch.fixerModels;
+  return info;
 }
 
 /** Everything up to the fix stage. Saved to disk so architectures can be compared on the same start. */
@@ -219,8 +224,9 @@ export async function finish(dir: string, prep: Prepared, opts: MigrateOptions):
   const needsFix = remaining.length > 0 || brokenByUpgrade.length > 0 || arch.audit;
   if (opts.agent && needsFix) {
     log(`${arch.id}: ${arch.candidates} candidates, ${remaining.length} findings, ${brokenByUpgrade.length} failing checks`);
-    const cands = await fixInParallel(dir, arch, {
+    const cands = await fixCandidates(dir, arch, {
       baseline, after, findings: remaining,
+      changeNotes: opts.changeNotes,
       failingOutput: (a) => Object.entries(a)
         .filter(([g, r]) => g !== "install" && !r.ok && baseline[g]?.ok)
         .map(([g, r]) => `${g}:\n${r.output.slice(-3000)}`)

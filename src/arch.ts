@@ -29,6 +29,15 @@ export interface Architecture {
   reviewRounds: number;
   /** How to pick among passing, approved candidates. */
   selection: "smallest" | "first";
+  /**
+   * Round-robin fixer models: candidate i fixes with fixerModels[i] (falling back to fixerModel).
+   * Without escalate the candidates run in parallel and the reviewer + selection pick (the V2
+   * mechanism, with different models); with escalate they run cheapest-first and the run stops at
+   * the first passing candidate, so the cheaper model pays only for the runs it can finish.
+   */
+  fixerModels?: string[];
+  /** Cheapest-first: run fixerModels in order, stop at the first passing candidate. */
+  escalate?: boolean;
 }
 
 export const FIXER_RULES = `Rules:
@@ -117,5 +126,20 @@ export const SEEDS: Architecture[] = [
     notes: "V2 plus: the fixer may run the repo's own build, type check and test commands, and reviewer issues go back once.",
     fixerChecks: true,
     reviewRounds: 1,
+  },
+  /**
+   * The round-robin architecture: candidates rotate over the tiered model ladder
+   * (Haiku, then Sonnet; Opus is held back for the fixed judge). By default `escalate` is on,
+   * so a green Haiku candidate ships without spending the Sonnet run; a failed Haiku candidate
+   * is what triggers the Sonnet one. Drop `escalate` (in an arch.json) for the parallel form:
+   * both candidates run and the reviewer + smallest-diff selection picks, the V2 mechanism.
+   */
+  {
+    ...V2,
+    id: "v5-round-robin",
+    notes: "Fixers rotate claude-haiku-5-5 -> claude-sonnet-5-5; cheapest-first by default (escalate).",
+    candidates: 2,
+    fixerModels: ["claude-haiku-5-5", "claude-sonnet-5-5"],
+    escalate: true,
   },
 ];

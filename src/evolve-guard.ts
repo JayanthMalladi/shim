@@ -97,7 +97,7 @@ export const FORBIDDEN_MODEL_RE = /fable|mythos/i;
  * @returns the model id, guaranteed not to contain "fable" or "mythos"
  * @throws if the resolved (or env-supplied) model id matches FORBIDDEN_MODEL_RE
  */
-export function resolveModel(role: "fixer" | "reviewer" | "judge" | "mutator", fallback: string): string {
+export function resolveModel(role: "fixer" | "reviewer" | "judge" | "mutator" | "triage", fallback: string): string {
   const envVar = `SHIM_${role.toUpperCase()}_MODEL`;
   const raw = process.env[envVar];
   const m = raw !== undefined && raw.trim() !== "" ? raw.trim() : fallback;

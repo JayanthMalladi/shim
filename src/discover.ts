@@ -33,7 +33,7 @@ export interface Candidate {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The search endpoint rate-limits hard; back off on 429 instead of failing the run. */
-async function getJson(url: string, attempts = 6): Promise<any> {
+export async function getJson(url: string, attempts = 6): Promise<any> {
   for (let i = 0; ; i++) {
     const res = await fetch(url, { headers: { accept: "application/json" } });
     if (res.ok) return res.json();

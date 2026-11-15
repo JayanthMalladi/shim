@@ -5,6 +5,7 @@ import { getMigration, type Migration } from "./migrations.js";
 import { copyRepo, rmTree, unshareNodeModules } from "./copy.js";
 import { costUnpriced, run } from "./exec.js";
 import { regressions, type GateResults } from "./gates.js";
+import { FORBIDDEN_MODEL_RE } from "./evolve-guard.js";
 import type { Finding } from "./types.js";
 
 export interface Candidate {
@@ -35,6 +36,8 @@ export interface FixContext {
   breaks: (dir: string) => Finding[];
   /** Shell commands equivalent to the gates, relative to the repo root. */
   checks?: string[];
+  /** The release's own notes, handed to the fixer when the upgrade came from a watched release. */
+  changeNotes?: string;
   /** Which migration the fixer and reviewer run under. */
   m?: Migration;
 }
@@ -48,13 +51,40 @@ const git = (dir: string, ...args: string[]) =>
  * The fixer is not deterministic, so run several independent fixers on copies of the repo and let the
  * gates (and the reviewer, if any) choose. Agents run side by side; gates run one at a time (they are
  * sync), which keeps memory sane.
+ *
+ * Round-robin: with arch.fixerModels, candidate i fixes with that model (cheapest first, falling
+ * back to arch.fixerModel). Without escalate the whole rotation runs in parallel; with escalate
+ * it runs cheapest-first, stopping at the first passing candidate, so the cheaper model pays only
+ * for the runs it can finish.
  */
-export async function fixInParallel(dir: string, arch: Architecture, ctx: FixContext): Promise<Candidate[]> {
-  return Promise.all(Array.from({ length: arch.candidates }, (_, i) => fixCandidate(dir, `${dir}.cand${i}`, arch, ctx)));
+export async function fixCandidates(dir: string, arch: Architecture, ctx: FixContext): Promise<Candidate[]> {
+  // Thunks, not promises: an escalated run must not start a candidate (or spend a model) until
+  // the previous one has failed.
+  const all = Array.from({ length: arch.candidates }, (_, i) => () => {
+    const model = arch.fixerModels ? arch.fixerModels[i % arch.fixerModels.length] : undefined;
+    // The Fable/Mythos ban on every agent role extends to a rotated fixer: arch.json is an input.
+    if (model && FORBIDDEN_MODEL_RE.test(model))
+      throw new Error(`fixerModels contains "${model}", which is banned (fable/mythos)`);
+    return fixCandidate(dir, `${dir}.cand${i}`, arch, ctx, model);
+  });
+  if (!arch.escalate) return Promise.all(all.map((start) => start()));
+  const out: Candidate[] = [];
+  for (const start of all) {
+    out.push(await start());
+    if (out[out.length - 1]!.ok) break; // a cheap candidate passed; the costlier models never run.
+  }
+  return out;
 }
 
-async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext): Promise<Candidate> {
+/** The parallel form, the V2 mechanism. */
+export async function fixInParallel(dir: string, arch: Architecture, ctx: FixContext): Promise<Candidate[]> {
+  return fixCandidates(dir, arch, ctx);
+}
+
+async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: FixContext, model?: string): Promise<Candidate> {
   const m = ctx.m ?? getMigration();
+  // The round-robin's per-candidate fixer: the same architecture, this candidate's own model.
+  const a = model ? { ...arch, fixerModel: model } : arch;
   await rmTree(cdir);
   copyRepo(dir, cdir);
   // Snapshot so the candidate's own diff can be measured, then undone before review.
@@ -70,7 +100,7 @@ async function fixCandidate(dir: string, cdir: string, arch: Architecture, ctx: 
   const passing = () => !regressions(ctx.baseline, after).length && !remaining.length;
   const fix = async (reviewIssues?: string[]) => {
     const first = !agentRuns.length;
-    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks }, arch, m);
+    const res = await runFixer(cdir, { findings: first ? ctx.findings : [], failures: ctx.failingOutput(after), reviewIssues, checks: ctx.checks, changeNotes: ctx.changeNotes }, a, m);
     agentRuns.push(res.text ?? res.output);
     if (!unpriced) cost = (cost ?? 0) + (res.cost ?? 0);
     // Reinstall only if the fixer touched a manifest; then drop the shared node_modules first.

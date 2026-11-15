@@ -21,6 +21,8 @@ export interface FixBrief {
   reviewIssues?: string[];
   /** Shell commands for the gates, shown to the fixer when it may run them. */
   checks?: string[];
+  /** The release's own notes (when the upgrade was triggered by a watched release, not a named migration). */
+  changeNotes?: string;
 }
 
 /**
@@ -40,6 +42,13 @@ export function fixerPrompt(brief: FixBrief, arch: Architecture, m: Migration = 
     "",
     `Reference: ${m.reference}`,
     "",
+    ...(brief.changeNotes
+      ? [
+          "The release that triggered this upgrade, and its own notes (what changed, and what the",
+          "maintainers say they did about it):",
+          brief.changeNotes.slice(0, 4000),
+        ]
+      : []),
     ...(arch.audit && m.id === "ai-sdk-v7"
       ? [
           "Also audit every generateText, streamText, generateObject, streamObject and Agent call in the repo's",

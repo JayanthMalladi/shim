@@ -14,9 +14,8 @@ import { writeStats } from "./stats.js";
 import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
 import { scoreTargets } from "./score-targets.js";
-import { buildExposureReport, formatFindings, renderReport } from "./exposure.js";
-import { botprs } from "./botprs.js";
-import { renderPacksTable } from "./packs.js";
+import { watchOnce } from "./watch.js";
+import { triageModel } from "./release-triage.js";
 
 const USAGE = `shim <command>
 
@@ -253,6 +252,19 @@ switch (cmd) {
     const r = prOpen({ draftDir, forkOwner, allowDrift: rest.includes("--allow-drift") });
     console.log(JSON.stringify(r, null, 2));
     process.exit(r.ok ? 0 : 1);
+  }
+  case "watch": {
+    // No model in --offline mode; otherwise the triage calls the small model once per released dep.
+    if (!rest.includes("--offline")) {
+      const model = triageModel();
+      agentPreflight({ fixer: model }); // throws if the backend cannot start; the triage run is where a model is needed.
+      console.error(`[shim] triage: ${agentBackend()} backend, model ${model}`);
+    }
+    const { events, actionable } = await watchOnce(path.resolve(target), { offline: rest.includes("--offline") });
+    for (const ev of events) console.log(`${ev.name}: ${ev.from} -> ${ev.to} [${ev.cls}]`);
+    for (const rel of actionable) console.log(`actionable ${rel.event.name} (${rel.event.to}): ${rel.verdict} — ${rel.evidence}`);
+    if (!actionable.length) console.log(`no actionable releases (${events.length} version event${events.length === 1 ? "" : "s"})`);
+    break;
   }
   default:
     console.log(USAGE);
