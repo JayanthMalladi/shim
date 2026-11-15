@@ -57,7 +57,7 @@ export interface Evidence {
  * not a hand-written ts-morph rule — the DSL is the contract.
  */
 export interface DslRule {
-  /** The rule id (kebab-case), e.g. "zod-uuid-strict". */
+  /** The rule id (kebab-case), e.g. "pkg-removed-method". */
   id: string;
   /** The package the rule is gated to ("zod"); only files that import it are scanned. */
   package: string;
