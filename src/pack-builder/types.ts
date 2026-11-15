@@ -125,6 +125,10 @@ export interface DraftAnswer {
   evidence: string;
   /** Present for a candidate rule; absent for a skip. */
   rule?: DslRule;
+  /** Inline fixture code (preferred). If absent, the builder falls back to __fixtures__/ files. */
+  flagFixture?: string;
+  /** Inline negative-control fixture code. */
+  noFlagFixture?: string;
   /** Present for a skip: why no static rule (loud/tsc-catches it, or not statically detectable). */
   skip?: "loud" | "static" | "other";
   skipReason?: string;

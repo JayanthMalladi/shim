@@ -124,18 +124,28 @@ function toCandidates(answers: import("./types.js").DraftAnswer[], outDir: strin
   const out: Candidate[] = [];
   for (const a of answers) {
     if (!a.rule) continue;
-    const flagPath = path.join(outDir, "__fixtures__", genFlagName(a.rule.id));
-    const noPath = path.join(outDir, "__fixtures__", genNoFlagName(a.rule.id));
-    if (!fs.existsSync(flagPath) || !fs.existsSync(noPath)) continue; // no fixtures -> the harness can't grade it
+    // Prefer inline fixtures from the answer; fall back to __fixtures__/ files.
+    const flagFixture = a.flagFixture ?? readFixture(outDir, genFlagName(a.rule.id));
+    const noFlagFixture = a.noFlagFixture ?? readFixture(outDir, genNoFlagName(a.rule.id));
+    if (!flagFixture || !noFlagFixture) continue; // no fixtures -> the harness can't grade it
     out.push({
       rule: a.rule,
-      flagFixture: fs.readFileSync(flagPath, "utf8"),
-      noFlagFixture: fs.readFileSync(noPath, "utf8"),
+      flagFixture,
+      noFlagFixture,
       evidence: a.evidence,
     });
   }
   return out;
 }
 
+/** Read a fixture file from __fixtures__/, or return undefined if absent. */
+function readFixture(outDir: string, fileName: string): string | undefined {
+  try {
+    return fs.readFileSync(path.join(outDir, "__fixtures__", fileName), "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 /** Re-export the interpreter so the candidate rules module and the harness share one path. */
-export { interpretRule };
+export { interpretRule, toCandidates };

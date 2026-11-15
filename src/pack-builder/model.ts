@@ -43,8 +43,9 @@ export function readChangelog(file: string): string {
 
 /**
  * The draft stage: one headless Sonnet call that turns the evidence into candidate rules (or
- * honest skips). It writes each candidate's fixtures into the pack's `fixtures/` dir and returns
- * the structured answers. Runs in outDir so any files it touches stay inside `--out`.
+ * honest skips). Each candidate answer carries its fixtures as inline strings (`flagFixture` /
+ * `noFlagFixture`), not file paths — the builder writes them to disk later using genFlagName /
+ * genNoFlagName. Runs in outDir so any files it touches stay inside `--out`.
  */
 export async function runDraft(evidence: Evidence, outDir: string, model: string, changelogFile?: string): Promise<ExecResult> {
   const prompt = draftPrompt(evidence, changelogFile, outDir);
@@ -105,14 +106,17 @@ function draftPrompt(e: Evidence, changelogFile: string | undefined, outDir: str
     "",
     changelogFile ? `Changelog / migration-guide text is at ${changelogFile}; cite the exact line a rule encodes in its "evidence" field.` : "No changelog supplied.",
     "",
-    "Write each candidate rule's fixtures to disk FIRST: `__fixtures__/flag_<ruleid>.ts` (code the rule must",
-    "flag, with a `// FLAG` trailing comment on the flagged line) and `__fixtures__/noflag_<ruleid>.ts` (code the",
-    "rule must NOT flag, with a `// OK` comment on the line). Use the real import of ${e.package} and realistic",
-    "values. Then write your JSON answer array to `answers.json` in this directory, rewriting it after each rule.",
+    "For each candidate, include two inline fixture strings:",
+    '  "flagFixture": "<typescript code that MUST trigger the rule. Mark the flagged line with a trailing `// FLAG` comment.>"',
+    '  "noFlagFixture": "<typescript code that must NOT trigger the rule. Mark the safe line with a trailing `// OK` comment.>"',
+    "Use the real import of " + e.package + " and realistic values. Both strings are required for every candidate.",
+    "",
+    "Write your JSON answer array to `answers.json` in this directory, rewriting it after each rule.",
     "Finally, output ONLY the JSON array, one per breaking change, and nothing after it.",
     "",
-    'Shape of each answer: {"evidence":"<the diff line or changelog line this encodes>","rule":{...DslRule...}}',
-    "for a candidate, or {\"evidence\":\"...\",\"skip\":\"loud|static|other\",\"skipReason\":\"...\"} for a skip.",
+    'Shape of each answer: {"evidence":"<the diff line or changelog line this encodes>","rule":{...DslRule...},',
+    '"flagFixture":"<code with // FLAG>","noFlagFixture":"<code with // OK>"} for a candidate, or',
+    '{"evidence":"...","skip":"loud|static|other","skipReason":"..."} for a skip.',
     "DslRule fields: id (kebab-case), package, import:{specifier,bindings}, detect:{kind:chain|recordArgs|objectField|propAccess,...}, emit:{severity,fix,message,rewrite?}.",
     "The DSL interpreter supports these detect kinds: chain (.method on an imported z-binding chain, with optional",
     "root/chainBefore/receiverIs/argCount/arg0Root/fieldValueRoot/guardMethods filters), recordArgs (z.record(A,B)),",
