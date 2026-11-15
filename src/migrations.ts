@@ -2,6 +2,7 @@ import type { Project } from "ts-morph";
 import type { RuleContext } from "./rules/ai-sdk-v7.js";
 import { checkCiNodeVersions, checkPackageJsons, findPackages } from "./scan.js";
 import type { PackManifest } from "./types.js";
+import type { ScanOptions } from "./scan.js";
 import { aiSdkV7, expressV5, zodV4 } from "./packs.js";
 import { scanAiSdkV7 } from "./rules/ai-sdk-v7.js";
 import { allowsMajor, bumpAiSdk, bumpExpress, bumpZod } from "./bump.js";
@@ -28,8 +29,9 @@ export interface Migration {
   bump(root: string): string[];
   /** Run the migration's codemod in dir; returns ok. */
   codemod(dir: string): boolean;
-  /** Shim's own rules, and their deterministic rewrites. */
-  scan(project: Project, root: string): RuleContext;
+  /** Shim's own rules, and their deterministic rewrites. `opts` is the bag a scanner may consume
+   * (express-v5's `baselineRef`); other migrations accept and ignore it. */
+  scan(project: Project, root: string, opts?: ScanOptions): RuleContext;
   applyAutoFixes(project: Project, ctx: RuleContext): Promise<number>;
   /** Text the agents get. */
   fixerIntro: string;
@@ -62,7 +64,7 @@ export const AI_SDK_V7: Migration = {
   isOldMajor: (range) => /(^|[\^~>=\s])6(\.|$)/.test(range),
   bump: (root) => bumpAiSdk(root),
   codemod: (dir) => run("npx", ["-y", "@ai-sdk/codemod@4", "v7", "."], dir).ok,
-  scan: (project, root) => {
+  scan: (project, root, _opts) => {
     const ctx = scanAiSdkV7(project, root);
     ctx.findings.push(...checkPackageJsons(root));
     ctx.findings.push(...checkCiNodeVersions(root, ctx));
@@ -144,7 +146,7 @@ export const ZOD_V4: Migration = {
   isOldMajor: (range) => allowsMajor(range, 3) && !allowsMajor(range, 4),
   bump: (root) => bumpZod(root),
   codemod: runZodCodemod,
-  scan: scanZodV4,
+  scan: (project, root, _opts) => scanZodV4(project, root),
   applyAutoFixes,
   fixerIntro:
     "You are finishing a Zod 3 -> 4 migration in this repository. Dependencies are already bumped\n" +
@@ -224,8 +226,8 @@ export const EXPRESS_V5: Migration = {
   isOldMajor: (range) => allowsMajor(range, 4) && !allowsMajor(range, 5),
   bump: (root) => bumpExpress(root),
   codemod: runExpressCodemod,
-  scan: (project, root) => {
-    const ctx = scanExpressV5(project, root);
+  scan: (project, root, opts) => {
+    const ctx = scanExpressV5(project, root, opts?.baselineRef ?? "HEAD");
     // E9: related packages that commonly break with Express 5 (express-rate-limit, etc.).
     ctx.findings.push(...checkExpressRelatedPackages(root));
     // E10: Express 5's Node floor is 18. Check engines.node and CI against 18, on the express dep.

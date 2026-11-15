@@ -177,7 +177,7 @@ describe("query-parser insert is app-creation-only (no router.set crash)", () =>
   it("a Router-only file reports manual and queues no .set edit", async () => {
     const routerOnly = `import { Router } from "express";
 const router = Router();
-router.get("/search", (req, res) => res.json(req.query.q));
+router.get("/search", (req, res) => res.json(req.query.filter.name));
 module.exports = router;
 `;
     const { dir, findings } = scanDir({ "src/route.js": routerOnly });
@@ -189,10 +189,65 @@ module.exports = router;
     expect(fs.readFileSync(path.join(dir, "src/route.js"), "utf8")).toBe(routerOnly);
   });
 
+  it("a flat req.query.foo read is NOT flagged (identical under simple and extended parsers)", async () => {
+    // Flat single-level keys (property or bracket syntax, bare or chained onto another value) are
+    // parsed the same way by Express 5's 'simple' parser as by Express 4's 'extended' parser —
+    // only nested/array dereferences (req.query.a.b, req.query.ids[0]) diverge.
+    const flatFile = `import express from "express";
+const app = express();
+app.get("/a", (req, res) => res.json(req.query.code));
+app.get("/b", (req, res) => res.json(req.query["state"]));
+app.get("/c", (req, res) => res.json(req.query.ids));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/flat.js": flatFile });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp, "flat reads must not be flagged").toHaveLength(0);
+  });
+
+  it("a nested/array req.query read IS flagged", async () => {
+    const nestedFile = `import express from "express";
+const app = express();
+app.get("/a", (req, res) => res.json(req.query.filter.name));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/nested.js": nestedFile });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp).toHaveLength(1);
+    expect(qp[0]!.fix).toBe("auto");
+  });
+
+  it("a method call on a flat value (req.query.x.trim()) is NOT flagged", async () => {
+    // `.trim()` is a method call on a flat scalar value — it behaves identically under both
+    // parsers, so the grandparent check must exclude the method-call form.
+    const file = `import express from "express";
+const app = express();
+app.get("/a", (req, res) => res.json(req.query.search.trim()));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/method.js": file });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp, "a flat value with a method call must not be flagged").toHaveLength(0);
+  });
+
+  it("a flat key used as an index into another object (OPTS[req.query.sort]) is NOT flagged", async () => {
+    // The query access is the element, not the base: OPTS[req.query.sort] reads a flat key and
+    // indexes a different object — both parsers return the same string.
+    const file = `import express from "express";
+const OPTS = { a: 1, b: 2 };
+const app = express();
+app.get("/a", (req, res) => res.json(OPTS[req.query.sort]));
+export default app;
+`;
+    const { dir, findings } = scanDir({ "src/index.js": file });
+    const qp = findings.filter((f) => f.ruleId === "express-query-parser");
+    expect(qp, "a flat key as an index into another object must not be flagged").toHaveLength(0);
+  });
+
   it("a const app = express() file still gets the .set insert", async () => {
     const appFile = `import express from "express";
 const app = express();
-app.get("/search", (req, res) => res.json(req.query.q));
+app.get("/search", (req, res) => res.json(req.query.filter.name));
 export default app;
 `;
     const { dir, findings } = scanDir({ "src/app.js": appFile });

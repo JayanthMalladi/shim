@@ -179,17 +179,21 @@ function importsExpress(sf: SourceFile): boolean {
 /**
  * The `express` range in the nearest package.json (walking up from the file), across dependencies /
  * devDependencies / peerDependencies. The range is read from the COMMITTED package.json (`git show
- * HEAD:`), not the on-disk one: in `prepare` the bump rewrites every package.json to ^5 before these
+ * <baselineRef>:`), not the on-disk one: in `prepare` the bump rewrites every package.json to ^5 before these
  * rules run, so the on-disk file would make every file look "already on v5" and the scan would skip
- * all of them. Only when git has no HEAD version (a plain `scan` on a folder that isn't a repo, or an
- * uncommitted package.json) do we fall back to the on-disk file.
+ * all of them. Only when git has no committed version of the file (a plain `scan` on a folder that
+ * isn't a repo, or an uncommitted package.json) do we fall back to the on-disk file.
+ *
+ * `baselineRef` defaults to HEAD. The bot-PR case is the mirror image of `prepare`: HEAD is already
+ * the bump, so the caller passes the pre-bump commit instead — "already on v5" then means "already
+ * on v5 before the bot PR touched the repo", and a package that was v4 at that commit gets scanned.
  */
-function nearestExpressRange(file: string, root: string): string | undefined {
+function nearestExpressRange(file: string, root: string, baselineRef: string): string | undefined {
   let dir = path.dirname(path.resolve(file));
   const base = path.resolve(root);
   while (true) {
     const pj = path.join(dir, "package.json");
-    if (fs.existsSync(pj)) return committedExpressRange(pj, root);
+    if (fs.existsSync(pj)) return committedExpressRange(pj, root, baselineRef);
     if (dir === base) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -198,23 +202,24 @@ function nearestExpressRange(file: string, root: string): string | undefined {
   return undefined;
 }
 
-// One `git show` per package.json, not per source file.
+// One `git show` per package.json, not per source file. The baselineRef is fixed for a whole scan
+// and the cache is cleared at the start of each, so the ref is scan state, not part of the key.
 const committedRangeCache = new Map<string, string | undefined>();
 
-/** The `express` range in a package.json's COMMITTED (HEAD) contents, on-disk when git has none. */
-function committedExpressRange(pj: string, root: string): string | undefined {
+/** The `express` range in a package.json's COMMITTED (baselineRef) contents, on-disk when git has none. */
+function committedExpressRange(pj: string, root: string, baselineRef: string): string | undefined {
   if (committedRangeCache.has(pj)) return committedRangeCache.get(pj);
-  const pkg = committedPackageJson(pj, root) ?? readJson(pj);
+  const pkg = committedPackageJson(pj, root, baselineRef) ?? readJson(pj);
   const range = pkg?.dependencies?.express ?? pkg?.devDependencies?.express ?? pkg?.peerDependencies?.express;
   const out = typeof range === "string" ? range : undefined;
   committedRangeCache.set(pj, out);
   return out;
 }
 
-/** The committed (HEAD) contents of a file, or undefined when git has no such version. */
-function committedPackageJson(pj: string, root: string): any {
+/** The committed (at `baselineRef`) contents of a file, or undefined when git has no such version. */
+function committedPackageJson(pj: string, root: string, baselineRef: string): any {
   const rel = path.relative(root, pj).split(path.sep).join("/");
-  const cap = runCapture("git", ["show", `HEAD:${rel}`], root);
+  const cap = runCapture("git", ["show", `${baselineRef}:${rel}`], root);
   if (!cap.ok) return undefined;
   try {
     return JSON.parse(cap.stdout);
@@ -224,12 +229,13 @@ function committedPackageJson(pj: string, root: string): any {
 }
 
 /**
- * True when the file's nearest express-depending package.json is already on Express 5. Those files
- * are not part of the upgrade — they keep their current v5 behavior — so neither a finding nor an
- * auto-fix may be written into them (a v4-only repo would still be scanned and fixed as usual).
+ * True when the file's nearest express-depending package.json is already on Express 5 at the
+ * baseline. Those files are not part of the upgrade — they keep their current v5 behavior — so
+ * neither a finding nor an auto-fix may be written into them (a v4-only repo would still be
+ * scanned and fixed as usual).
  */
-function alreadyOnExpress5(file: string, root: string): boolean {
-  const range = nearestExpressRange(file, root);
+function alreadyOnExpress5(file: string, root: string, baselineRef: string): boolean {
+  const range = nearestExpressRange(file, root, baselineRef);
   if (range === undefined) return false; // no package.json depending on express: part of the main upgrade
   const isOldMajor = (r: string) => allowsMajor(r, 4) && !allowsMajor(r, 5);
   return !isOldMajor(range);
@@ -447,8 +453,28 @@ function checkQueryParser(ctx: RuleContext, sf: SourceFile) {
   let firstQuery: TmNode | undefined;
   for (const pae of sf.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
     if (pae.getName() !== "query") continue;
-    // The receiver is the bare identifier `req` (req.query); not a chain.
-    if (pae.getExpression().getText() === "req") firstQuery ??= pae;
+    // Flag only a nested/array dereference off req.query — `req.query.a.b`, `req.query.ids[0]`,
+    // `req.query["a"]["b"]` — the only shape where Express 5's 'simple' parser diverges from v4's
+    // 'extended'. The `.query` node's parent is the single-level access (e.g. `req.query.a`). A flat
+    // read (`req.query.code`) has the parent be a plain expression context (a call arg, a literal,
+    // a var decl), so it is not flagged: both parsers return the same flat scalar key.
+    const parent = pae.getParent();
+    if (!Node.isPropertyAccessExpression(parent) && !Node.isElementAccessExpression(parent)) continue;
+    const grand = parent.getParent();
+    // The query access must be the BASE being dereferenced (grand.getExpression() === parent):
+    //   `SORT_OPTIONS[req.query.sort]` uses a flat key as an index into a *different* object —
+    //   grand.getExpression() is `SORT_OPTIONS`, so it is not flagged.
+    if (Node.isPropertyAccessExpression(grand) && grand.getExpression() === parent) {
+      // A property read INTO the value (`req.query.a.b`) — but if that property access is the callee
+      // of a method call (`req.query.a.trim()`), the value is a flat scalar and the method behaves
+      // identically under both parsers, so it is not a divergence: skip it.
+      const gp = grand.getParent();
+      if (Node.isCallExpression(gp) && gp.getExpression() === grand) continue;
+      firstQuery ??= pae;
+    } else if (Node.isElementAccessExpression(grand) && grand.getExpression() === parent) {
+      // An array/nested expectation: `req.query.a[0]` / `req.query.a["b"]`.
+      firstQuery ??= pae;
+    }
   }
   if (!firstQuery) return;
   const app = appCreation(sf, expressAppBindings(sf));
@@ -670,12 +696,12 @@ export function checkExpressRelatedPackages(root: string): Finding[] {
   return findings;
 }
 
-export function scanExpressV5(project: Project, root: string): RuleContext {
+export function scanExpressV5(project: Project, root: string, baselineRef = "HEAD"): RuleContext {
   committedRangeCache.clear(); // one `git show` per package.json per scan, no cross-scan staleness
   const ctx: RuleContext = { root, findings: [], edits: [], fileEdits: [] };
   for (const sf of project.getSourceFiles()) {
     if (!importsExpress(sf)) continue; // no express import/require: nothing to flag
-    if (alreadyOnExpress5(sf.getFilePath(), root)) continue; // nearest package.json is already on v5: leave it alone
+    if (alreadyOnExpress5(sf.getFilePath(), root, baselineRef)) continue; // nearest package.json is already on v5: leave it alone
     checkRouteStrings(ctx, sf);
     checkUrlencoded(ctx, sf);
     checkQueryParser(ctx, sf);

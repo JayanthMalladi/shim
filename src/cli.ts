@@ -15,6 +15,7 @@ import { triage } from "./triage.js";
 import { prStatus } from "./pr-status.js";
 import { scoreTargets } from "./score-targets.js";
 import { buildExposureReport, formatFindings, renderReport } from "./exposure.js";
+import { botprs } from "./botprs.js";
 import { renderPacksTable } from "./packs.js";
 
 const USAGE = `shim <command>
@@ -26,10 +27,12 @@ const USAGE = `shim <command>
   score <targets.json> [--prs <prs.csv>]
                            Rank triaged targets by merge likelihood (read-only GitHub
                            calls with GITHUB_TOKEN_READONLY); rewrites the file in place
-  scan <dir> [--migration <id>] [--out <file>]
+  scan <dir> [--migration <id>] [--out <file>] [--baseline-ref <sha>]
                            Exposure report: read the pins, run every matching pack, list
                            findings by severity (no changes, no model, no network);
-                           --migration keeps the single-pack listing; --out writes it
+                           --migration keeps the single-pack listing; --out writes it;
+                           --baseline-ref scans the "already on the new major" gate against
+                           this git ref's committed package.jsons (only with --migration)
   fix <dir> [--migration <id>]
                            Apply Shim's deterministic, behavior-preserving fixes
   migrate <dir> [--agent] [--out <dir>] [--repo <owner/name>] [--arch <arch.json>] [--migration <id>]
@@ -57,7 +60,11 @@ const USAGE = `shim <command>
                            deterministic (npm pack both majors + the .d.ts diff); the draft and
                            judge are model calls run here (SHIM_PACKBUILDER_MODEL / SHIM_JUDGE_MODEL),
                            never in a user's free scan. Writes a candidate pack under --out; it is
-                           not registered in src/packs/ until you copy it in after review`;
+                           not registered in src/packs/ until you copy it in after review
+  botprs <package> --from <oldMajor> --to <newMajor> --migration <id> --out <dir> [--limit 50]
+                           Bot-PR scanner: find public Dependabot/Renovate major-bump PRs, classify
+                           their CI, and statically scan each (read-only; writes rows.csv,
+                           findings/ and cache/ under --out)`;
 
 const [cmd, target, ...rest] = process.argv.slice(2);
 const loadArch = (): Architecture => {
@@ -103,7 +110,10 @@ switch (cmd) {
     if (migFlag()) {
       // --migration: single-migration mode, byte-for-byte the output it has always had.
       const m = getMigration(migFlag());
-      const { result } = scanWith(target, m);
+      // --baseline-ref <sha>: scan the "already on the new major" gate against this git ref's
+      // committed package.jsons instead of HEAD (the bot-PR case passes the pre-bump commit).
+      const baselineRef = flag("--baseline-ref");
+      const { result } = scanWith(target, m, baselineRef ? { baselineRef } : undefined);
       console.log(formatFindings(result));
       break;
     }
@@ -183,6 +193,26 @@ switch (cmd) {
     const candSet = candidates ? JSON.parse(fs.readFileSync(path.resolve(candidates), "utf8")) : undefined;
     const report = await buildPack({ package: target, from, to, outDir: path.resolve(out), changelog: changelog ? path.resolve(changelog) : undefined, fixtureDirs, noJudge: rest.includes("--no-judge"), candidates: candSet });
     console.log(JSON.stringify({ package: report.package, shipped: report.shipped, admitted: report.admitted, cost: report.cost, draftModel: report.draftModel, judgeModel: report.judgeModel }, null, 2));
+    break;
+  }
+  case "botprs": {
+    // The read-only bot-PR scanner: find Dependabot/Renovate major-bump PRs, classify their CI,
+    // and statically scan each (no install, no model, no writes to a target repo).
+    const from = flag("--from"), to = flag("--to"), out = flag("--out"), limit = flag("--limit");
+    if (!from || !to || !out || !migFlag()) {
+      console.error("usage: shim botprs <package> --from <oldMajor> --to <newMajor> --migration <id> --out <dir> [--limit 50]");
+      process.exit(1);
+    }
+    const rows = await botprs({
+      pkg: target,
+      from,
+      to,
+      migration: getMigration(migFlag()),
+      outDir: path.resolve(out),
+      limit: limit ? Number(limit) : undefined,
+    });
+    const buckets = rows.reduce((acc, r) => ((acc[r.bucket] = (acc[r.bucket] ?? 0) + 1), acc), {} as Record<string, number>);
+    console.log(JSON.stringify({ repos: rows.length, buckets, out: path.resolve(out) }, null, 2));
     break;
   }
   case "score": {
