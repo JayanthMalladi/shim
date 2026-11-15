@@ -14,6 +14,7 @@ import { interpretRule } from "./interpret.js";
 import { admitCandidates, genFlagName, genNoFlagName } from "./harness.js";
 import { packBuilderModel, packJudgeModel, runDraft, runJudge, citedCandidates, parseDraft, readChangelog } from "./model.js";
 import { emitManifest, writePack } from "./output.js";
+import { costUnpriced } from "../exec.js";
 import type { BuildReport, Candidate } from "./types.js";
 
 export interface BuildPackOptions {
@@ -65,7 +66,7 @@ export async function buildPack(opts: BuildPackOptions): Promise<BuildReport> {
     skips = [];
   } else {
     const res = await runDraft(evidence, outDir, draftModel, opts.changelog);
-    draftCost = res.cost ?? null;
+    draftCost = costUnpriced() ? null : (res.cost ?? null);
     const answers = parseDraft(res, outDir);
     cands = toCandidates(answers, outDir);
     skips = answers.filter((a) => a.skip).map((a) => ({ evidence: a.evidence, reason: a.skipReason ?? a.skip ?? "skipped" }));

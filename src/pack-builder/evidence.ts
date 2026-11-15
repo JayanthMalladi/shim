@@ -3,7 +3,7 @@
  * of a package with `npm pack` (a download of a published tarball — it installs nothing and runs
  * no lifecycle scripts), unpacks them, and diffs the exported `.d.ts` surface: which top-level
  * exports were removed or added, and which kept their name but changed signature (including a
- * class/interface losing a member, which is how `ZodError.issues` and `res.sendfile` surface).
+ * class/interface losing a member, which is how a removed property or method surfaces).
  *
  * The changelog / migration-guide text is passed in as `--changelog <file>`; it is not fetched
  * here (a Haiku agent fetches it separately). `buildEvidence` combines the two into evidence.json.
