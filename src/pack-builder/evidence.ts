@@ -3,7 +3,7 @@
  * of a package with `npm pack` (a download of a published tarball — it installs nothing and runs
  * no lifecycle scripts), unpacks them, and diffs the exported `.d.ts` surface: which top-level
  * exports were removed or added, and which kept their name but changed signature (including a
- * class/interface losing a member, which is how `ZodError.errors` and `res.sendfile` surface).
+ * class/interface losing a member, which is how a removed property or method surfaces).
  *
  * The changelog / migration-guide text is passed in as `--changelog <file>`; it is not fetched
  * here (a Haiku agent fetches it separately). `buildEvidence` combines the two into evidence.json.
@@ -38,38 +38,59 @@ export function packPackage(pkg: string, version: string, outDir: string): strin
 }
 
 /**
- * Unpack an npm tarball (a `package/`-rooted ustar, gzip-compressed) into `destDir`, stripping the
- * leading `package/` component — in pure Node, because the system `tar` binary is flaky on Windows
- * ("Cannot connect to C:"). Only regular files and directories are written; symlinks are dropped
- * (a library's `.d.ts` surface is plain files).
+ * Unpack a raw (un-gzipped) ustar tar buffer into `destDir`, stripping the archive's root component
+ * ("package/..."). Only regular files and directories are written; symlinks are dropped (a library's
+ * `.d.ts` surface is plain files). In pure Node, because the system `tar` binary is flaky on Windows
+ * ("Cannot connect to C:").
+ *
+ * Two safety properties a tar-based unpacker must also have:
+ *   - the ustar `prefix` field (bytes 345..500) is joined onto `name` so long paths aren't cut off
+ *     at 100 characters;
+ *   - every entry's resolved target is checked to stay inside `destDir`. An entry whose path escapes
+ *     it (a `../`, an absolute name) is skipped, so a hostile tarball can't write outside its dest.
  */
-function unpackTgz(tgzPath: string, destDir: string): void {
-  const buf = zlib.gunzipSync(fs.readFileSync(tgzPath));
-  // ustar: 512-byte headers; name in bytes [0..100], octal size in [124..135], typeflag byte 156.
-  // A trailing "/" on the name marks a directory. The next header starts at the current one's
-  // 512-byte block rounded up to 512.
+export function unpackTar(buf: Buffer, destDir: string): void {
+  // `inside` is true only for paths that are destDir itself or strictly within it.
+  const inside = (p: string): boolean => {
+    const rel = path.relative(destDir, p);
+    if (rel === "") return true;
+    if (path.isAbsolute(rel) || rel === ".." || rel.startsWith(`..${path.sep}`)) return false;
+    return true;
+  };
   let off = 0;
   while (off + 512 <= buf.length) {
+    // Join the name field with the ustar prefix field so long paths aren't cut off at 100 bytes.
     const name = buf.subarray(off, off + 100).toString("utf8").replace(/\0.*$/, "");
-    if (name === "") break; // all-zero header: end of archive
+    const prefix = buf.subarray(off + 345, off + 500).toString("utf8").replace(/\0.*$/, "");
+    const full = name === "" ? "" : prefix ? `${prefix}/${name}` : name;
+    if (full === "") break; // all-zero header: end of archive
     const sizeStr = buf.subarray(off + 124, off + 136).toString("utf8").replace(/\0.*/, "").trim();
     const size = parseInt(sizeStr || "0", 8) || 0;
     const type = buf[off + 156]; // 48 = "0" file, 55 = "7" dir, others (symlink) ignored
     const dataStart = off + 512;
-    if ((type === 48 || type === 55) && size > 0 || type === 55) {
-      // Strip the first path segment ("package/...") so files land directly under destDir.
-      const rel = name.replace(/\/+$/, "").split("/").slice(1).join("/");
-      if (rel) {
-        const target = path.join(destDir, rel);
-        if (type === 55) fs.mkdirSync(target, { recursive: true });
-        else {
-          fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, buf.subarray(dataStart, dataStart + size));
-        }
-      }
-    }
+    // Always advance `off` past the current entry BEFORE deciding to skip, so a hostile entry
+    // can't trap the loop.
     off = dataStart + Math.ceil(size / 512) * 512;
+    if (type !== 48 && type !== 55) continue;
+    // Strip the first path segment ("package/...") so files land directly under destDir.
+    const rel = full.replace(/\/+$/, "").split("/").slice(1).join("/");
+    if (!rel) continue; // no content after root segment (e.g. bare "package" or "package/")
+    // Skip entries that would escape destDir: absolute paths, drive-letter paths, or `..` segments.
+    const hasDdot = full.split("/").some((s) => s === "..");
+    if (full.startsWith("/") || full.startsWith("\\") || /^[A-Za-z]:/.test(full) || hasDdot) continue;
+    const target = path.join(destDir, rel);
+    if (!inside(target)) continue;
+    if (type === 55) fs.mkdirSync(target, { recursive: true });
+    else {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, buf.subarray(dataStart, dataStart + size));
+    }
   }
+}
+
+/** Unpack a gzip-compressed npm tarball into `destDir` (gunzip, then `unpackTar`). */
+function unpackTgz(tgzPath: string, destDir: string): void {
+  unpackTar(zlib.gunzipSync(fs.readFileSync(tgzPath)), destDir);
 }
 
 /** The .d.ts files a package ships: every `*.d.ts` under the package root, node_modules excluded. */

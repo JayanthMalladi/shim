@@ -6,6 +6,7 @@
  * an off-allowlist id falls back to the default, so a bad env value can't reach the CLI.
  */
 import fs from "node:fs";
+import path from "node:path";
 import { runAgentBackend, type ExecResult } from "../exec.js";
 import { ALLOWED_MODELS, FORBIDDEN_MODEL_RE } from "../evolve-guard.js";
 import type { Evidence, DraftAnswer, Candidate, JudgeVerdict, BuildReport, DslRule } from "./types.js";
@@ -67,6 +68,30 @@ function evidenceLines(e: Evidence): string[] {
   return lines;
 }
 
+/** Collapse all whitespace runs to a single space and trim — the comparison unit for citations. */
+const normWs = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/**
+ * Deterministic evidence-citation gate. The draft model writes the `evidence` string itself, and
+ * the judge is asked to trust it — so before the judge runs, reject any candidate whose `evidence`
+ * is not, after whitespace normalization, (a) one of the .d.ts diff lines the draft was shown, or
+ * (b) a substring of the changelog file. This is model-free: a fabricated or paraphrased citation
+ * drops the candidate deterministically, before any judge cost is spent on it.
+ */
+export function evidenceCited(e: Evidence, c: Candidate): boolean {
+  const cite = normWs(c.evidence ?? "");
+  if (cite === "") return false;
+  const diffLine = evidenceLines(e).some((l) => normWs(l) === cite);
+  const changelog = e.changelog ? normWs(e.changelog) : "";
+  const inChangelog = changelog !== "" && changelog.includes(cite);
+  return diffLine || inChangelog;
+}
+
+/** The admitted candidates that survive the deterministic evidence-citation gate. */
+export function citedCandidates(e: Evidence, cands: Candidate[]): Candidate[] {
+  return cands.filter((c) => evidenceCited(e, c));
+}
+
 function draftPrompt(e: Evidence, changelogFile: string | undefined, outDir: string): string {
   const lines = evidenceLines(e);
   return [
@@ -83,7 +108,8 @@ function draftPrompt(e: Evidence, changelogFile: string | undefined, outDir: str
     "Write each candidate rule's fixtures to disk FIRST: `__fixtures__/flag_<ruleid>.ts` (code the rule must",
     "flag, with a `// FLAG` trailing comment on the flagged line) and `__fixtures__/noflag_<ruleid>.ts` (code the",
     "rule must NOT flag, with a `// OK` comment on the line). Use the real import of ${e.package} and realistic",
-    "values. Then output ONLY a JSON array of answers, one per breaking change, and nothing after it.",
+    "values. Then write your JSON answer array to `answers.json` in this directory, rewriting it after each rule.",
+    "Finally, output ONLY the JSON array, one per breaking change, and nothing after it.",
     "",
     'Shape of each answer: {"evidence":"<the diff line or changelog line this encodes>","rule":{...DslRule...}}',
     "for a candidate, or {\"evidence\":\"...\",\"skip\":\"loud|static|other\",\"skipReason\":\"...\"} for a skip.",
@@ -94,8 +120,19 @@ function draftPrompt(e: Evidence, changelogFile: string | undefined, outDir: str
   ].join("\n");
 }
 
-/** Parse the draft's JSON answer array out of a CLI run; [] when the run produced no parsable JSON. */
-export function parseDraft(res: ExecResult): DraftAnswer[] {
+/**
+ * Parse the draft's JSON answer array out of a CLI run. When `outDir` is given, the model may have
+ * written its answer array to `<outDir>/answers.json` (incremental: rewritten after each rule).
+ * Read that file first; fall back to parsing the JSON embedded in the final text.
+ */
+export function parseDraft(res: ExecResult, outDir?: string): DraftAnswer[] {
+  if (outDir) {
+    try {
+      const raw = fs.readFileSync(path.join(outDir, "answers.json"), "utf8");
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr as DraftAnswer[];
+    } catch {}
+  }
   const text = res.text ?? res.output;
   const m = text.match(/\[[\s\S]*\]/);
   if (!m) return [];

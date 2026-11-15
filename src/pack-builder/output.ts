@@ -77,6 +77,7 @@ export function buildReportMd(report: BuildReport, manifest: PackManifest): stri
     `- Cost: ${report.cost == null ? "unpriced (dsh or ANTHROPIC_BASE_URL)" : `$${report.cost}`}.`,
     `- Candidates produced: ${report.candidates}. Skipped: ${report.skips.length}.`,
     `- Admitted by the harness: ${report.admitted.length ? report.admitted.join(", ") : "none"}.`,
+    `- Dropped by the evidence-citation gate: ${report.evidenceRejected.length ? report.evidenceRejected.join(", ") : "none"}.`,
     `- Shipped (admitted + judged in): ${report.shipped.length ? report.shipped.join(", ") : "none"}.`,
     "",
     `## Rules in the manifest`,
