@@ -1,10 +1,10 @@
 {
-  "asOf": "2026-11-23T05:19:44.310Z",
+  "asOf": "2026-11-24T03:44:07.193Z",
   "prs": {
     "total": 18,
-    "open": 16,
+    "open": 15,
     "merged": 0,
-    "replied": 3,
+    "replied": 4,
     "mergeRate": "0%",
     "mergeRate3d": "0/18 (0%)"
   },
@@ -90,7 +90,7 @@
     {
       "repo": "HoudiniSwap/houdiniswap-agent",
       "url": "https://github.com/HoudiniSwap/houdiniswap-agent/pull/29",
-      "state": "open",
+      "state": "closed",
       "openedAt": "2026-10-29"
     },
     {
